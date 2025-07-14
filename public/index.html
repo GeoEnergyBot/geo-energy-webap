@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Geo Energy Game</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet"/>
+  <style>
+    #map { height: 100vh; }
+    #collectBtn {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 12px 20px;
+      background: #1a73e8;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 16px;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <button id="collectBtn">Собрать энергию ⚡</button>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    let map = L.map('map').setView([51.1605, 71.4704], 15); // Центр - Астана
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+    }).addTo(map);
+
+    const energyPoints = [
+      {lat: 51.1607, lon: 71.4700},
+      {lat: 51.1610, lon: 71.4712}
+    ];
+
+    let userMarker = null;
+    let currentLat = 0;
+    let currentLon = 0;
+    let collectBtn = document.getElementById('collectBtn');
+
+    function distance(lat1, lon1, lat2, lon2) {
+      const R = 6371e3;
+      const φ1 = lat1 * Math.PI/180;
+      const φ2 = lat2 * Math.PI/180;
+      const Δφ = (lat2-lat1) * Math.PI/180;
+      const Δλ = (lon2-lon1) * Math.PI/180;
+
+      const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+                Math.cos(φ1) * Math.cos(φ2) *
+                Math.sin(Δλ/2) * Math.sin(Δλ/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+      return R * c;
+    }
+
+    function checkProximity() {
+      for (let point of energyPoints) {
+        const dist = distance(currentLat, currentLon, point.lat, point.lon);
+        if (dist < 50) {
+          collectBtn.style.display = 'block';
+          return;
+        }
+      }
+      collectBtn.style.display = 'none';
+    }
+
+    energyPoints.forEach(pt => {
+      L.marker([pt.lat, pt.lon], {title: "Энергия"}).addTo(map);
+    });
+
+    function onLocationFound(e) {
+      currentLat = e.latitude;
+      currentLon = e.longitude;
+
+      if (userMarker) {
+        userMarker.setLatLng(e.latlng);
+      } else {
+        userMarker = L.marker(e.latlng).addTo(map);
+      }
+
+      checkProximity();
+    }
+
+    function onLocationError(e) {
+      alert("Ошибка геолокации: " + e.message);
+    }
+
+    map.locate({setView: true, watch: true, maxZoom: 17});
+    map.on('locationfound', onLocationFound);
+    map.on('locationerror', onLocationError);
+
+    collectBtn.onclick = () => {
+      alert("Ты собрал ⚡энергию!");
+      collectBtn.style.display = 'none';
+    }
+  </script>
+</body>
+</html>
