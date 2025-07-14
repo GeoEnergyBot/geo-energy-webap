@@ -1,241 +1,34 @@
-
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
-  <meta charset="utf-8" />
-  <title>Geo Energy Game</title>
+  <meta charset="UTF-8">
+  <title>GeoEnergyBot</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet"/>
+  <link rel="stylesheet" href="style.css">
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <style>
-    body, html {
-      margin: 0;
-      padding: 0;
-      font-family: sans-serif;
-      background: #f0f0f0;
-    }
-    #topbar {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 60px;
-      background: #222;
-      color: #fff;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0 12px;
-      z-index: 999;
-    }
-    #playerInfo {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-    #avatar {
-      width: 40px;
-      height: 40px;
-      border-radius: 50%;
-      background: url('https://i.imgur.com/NZVQvGU.png') center/cover no-repeat;
-    }
-    #username {
-      font-size: 16px;
-      font-weight: bold;
-    }
-    #level {
-      font-size: 14px;
-      color: #aaa;
-    }
-    #energyBar {
-      background: #444;
-      border-radius: 6px;
-      overflow: hidden;
-      width: 150px;
-      height: 16px;
-      position: relative;
-    }
-    #energyFill {
-      background: #ffc107;
-      height: 100%;
-      width: 30%;
-    }
-    #map {
-      position: absolute;
-      top: 60px;
-      bottom: 50px;
-      width: 100%;
-    }
-    #collectBtn {
-      position: absolute;
-      bottom: 60px;
-      left: 50%;
-      transform: translateX(-50%);
-      padding: 12px 20px;
-      background: #1a73e8;
-      color: white;
-      border: none;
-      border-radius: 6px;
-      font-size: 16px;
-      display: none;
-      z-index: 999;
-    }
-    #bottomMenu {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      width: 100%;
-      height: 50px;
-      background: #222;
-      display: flex;
-      justify-content: space-around;
-      align-items: center;
-    }
-    .menuItem {
-      color: #fff;
-      font-size: 20px;
-      text-align: center;
-      flex: 1;
-    }
-  </style>
 </head>
 <body>
   <div id="topbar">
-    <div id="playerInfo">
-      <div id="avatar"></div>
+    <div id="profile">
+      <img id="avatar" src="ghost_avatar.png" alt="avatar">
       <div>
         <div id="username">Игрок</div>
         <div id="level">Уровень 1</div>
       </div>
     </div>
-    <div id="energyBar">
-      <div id="energyFill"></div>
+    <div id="energy-bar-container">
+      <div id="energy-bar"><div id="energy-fill"></div></div>
+      <span>⚡</span>
     </div>
   </div>
-
   <div id="map"></div>
-  <button id="collectBtn">Собрать энергию ⚡</button>
-
-  <div id="bottomMenu">
-    <div class="menuItem">🏠</div>
-    <div class="menuItem">🎒</div>
-    <div class="menuItem">⚙️</div>
+  <div id="navbar">
+    <button onclick="home()">🏠</button>
+    <button onclick="inventory()">🎒</button>
+    <button onclick="settings()">⚙️</button>
   </div>
-
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
-  <script>
-    const supabase = supabase.createClient(
-      "https://ptkzsrlicfhufdnegwjl.supabase.co",
-      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-    );
-
-    let tg = window.Telegram.WebApp;
-    tg.expand();
-    const user = tg.initDataUnsafe.user;
-    const userId = user.id;
-    const username = user.username || (user.first_name + ' ' + (user.last_name || ''));
-    document.getElementById("username").innerText = username;
-
-    let energy = 0;
-    const energyText = document.getElementById("energy");
-    const collectBtn = document.getElementById("collectBtn");
-    const energyFill = document.getElementById("energyFill");
-
-    async function loadOrCreatePlayer() {
-      let { data, error } = await supabase
-        .from('players')
-        .select('*')
-        .eq('id', userId);
-
-      if (data.length === 0) {
-        await supabase.from('players').insert([{ id: userId, username, energy: 0 }]);
-        energy = 0;
-      } else {
-        energy = data[0].energy;
-      }
-      updateEnergyBar();
-    }
-
-    async function addEnergy(amount) {
-      energy += amount;
-      updateEnergyBar();
-      await supabase.from('players')
-        .update({ energy })
-        .eq('id', userId);
-    }
-
-    function updateEnergyBar() {
-      let percent = Math.min((energy % 10) * 10, 100);
-      energyFill.style.width = percent + "%";
-    }
-
-    let map = L.map('map').setView([51.1605, 71.4704], 15);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
-
-    const energyPoints = [
-      {lat: 51.1607, lon: 71.4700},
-      {lat: 51.1610, lon: 71.4712}
-    ];
-
-    let userMarker = null;
-    let currentLat = 0;
-    let currentLon = 0;
-
-    function distance(lat1, lon1, lat2, lon2) {
-      const R = 6371e3;
-      const φ1 = lat1 * Math.PI/180;
-      const φ2 = lat2 * Math.PI/180;
-      const Δφ = (lat2-lat1) * Math.PI/180;
-      const Δλ = (lon2-lon1) * Math.PI/180;
-      const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
-                Math.cos(φ1) * Math.cos(φ2) *
-                Math.sin(Δλ/2) * Math.sin(Δλ/2);
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-      return R * c;
-    }
-
-    function checkProximity() {
-      for (let point of energyPoints) {
-        const dist = distance(currentLat, currentLon, point.lat, point.lon);
-        if (dist < 50) {
-          collectBtn.style.display = 'block';
-          return;
-        }
-      }
-      collectBtn.style.display = 'none';
-    }
-
-    energyPoints.forEach(pt => {
-      L.marker([pt.lat, pt.lon], {title: "Энергия"}).addTo(map);
-    });
-
-    function onLocationFound(e) {
-      currentLat = e.latitude;
-      currentLon = e.longitude;
-      if (userMarker) {
-        userMarker.setLatLng(e.latlng);
-      } else {
-        userMarker = L.marker(e.latlng).addTo(map);
-      }
-      checkProximity();
-    }
-
-    function onLocationError(e) {
-      alert("Ошибка геолокации: " + e.message);
-    }
-
-    map.locate({setView: true, watch: true, maxZoom: 17});
-    map.on('locationfound', onLocationFound);
-    map.on('locationerror', onLocationError);
-
-    collectBtn.onclick = () => {
-      addEnergy(1);
-      alert("Ты собрал ⚡энергию!");
-      collectBtn.style.display = 'none';
-    };
-
-    loadOrCreatePlayer();
-  </script>
+  <script src="script.js"></script>
 </body>
 </html>

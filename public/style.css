@@ -1,0 +1,64 @@
+
+body, html {
+  margin: 0;
+  padding: 0;
+  font-family: 'Segoe UI', sans-serif;
+  height: 100%;
+}
+#topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #222;
+  color: white;
+  padding: 10px;
+}
+#profile {
+  display: flex;
+  align-items: center;
+}
+#avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  margin-right: 10px;
+}
+#energy-bar-container {
+  display: flex;
+  align-items: center;
+}
+#energy-bar {
+  width: 120px;
+  height: 12px;
+  background: #555;
+  border-radius: 6px;
+  margin-right: 5px;
+  overflow: hidden;
+}
+#energy-fill {
+  width: 40%;
+  height: 100%;
+  background: linear-gradient(to right, #aaff00, #00ff00);
+  animation: pulse 2s infinite;
+}
+@keyframes pulse {
+  0% { opacity: 0.8; }
+  50% { opacity: 1; }
+  100% { opacity: 0.8; }
+}
+#map {
+  height: calc(100% - 110px);
+  width: 100%;
+}
+#navbar {
+  display: flex;
+  justify-content: space-around;
+  background: #222;
+  padding: 10px;
+}
+#navbar button {
+  font-size: 22px;
+  background: none;
+  border: none;
+  color: white;
+}
