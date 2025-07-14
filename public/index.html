@@ -1,28 +1,43 @@
-
 <!DOCTYPE html>
-<html lang="ru">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Geo Energy Game</title>
-    <link rel="stylesheet" href="css/style.css">
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <script defer src="js/script.js"></script>
+  <meta charset="utf-8" />
+  <title>Geo Energy Game</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link href="css/style.css" rel="stylesheet"/>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
 </head>
 <body>
-    <div id="topbar">
-        <div id="username">Игрок</div>
-        <div>⚡ <span id="energy">0</span></div>
+  <div id="topbar">
+    <div id="username">Игрок</div>
+    <div id="level">Уровень: 1</div>
+    <div>⚡ <span id="energy">0</span></div>
+  </div>
+
+  <div id="map"></div>
+
+  <div id="bottom-menu">
+    <button id="btn-inventory">🎒 Инвентарь</button>
+    <button id="btn-shop">🛒 Магазин</button>
+    <button id="btn-ranking">🏆 Рейтинг</button>
+    <button id="btn-bestiary">👻 Бестиарий</button>
+  </div>
+
+  <div id="popup-inventory" class="popup hidden">
+    <div class="popup-header">
+      <h2>Инвентарь</h2>
+      <button id="close-inventory">Назад</button>
     </div>
-    <div id="map"></div>
-    <button id="collectBtn">Собрать энергию ⚡</button>
-    <div id="bottom-menu">
-        <button onclick="openInventory()">🎒 Инвентарь</button>
-        <button onclick="openShop()">🛒 Магазин</button>
-        <button onclick="openRanking()">🏆 Рейтинг</button>
-        <button onclick="openBestiary()">👻 Бестиарий</button>
+    <img id="ghost-avatar" src="assets/images/ghost_avatar.png" alt="Призрак">
+    <div class="stats">
+      <p>Сила: <span id="stat-power">1</span></p>
+      <p>Здоровье: <span id="stat-health">100</span></p>
+      <p>Энергия: <span id="stat-energy">0</span></p>
     </div>
+  </div>
+
+  <audio id="energy-sound" src="assets/sounds/energy.mp3" preload="auto"></audio>
+  <script src="js/script.js"></script>
 </body>
 </html>
