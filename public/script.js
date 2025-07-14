@@ -1,59 +1,59 @@
 const supabase = supabase.createClient(
   "https://ptkzsrlicfhufdnegwjl.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0a3pzcmxpY2ZodWZkbmVnd2psIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI0NzA3NjAsImV4cCI6MjA2ODA0Njc2MH0.eI0eF_imdgGWPLiUULTprh52Jo9P69WGpe3RbCg3Afo"
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
 );
 
 let tg = window.Telegram.WebApp;
 tg.expand();
-const username = tg.initDataUnsafe.user?.username || "Игрок";
-document.getElementById("username").innerText = username;
+const user = tg.initDataUnsafe.user;
+const userId = user.id;
+const username = user.username || (user.first_name + ' ' + (user.last_name || ''));
 
-// Карта
+const collectBtn = document.getElementById("collectBtn");
 let map = L.map('map').setView([51.1605, 71.4704], 15);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+let userMarker = null;
 
-// Точки энергии
-const energyPoints = [
-  {lat: 51.1607, lon: 71.4700},
-  {lat: 51.1610, lon: 71.4712}
-];
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19
+}).addTo(map);
 
-energyPoints.forEach(pt => {
-  const icon = L.divIcon({
-    className: 'energy-blob',
-    html: '<div style="width:30px;height:30px;border-radius:50%;background:rgba(0,255,0,0.4);box-shadow:0 0 10px #0f0;"></div>',
-    iconSize: [30, 30]
-  });
-  L.marker([pt.lat, pt.lon], {icon}).addTo(map);
+// Функция загрузки точек энергии из базы
+async function loadEnergyPoints() {
+  const { data: points } = await supabase.from("energy_points").select("*");
+  for (let pt of points) {
+    if (!pt.collected) {
+      const marker = L.circle([pt.lat, pt.lon], {
+        radius: 20,
+        color: "green",
+        fillColor: "#7f7",
+        fillOpacity: 0.6
+      }).addTo(map);
+      marker.on("click", async () => {
+        const distance = map.distance(userMarker.getLatLng(), marker.getLatLng());
+        if (distance < 50) {
+          collectBtn.style.display = "block";
+          collectBtn.onclick = async () => {
+            await supabase.from("energy_points").update({ collected: true }).eq("id", pt.id);
+            await supabase.from("players").upsert({ id: userId, username, energy: pt.amount }, { onConflict: ['id'] });
+            alert("Энергия собрана!");
+            collectBtn.style.display = "none";
+            location.reload();
+          };
+        }
+      });
+    }
+  }
+}
+
+// Геолокация
+map.locate({ setView: true, watch: true, enableHighAccuracy: true });
+map.on("locationfound", (e) => {
+  if (userMarker) {
+    userMarker.setLatLng(e.latlng);
+  } else {
+    userMarker = L.marker(e.latlng).addTo(map);
+  }
 });
+map.on("locationerror", () => alert("Геолокация недоступна. Пожалуйста, включите GPS."));
 
-function openTab(name) {
-  document.getElementById("modal").style.display = "flex";
-  let content = document.getElementById("modal-content");
-
-  if (name === "shop") content.innerHTML = "<h2>Магазин</h2><ul><li>Эликсир ⚡ (5 энергии)</li><li>Шлем призрака 🎭</li></ul>";
-  if (name === "leaderboard") {
-    content.innerHTML = "<h2>Загрузка рейтинга...</h2>";
-    loadLeaderboard();
-  }
-  if (name === "inventory") {
-    content.innerHTML = "<h2>Инвентарь</h2><p>Сила: 10<br>Энергия: 15<br>Здоровье: 20</p><p>🎖️ Артефакты: Амулет духа</p>";
-  }
-  if (name === "bestiary") {
-    content.innerHTML = "<h2>Бестиарий</h2><p>👻 Малый дух<br>👻 Туманник</p>";
-  }
-}
-
-async function loadLeaderboard() {
-  const { data, error } = await supabase.from('players').select('*').order('energy', {ascending: false}).limit(100);
-  const content = document.getElementById("modal-content");
-  if (error) return content.innerHTML = "<p>Ошибка загрузки рейтинга</p>";
-  let html = "<h2>ТОП 100 игроков</h2><ol>";
-  data.forEach(p => html += `<li>${p.username || "Игрок"} — ${p.energy}⚡</li>`);
-  html += "</ol>";
-  content.innerHTML = html;
-}
-
-function closeModal() {
-  document.getElementById("modal").style.display = "none";
-}
+loadEnergyPoints();
