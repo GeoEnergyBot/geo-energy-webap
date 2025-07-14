@@ -56,3 +56,69 @@ function openModule(name) {
 function closeModal() {
     document.getElementById("modal-container").style.display = "none";
 }
+
+mapboxgl.accessToken = 'YOUR_MAPBOX_ACCESS_TOKEN'; // Замените на свой API-ключ
+
+navigator.geolocation.getCurrentPosition(successLocation, errorLocation, { enableHighAccuracy: true });
+
+function successLocation(position) {
+    setupMap([position.coords.longitude, position.coords.latitude]);
+}
+
+function errorLocation() {
+    setupMap([76.886, 43.238]); // Алматы по умолчанию
+}
+
+function setupMap(center) {
+    const map = new mapboxgl.Map({
+        container: 'map',
+        style: 'mapbox://styles/mapbox/dark-v11',
+        center: center,
+        zoom: 14
+    });
+
+    // Призрак игрока
+    const ghostEl = document.createElement('div');
+    ghostEl.className = 'mapboxgl-marker-player';
+    new mapboxgl.Marker(ghostEl).setLngLat(center).addTo(map);
+
+    // Энергетическая точка (демо)
+    const energyEl = document.createElement('div');
+    energyEl.className = 'mapboxgl-marker-energy';
+    new mapboxgl.Marker(energyEl).setLngLat([
+        center[0] + 0.001,
+        center[1] + 0.001
+    ]).addTo(map);
+}
+
+navigator.geolocation.getCurrentPosition(successLeaflet, errorLeaflet, { enableHighAccuracy: true });
+
+function successLeaflet(position) {
+    initLeafletMap([position.coords.latitude, position.coords.longitude]);
+}
+
+function errorLeaflet() {
+    initLeafletMap([43.238, 76.886]); // Алматы
+}
+
+function initLeafletMap(centerCoords) {
+    const map = L.map('map').setView(centerCoords, 16);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+
+    // Ghost avatar
+    const ghostIcon = L.divIcon({
+        className: 'ghost-avatar',
+        iconSize: [40, 40]
+    });
+    L.marker(centerCoords, { icon: ghostIcon }).addTo(map);
+
+    // Energy point
+    const energyIcon = L.divIcon({
+        className: 'energy-point',
+        iconSize: [30, 30]
+    });
+    const energyCoords = [centerCoords[0] + 0.001, centerCoords[1] + 0.001];
+    L.marker(energyCoords, { icon: energyIcon }).addTo(map);
+}
