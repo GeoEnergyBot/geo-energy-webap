@@ -1,35 +1,40 @@
 
-let tg = window.Telegram.WebApp;
-tg.ready();
+let player = {
+    name: "Игрок",
+    energy: 0,
+    level: 1,
+    spirit: 0
+};
 
-if (tg.initDataUnsafe.user) {
-  const username = tg.initDataUnsafe.user.first_name || 'Игрок';
-  document.getElementById('username').textContent = username;
+const energyDisplay = document.getElementById("energy");
+const levelDisplay = document.getElementById("level");
+
+function updateUI() {
+    const nextEnergy = getNextEnergy(player.level);
+    energyDisplay.textContent = `⚡ ${player.energy} / ${nextEnergy}`;
+    levelDisplay.textContent = `Lvl ${player.level}`;
 }
 
-// Инициализация карты
-let map = L.map('map').setView([51.1605, 71.4704], 16); // временная позиция
-
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '&copy; OSM',
-  maxZoom: 19
-}).addTo(map);
-
-// Геолокация
-function onLocationFound(e) {
-  let radius = e.accuracy;
-  let marker = L.marker(e.latlng).addTo(map)
-    .bindPopup("Вы здесь").openPopup();
-
-  L.circle(e.latlng, radius).addTo(map);
-  map.setView(e.latlng, 17);
+function getNextEnergy(level) {
+    if (level === 1) return 100;
+    if (level >= 2 && level <= 10) return level * 2 * 100;
+    if (level >= 11 && level <= 30) return level * 3 * 100;
+    if (level >= 31 && level <= 50) return level * 5 * 100;
+    if (level >= 51 && level <= 80) return level * 10 * 100;
+    return level * 20 * 100;
 }
 
-function onLocationError(e) {
-  alert("Ошибка геолокации: " + e.message);
+function gainEnergy(amount) {
+    player.energy += amount;
+    while (player.energy >= getNextEnergy(player.level)) {
+        player.energy -= getNextEnergy(player.level);
+        player.level++;
+    }
+    updateUI();
 }
 
-map.on('locationfound', onLocationFound);
-map.on('locationerror', onLocationError);
+setInterval(() => {
+    gainEnergy(Math.floor(Math.random() * 10));
+}, 3000);
 
-map.locate({setView: true, maxZoom: 16, watch: true});
+updateUI();
