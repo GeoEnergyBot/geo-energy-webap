@@ -1,105 +1,91 @@
-const supabase = supabase.createClient("https://ptkzsrlicfhufdnegwjl.supabase.co", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...");
-let tg = window.Telegram.WebApp;
+
+const tg = window.Telegram.WebApp;
 tg.expand();
-const user = tg.initDataUnsafe.user;
+const user = tg.initDataUnsafe?.user || {};
 const userId = user.id;
-const username = user.username || user.first_name;
+const username = user.username || user.first_name || "Игрок";
+document.getElementById("username").textContent = username;
 
-document.getElementById("username").innerText = username;
-
-let map = L.map('map').setView([51.1605, 71.4704], 15);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
-
-let userMarker = null;
-let currentLat = 0, currentLon = 0;
+let energy = 0;
+const energyText = document.getElementById("energyDisplay");
 const collectBtn = document.getElementById("collectBtn");
 
-map.locate({ setView: true, watch: true, enableHighAccuracy: true });
-map.on("locationfound", (e) => {
-  currentLat = e.latitude;
-  currentLon = e.longitude;
-  if (!userMarker) {
-    userMarker = L.marker(e.latlng, {
-      icon: L.icon({ iconUrl: "ghost_avatar.png", iconSize: [40, 40] })
-    }).addTo(map);
-  } else {
-    userMarker.setLatLng(e.latlng);
-  }
+let map = L.map("map").setView([51.1605, 71.4704], 15);
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  maxZoom: 19
+}).addTo(map);
+
+const ghostIcon = L.icon({
+  iconUrl: "ghost_avatar.png",
+  iconSize: [40, 40],
+  iconAnchor: [20, 20]
 });
 
-let energy = 0, level = 1;
-const energyText = document.getElementById("energy");
-const levelText = document.getElementById("level");
+let userMarker;
+navigator.geolocation.watchPosition(
+  (pos) => {
+    const latlng = [pos.coords.latitude, pos.coords.longitude];
+    if (!userMarker) {
+      userMarker = L.marker(latlng, { icon: ghostIcon }).addTo(map);
+      map.setView(latlng, 16);
+    } else {
+      userMarker.setLatLng(latlng);
+    }
+    checkEnergyProximity(latlng);
+  },
+  (err) => alert("Ошибка геолокации: " + err.message),
+  { enableHighAccuracy: true }
+);
 
-function getRequiredEnergyForNextLevel(level) {
-  if (level <= 10) return 10 * Math.pow(2, level);
-  if (level <= 30) return 10 * Math.pow(3, level - 10);
-  if (level <= 50) return 10 * Math.pow(5, level - 30);
-  if (level <= 80) return 10 * Math.pow(10, level - 50);
-  return 10 * Math.pow(20, level - 80);
+const energyPoints = [
+  { lat: 51.1609, lon: 71.4695, collected: false },
+  { lat: 51.1612, lon: 71.4709, collected: false }
+];
+
+energyPoints.forEach(p => {
+  p.marker = L.circleMarker([p.lat, p.lon], {
+    radius: 20,
+    color: "green",
+    fillOpacity: 0.4
+  }).addTo(map);
+});
+
+function getDistance(lat1, lon1, lat2, lon2) {
+  const R = 6371e3;
+  const φ1 = lat1 * Math.PI / 180;
+  const φ2 = lat2 * Math.PI / 180;
+  const Δφ = (lat2 - lat1) * Math.PI / 180;
+  const Δλ = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(Δφ / 2) ** 2 +
+    Math.cos(φ1) * Math.cos(φ2) *
+    Math.sin(Δλ / 2) ** 2;
+  return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
 }
 
-function updateStats() {
-  energyText.innerText = energy;
-  levelText.innerText = "Ур. " + level;
+function checkEnergyProximity([lat, lon]) {
+  let nearby = false;
+  energyPoints.forEach(p => {
+    if (!p.collected && getDistance(lat, lon, p.lat, p.lon) < 50) {
+      nearby = true;
+    }
+  });
+  collectBtn.style.display = nearby ? "block" : "none";
 }
 
-async function addEnergy(amount) {
-  energy += amount;
-  const nextReq = getRequiredEnergyForNextLevel(level);
-  if (energy >= nextReq) {
-    level++;
-    energy -= nextReq;
+collectBtn.onclick = () => {
+  const [lat, lon] = userMarker.getLatLng();
+  let collected = false;
+  energyPoints.forEach(p => {
+    if (!p.collected && getDistance(lat, lon, p.lat, p.lon) < 50) {
+      p.collected = true;
+      map.removeLayer(p.marker);
+      collected = true;
+    }
+  });
+  if (collected) {
+    energy += Math.floor(Math.random() * 21) + 10;
+    energyText.textContent = `⚡ ${energy}`;
+    collectBtn.style.display = "none";
+    new Audio("energy.mp3").play();
   }
-  updateStats();
-  await supabase.from("players").upsert({ id: userId, username, energy, level });
-}
-
-function openMenu(name) {
-  const panel = document.getElementById("overlay");
-  const content = document.getElementById("panelContent");
-  panel.classList.remove("hidden");
-
-  if (name === "shop") {
-    content.innerHTML = "<h3>Магазин</h3><p>В будущем — покупка артефактов</p>";
-  } else if (name === "ranking") {
-    loadRanking(content);
-  } else if (name === "inventory") {
-    content.innerHTML = "<h3>Инвентарь</h3><img src='ghost_avatar.png' width='80'/><p>Сила, здоровье, артефакты</p>";
-  } else if (name === "bestiary") {
-    content.innerHTML = "<h3>Бестиарий</h3><p>Здесь будут пойманные призраки</p>";
-  }
-}
-
-function closeMenu() {
-  document.getElementById("overlay").classList.add("hidden");
-}
-
-async function loadRanking(container) {
-  const { data } = await supabase.from("players").select("*").order("level", { ascending: false }).limit(100);
-  container.innerHTML = "<h3>Рейтинг</h3><ol>" + data.map(p => `<li>${p.username} — Ур. ${p.level}, ⚡${p.energy}</li>`).join("") + "</ol>";
-}
-
-async function spawnEnergyPoint() {
-  const points = await supabase.from("energy_points").select("*").eq("collected", false);
-  for (const pt of points.data) {
-    const marker = L.circle([pt.lat, pt.lon], {
-      radius: 20, color: "green", fillColor: "#0f0", fillOpacity: 0.5
-    }).addTo(map);
-    marker.on("click", async () => {
-      const dist = map.distance(userMarker.getLatLng(), marker.getLatLng());
-      if (dist < 50) {
-        collectBtn.style.display = "block";
-        collectBtn.onclick = async () => {
-          await supabase.from("energy_points").update({ collected: true }).eq("id", pt.id);
-          addEnergy(pt.amount);
-          collectBtn.style.display = "none";
-          marker.remove();
-        };
-      }
-    });
-  }
-}
-
-updateStats();
-spawnEnergyPoint();
+};
