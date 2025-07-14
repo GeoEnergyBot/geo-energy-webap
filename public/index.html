@@ -22,13 +22,24 @@
     </div>
 
     <div id="bottom-panel">
-        <button class="menu-btn">🛒 Магазин</button>
-        <button class="menu-btn">🏆 Рейтинг</button>
-        <button class="menu-btn">🎒 Инвентарь</button>
-        <button class="menu-btn">👻 Бестиарий</button>
+        <button class="menu-btn" onclick="openModule('shop')">🛒 Магазин</button>
+        <button class="menu-btn" onclick="openModule('rating')">🏆 Рейтинг</button>
+        <button class="menu-btn" onclick="openModule('inventory')">🎒 Инвентарь</button>
+        <button class="menu-btn" onclick="openModule('bestiary')">👻 Бестиарий</button>
     </div>
 
     <audio id="energy-sound" src="energy.mp3"></audio>
     <script src="script.js"></script>
-</body>
+
+    <div id="modal-container">
+        <div id="modal-content"></div>
+        <button onclick="closeModal()" id="close-modal">Закрыть</button>
+    </div>
+
+    <script src="modules/shop.js"></script>
+    <script src="modules/rating.js"></script>
+    <script src="modules/inventory.js"></script>
+    <script src="modules/bestiary.js"></script>
+    </body>
+
 </html>

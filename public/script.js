@@ -38,3 +38,21 @@ function getNextLevelRequirement(lvl) {
     if (lvl <= 80) return lvl * 100 * 10;
     return lvl * 100 * 20;
 }
+
+function openModule(name) {
+    const modal = document.getElementById("modal-container");
+    const content = document.getElementById("modal-content");
+    modal.style.display = "flex";
+    content.innerHTML = `<h2>Загрузка модуля "${name}"...</h2>`;
+    import(`./modules/${name}.js`)
+        .then(module => {
+            content.innerHTML = module.render ? module.render() : `<p>Модуль "${name}" загружен</p>`;
+        })
+        .catch(() => {
+            content.innerHTML = `<p>Не удалось загрузить модуль "${name}"</p>`;
+        });
+}
+
+function closeModal() {
+    document.getElementById("modal-container").style.display = "none";
+}
