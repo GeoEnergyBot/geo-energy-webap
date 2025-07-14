@@ -16,7 +16,6 @@ let user = tg.initDataUnsafe?.user;
 
 if (user) {
   const playerName = user.username || user.first_name || "Игрок";
-
   document.getElementById("player-name").innerText = playerName;
 
   // === Supabase запись ===
