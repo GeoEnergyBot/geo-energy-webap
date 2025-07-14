@@ -2,31 +2,35 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>GeoEnergy Online</title>
+  <title>GeoEnergy Full Game</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet"/>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <style>
-    html, body, #map { margin: 0; padding: 0; height: 100%; }
-    #collectBtn {
-      position: absolute;
-      bottom: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      padding: 10px 20px;
-      background-color: green;
-      color: white;
-      border: none;
-      border-radius: 8px;
-      font-size: 16px;
-      display: none;
-      z-index: 1000;
-    }
-  </style>
+  <link href="style.css" rel="stylesheet"/>
 </head>
 <body>
+  <div id="topbar">
+    <div id="username">Игрок</div>
+    <div id="level">Ур. 1</div>
+    <div>⚡ <span id="energy">0</span></div>
+  </div>
+
   <div id="map"></div>
   <button id="collectBtn">Собрать энергию ⚡</button>
+
+  <div id="menu">
+    <button onclick="openMenu('shop')">🛒 Магазин</button>
+    <button onclick="openMenu('ranking')">🏆 Рейтинг</button>
+    <button onclick="openMenu('inventory')">🎒 Инвентарь</button>
+    <button onclick="openMenu('bestiary')">👻 Бестиарий</button>
+  </div>
+
+  <div id="overlay" class="hidden">
+    <div id="panel">
+      <div id="panelContent"></div>
+      <button onclick="closeMenu()">❌ Закрыть</button>
+    </div>
+  </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
