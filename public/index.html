@@ -1,27 +1,45 @@
-
 <!DOCTYPE html>
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
-  <title>GeoEnergyBot</title>
-  <link rel="stylesheet" href="style.css" />
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GeoEnergy Game</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
-  <div class="header">
-    <div id="playerName">Игрок</div>
-    <div class="energy-bar">
-      <img src="bolt.png" alt="⚡">
-      <progress id="energyProgress" value="0" max="100"></progress>
+  <div id="topbar">
+    <div id="avatar-block">
+      <img id="ghost-avatar" src="ghost_avatar.png" alt="Ghost Avatar" />
+      <div>
+        <div id="username">Игрок</div>
+        <div id="level">Уровень 1</div>
+      </div>
+    </div>
+    <div id="energy-bar">
+      <span>⚡</span>
+      <div id="energy-fill"><div id="energy-anim"></div></div>
     </div>
   </div>
+
   <div id="map"></div>
-  <div class="menu">
-    <button onclick="openTab('inventory')">Инвентарь</button>
-    <button onclick="openTab('shop')">Магазин</button>
-    <button onclick="openTab('rating')">Рейтинг</button>
-    <button onclick="openTab('bestiary')">Бестиарий</button>
+
+  <div id="menu">
+    <button onclick="openTab('shop')">🛒<span>Магазин</span></button>
+    <button onclick="openTab('leaderboard')">🏆<span>Рейтинг</span></button>
+    <button onclick="openTab('inventory')">🎒<span>Инвентарь</span></button>
+    <button onclick="openTab('bestiary')">👻<span>Бестиарий</span></button>
   </div>
+
+  <div id="modal">
+    <div id="modal-content"></div>
+    <button onclick="closeModal()">Закрыть</button>
+  </div>
+
+  <audio id="sound-energy" src="energy.mp3"></audio>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
   <script src="script.js"></script>
 </body>
 </html>

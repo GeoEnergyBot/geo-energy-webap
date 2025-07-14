@@ -1,52 +1,59 @@
+const supabase = supabase.createClient(
+  "https://ptkzsrlicfhufdnegwjl.supabase.co",
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0a3pzcmxpY2ZodWZkbmVnd2psIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI0NzA3NjAsImV4cCI6MjA2ODA0Njc2MH0.eI0eF_imdgGWPLiUULTprh52Jo9P69WGpe3RbCg3Afo"
+);
 
-let map = L.map('map').fitWorld();
+let tg = window.Telegram.WebApp;
+tg.expand();
+const username = tg.initDataUnsafe.user?.username || "Игрок";
+document.getElementById("username").innerText = username;
 
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '&copy; OpenStreetMap contributors'
-}).addTo(map);
+// Карта
+let map = L.map('map').setView([51.1605, 71.4704], 15);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
-function onLocationFound(e) {
-  let radius = e.accuracy / 2;
+// Точки энергии
+const energyPoints = [
+  {lat: 51.1607, lon: 71.4700},
+  {lat: 51.1610, lon: 71.4712}
+];
 
-  L.marker(e.latlng).addTo(map)
-    .bindPopup("Вы здесь").openPopup();
+energyPoints.forEach(pt => {
+  const icon = L.divIcon({
+    className: 'energy-blob',
+    html: '<div style="width:30px;height:30px;border-radius:50%;background:rgba(0,255,0,0.4);box-shadow:0 0 10px #0f0;"></div>',
+    iconSize: [30, 30]
+  });
+  L.marker([pt.lat, pt.lon], {icon}).addTo(map);
+});
 
-  L.circle(e.latlng, radius).addTo(map);
+function openTab(name) {
+  document.getElementById("modal").style.display = "flex";
+  let content = document.getElementById("modal-content");
 
-  generateEnergyPoints(e.latlng);
-}
-
-function generateEnergyPoints(center) {
-  const points = 3;
-  for (let i = 0; i < points; i++) {
-    const offsetLat = (Math.random() - 0.5) * 0.01;
-    const offsetLng = (Math.random() - 0.5) * 0.01;
-    const lat = center.lat + offsetLat;
-    const lng = center.lng + offsetLng;
-    let marker = L.circle([lat, lng], {
-      radius: 15,
-      color: 'green',
-      fillColor: 'lime',
-      fillOpacity: 0.5
-    }).addTo(map).on('click', () => {
-      collectEnergy(marker);
-    });
+  if (name === "shop") content.innerHTML = "<h2>Магазин</h2><ul><li>Эликсир ⚡ (5 энергии)</li><li>Шлем призрака 🎭</li></ul>";
+  if (name === "leaderboard") {
+    content.innerHTML = "<h2>Загрузка рейтинга...</h2>";
+    loadLeaderboard();
+  }
+  if (name === "inventory") {
+    content.innerHTML = "<h2>Инвентарь</h2><p>Сила: 10<br>Энергия: 15<br>Здоровье: 20</p><p>🎖️ Артефакты: Амулет духа</p>";
+  }
+  if (name === "bestiary") {
+    content.innerHTML = "<h2>Бестиарий</h2><p>👻 Малый дух<br>👻 Туманник</p>";
   }
 }
 
-function collectEnergy(marker) {
-  marker.remove();
-  const gain = Math.floor(10 + Math.random() * 20);
-  let progress = document.getElementById('energyProgress');
-  progress.value = Math.min(100, progress.value + gain);
-  const sound = new Audio('energy.mp3');
-  sound.play();
-  alert("Вы собрали " + gain + " ⚡ энергии!");
+async function loadLeaderboard() {
+  const { data, error } = await supabase.from('players').select('*').order('energy', {ascending: false}).limit(100);
+  const content = document.getElementById("modal-content");
+  if (error) return content.innerHTML = "<p>Ошибка загрузки рейтинга</p>";
+  let html = "<h2>ТОП 100 игроков</h2><ol>";
+  data.forEach(p => html += `<li>${p.username || "Игрок"} — ${p.energy}⚡</li>`);
+  html += "</ol>";
+  content.innerHTML = html;
 }
 
-function openTab(tab) {
-  alert("Открыт раздел: " + tab);
+function closeModal() {
+  document.getElementById("modal").style.display = "none";
 }
-
-map.on('locationfound', onLocationFound);
-map.locate({setView: true, maxZoom: 16});
