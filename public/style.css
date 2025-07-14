@@ -1,0 +1,26 @@
+
+body, html { margin: 0; padding: 0; font-family: sans-serif; height: 100%; overflow: hidden; }
+#map { position: absolute; top: 80px; bottom: 50px; width: 100%; }
+#top-bar {
+  position: fixed; top: 0; left: 0; right: 0; height: 80px;
+  background: #222; color: white; display: flex; justify-content: space-between;
+  align-items: center; padding: 0 12px; z-index: 1000;
+}
+#player-info { display: flex; align-items: center; }
+#player-info img { width: 40px; height: 40px; border-radius: 50%; margin-right: 8px; }
+#energy-bar { display: flex; align-items: center; gap: 6px; }
+#energy-icon { width: 18px; height: 18px; }
+#bar-bg {
+  background: #444; width: 100px; height: 10px; border-radius: 5px; overflow: hidden;
+}
+#bar-fill {
+  background: green; height: 10px; width: 40%; /* dynamic width */
+}
+#energy-count { font-weight: bold; }
+#menu-bar {
+  position: fixed; bottom: 0; left: 0; right: 0; height: 50px;
+  background: #111; color: white; display: flex; justify-content: space-around; align-items: center;
+}
+#menu-bar button {
+  background: none; border: none; color: white; font-size: 14px; display: flex; flex-direction: column;
+}

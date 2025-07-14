@@ -3,55 +3,35 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>Geo Energy Game</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet"/>
-  <style>
-    html, body { margin: 0; padding: 0; height: 100%; font-family: sans-serif; }
-    #map { position: absolute; top: 0; bottom: 0; width: 100%; }
-    #topbar {
-      position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      height: 48px;
-      background-color: #111;
-      color: #fff;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0 12px;
-      z-index: 1000;
-    }
-    #energyDisplay {
-      font-weight: bold;
-    }
-    #collectBtn {
-      position: absolute;
-      bottom: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      background-color: #1a73e8;
-      color: white;
-      padding: 12px 20px;
-      font-size: 16px;
-      border: none;
-      border-radius: 6px;
-      display: none;
-      z-index: 1000;
-    }
-  </style>
-</head>
-<body>
-  <div id="topbar">
-    <div id="username">Игрок</div>
-    <div id="energyDisplay">⚡ 0</div>
-  </div>
-  <div id="map"></div>
-  <button id="collectBtn">Собрать энергию</button>
-
+  <title>GeoEnergyBot</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="style.css" />
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+</head>
+<body>
+  <div id="top-bar">
+    <div id="player-info">
+      <img id="avatar" src="ghost_avatar.png" alt="avatar"/>
+      <div>
+        <div id="username">Игрок</div>
+        <div id="level">Уровень 1</div>
+      </div>
+    </div>
+    <div id="energy-bar">
+      <img src="bolt.svg" id="energy-icon"/>
+      <div id="bar-bg"><div id="bar-fill"></div></div>
+      <div id="energy-count">⚡ 0</div>
+    </div>
+  </div>
+  <div id="map"></div>
+  <div id="menu-bar">
+    <button id="btn-shop">🛒 Магазин</button>
+    <button id="btn-rating">🏆 Рейтинг</button>
+    <button id="btn-inventory">🎒 Инвентарь</button>
+    <button id="btn-bestiary">👻 Бестиарий</button>
+  </div>
   <script src="script.js"></script>
 </body>
 </html>
