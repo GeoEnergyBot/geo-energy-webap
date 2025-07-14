@@ -1,31 +1,22 @@
-body, html {
-  margin: 0; padding: 0;
-  font-family: sans-serif;
-  height: 100%;
-  overflow: hidden;
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background: #111;
+    color: #fff;
 }
-#topbar {
-  background: #1a1a1a;
-  color: white;
-  padding: 10px;
-  display: flex;
-  justify-content: space-between;
+#top-menu {
+    display: flex;
+    align-items: center;
+    padding: 10px;
+    background: #222;
+    border-bottom: 1px solid #444;
 }
-#map {
-  width: 100%;
-  height: calc(100vh - 100px);
+#avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 20px;
+    margin-right: 10px;
 }
-#buttons {
-  display: flex;
-  justify-content: space-around;
-  padding: 10px;
-  background: #111;
-}
-#buttons button {
-  background: #282828;
-  color: white;
-  border: none;
-  padding: 10px 15px;
-  border-radius: 8px;
-  font-size: 16px;
+#username {
+    font-size: 16px;
 }

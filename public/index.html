@@ -1,25 +1,18 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>GeoEnergyBot</title>
-  <link rel="stylesheet" href="styles/style.css">
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet"/>
+    <meta charset="UTF-8">
+    <title>GeoEnergyBot</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="styles/style.css">
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
-  <div id="topbar">
-    <div id="username">Загрузка имени...</div>
-    <div id="stats">⚡ 0 | 💎 0 | Уровень 1</div>
-  </div>
-  <div id="map"></div>
-  <div id="buttons">
-    <button id="shopBtn">🛒 Магазин</button>
-    <button id="ratingBtn">🏆 Рейтинг</button>
-    <button id="inventoryBtn">🎒 Инвентарь</button>
-    <button id="bestiaryBtn">👻 Бестиарий</button>
-  </div>
-  <script src="scripts/main.js"></script>
+    <div id="top-menu">
+        <img id="avatar" src="https://via.placeholder.com/40" alt="avatar">
+        <span id="username">Загрузка...</span>
+    </div>
+
+    <script type="module" src="scripts/main.js"></script>
 </body>
 </html>
