@@ -1,37 +1,52 @@
+
 let map = L.map('map').fitWorld();
 
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  maxZoom: 19
+  attribution: '&copy; OpenStreetMap contributors'
 }).addTo(map);
-
-map.locate({setView: true, maxZoom: 16});
 
 function onLocationFound(e) {
   let radius = e.accuracy / 2;
+
   L.marker(e.latlng).addTo(map)
     .bindPopup("Вы здесь").openPopup();
+
   L.circle(e.latlng, radius).addTo(map);
-  spawnEnergyPoints(e.latlng);
+
+  generateEnergyPoints(e.latlng);
+}
+
+function generateEnergyPoints(center) {
+  const points = 3;
+  for (let i = 0; i < points; i++) {
+    const offsetLat = (Math.random() - 0.5) * 0.01;
+    const offsetLng = (Math.random() - 0.5) * 0.01;
+    const lat = center.lat + offsetLat;
+    const lng = center.lng + offsetLng;
+    let marker = L.circle([lat, lng], {
+      radius: 15,
+      color: 'green',
+      fillColor: 'lime',
+      fillOpacity: 0.5
+    }).addTo(map).on('click', () => {
+      collectEnergy(marker);
+    });
+  }
+}
+
+function collectEnergy(marker) {
+  marker.remove();
+  const gain = Math.floor(10 + Math.random() * 20);
+  let progress = document.getElementById('energyProgress');
+  progress.value = Math.min(100, progress.value + gain);
+  const sound = new Audio('energy.mp3');
+  sound.play();
+  alert("Вы собрали " + gain + " ⚡ энергии!");
+}
+
+function openTab(tab) {
+  alert("Открыт раздел: " + tab);
 }
 
 map.on('locationfound', onLocationFound);
-
-function spawnEnergyPoints(playerLatLng) {
-  const typeConfigs = [
-    { count: [2, 5], radius: 500, color: "green" },
-    { count: [1, 2], radius: 700, color: "blue" },
-    { count: [1, 1], radius: 2000, color: "purple" }
-  ];
-
-  typeConfigs.forEach(config => {
-    const count = Math.floor(Math.random() * (config.count[1] - config.count[0] + 1)) + config.count[0];
-    for (let i = 0; i < count; i++) {
-      const angle = Math.random() * 2 * Math.PI;
-      const distance = Math.random() * config.radius;
-      const dx = distance * Math.cos(angle) / 111320;
-      const dy = distance * Math.sin(angle) / 110540;
-      const latlng = [playerLatLng.lat + dy, playerLatLng.lng + dx];
-      L.circleMarker(latlng, { color: config.color }).addTo(map).bindPopup("Энергия");
-    }
-  });
-}
+map.locate({setView: true, maxZoom: 16});

@@ -1,23 +1,27 @@
+
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
+  <meta charset="UTF-8" />
   <title>GeoEnergyBot</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 </head>
 <body>
-  <div id="header">
-    <div id="player-info">Игрок<br><span id="level">Уровень 1</span></div>
-    <div id="energy-bar"><img src="bolt.png" alt="⚡"><progress id="energy" value="0" max="100"></progress></div>
+  <div class="header">
+    <div id="playerName">Игрок</div>
+    <div class="energy-bar">
+      <img src="bolt.png" alt="⚡">
+      <progress id="energyProgress" value="0" max="100"></progress>
+    </div>
   </div>
-  <div id="map" style="height: 500px;"></div>
-  <div id="footer">
-    <button>Инвентарь</button>
-    <button>Магазин</button>
-    <button>Рейтинг</button>
-    <button>Бестиарий</button>
+  <div id="map"></div>
+  <div class="menu">
+    <button onclick="openTab('inventory')">Инвентарь</button>
+    <button onclick="openTab('shop')">Магазин</button>
+    <button onclick="openTab('rating')">Рейтинг</button>
+    <button onclick="openTab('bestiary')">Бестиарий</button>
   </div>
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script src="script.js"></script>
 </body>
 </html>
