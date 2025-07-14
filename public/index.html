@@ -1,39 +1,25 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="utf-8" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>GeoEnergyBot</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet" />
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <style>
-    html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; font-family: sans-serif; }
-    #map { height: 100%; width: 100%; position: absolute; z-index: 1; }
-    #topbar {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 50px;
-      background: rgba(0, 0, 0, 0.7);
-      color: white;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 0 12px;
-      z-index: 2;
-      font-size: 14px;
-    }
-  </style>
+  <link rel="stylesheet" href="styles/style.css">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet"/>
 </head>
 <body>
   <div id="topbar">
-    <div id="username">Игрок</div>
-    <div>⚡ <span id="energy">0</span></div>
+    <div id="username">Загрузка имени...</div>
+    <div id="stats">⚡ 0 | 💎 0 | Уровень 1</div>
   </div>
   <div id="map"></div>
-
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="./script.js"></script>
+  <div id="buttons">
+    <button id="shopBtn">🛒 Магазин</button>
+    <button id="ratingBtn">🏆 Рейтинг</button>
+    <button id="inventoryBtn">🎒 Инвентарь</button>
+    <button id="bestiaryBtn">👻 Бестиарий</button>
+  </div>
+  <script src="scripts/main.js"></script>
 </body>
 </html>
