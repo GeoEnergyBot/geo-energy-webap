@@ -1,28 +1,80 @@
+
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>GeoEnergyBot</title>
+  <title>GeoEnergyBot - Mapbox</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link href="style.css" rel="stylesheet" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet" />
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
+  <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
+  <style>
+    body, html { margin: 0; padding: 0; font-family: sans-serif; height: 100%; }
+    #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+    #menu {
+      position: fixed; bottom: 10px; left: 50%; transform: translateX(-50%);
+      background: white; border-radius: 10px; display: flex; padding: 5px 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.3); z-index: 999;
+    }
+    .btn {
+      margin: 0 5px; padding: 10px 15px; border: none;
+      border-radius: 8px; background: #1a73e8; color: white;
+      font-size: 14px; cursor: pointer;
+    }
+  </style>
 </head>
 <body>
-  <div id="topbar">
-    <div id="username">Игрок</div>
-    <div>⚡ <span id="energy">0</span> | 🎖️ Уровень: <span id="level">1</span></div>
-  </div>
   <div id="map"></div>
-  <div id="bottom-menu">
-    <button onclick="openShop()">🛒 Магазин</button>
-    <button onclick="openRanking()">🏆 Рейтинг</button>
-    <button onclick="openInventory()">🎒 Инвентарь</button>
-    <button onclick="openBestiary()">👻 Бестиарий</button>
+  <div id="menu">
+    <button class="btn">Магазин</button>
+    <button class="btn">Рейтинг</button>
+    <button class="btn">Инвентарь</button>
+    <button class="btn">Бестиарий</button>
   </div>
-  <button id="collectBtn" onclick="collectEnergy()">Собрать энергию ⚡</button>
 
-  <script src="script.js"></script>
+  <script>
+    Telegram.WebApp.expand();
+    const user = Telegram.WebApp.initDataUnsafe.user;
+    const username = user.username || (user.first_name + " " + (user.last_name || ""));
+
+    mapboxgl.accessToken = 'pk.eyJ1IjoiZ2VvZW5lcmd5Ym90IiwiYSI6ImNsaGtydTd3dzA2cWIzdG1iY2R2MGoyOWUifQ.oNQnCpEpmQnYMIAB8OXnDQ';
+    const map = new mapboxgl.Map({
+      container: 'map',
+      style: 'mapbox://styles/mapbox/streets-v12',
+      center: [71.4704, 51.1605],
+      zoom: 14
+    });
+
+    function addPlayerMarker(lng, lat) {
+      const el = document.createElement('div');
+      el.className = 'marker';
+      el.style.backgroundImage = 'url(https://cdn-icons-png.flaticon.com/512/149/149071.png)';
+      el.style.width = '40px';
+      el.style.height = '40px';
+      el.style.backgroundSize = 'cover';
+      el.style.borderRadius = '50%';
+
+      new mapboxgl.Marker(el)
+        .setLngLat([lng, lat])
+        .addTo(map);
+    }
+
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const { latitude, longitude } = position.coords;
+          map.setCenter([longitude, latitude]);
+          addPlayerMarker(longitude, latitude);
+        },
+        (err) => {
+          alert("Ошибка геолокации: " + err.message);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000
+        }
+      );
+    }
+  </script>
 </body>
 </html>
