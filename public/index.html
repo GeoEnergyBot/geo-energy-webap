@@ -6,25 +6,29 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
     <title>GeoEnergyBot</title>
     <link rel="stylesheet" href="style.css" />
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
-    <div class="header">
-        <img src="https://i.ibb.co/YX02Z3J/ghost-icon.png" class="avatar" />
-        <div class="player-info">
-            <div id="username">Player</div>
-            <div id="level">Уровень 1</div>
-        </div>
-        <div class="energy-bar">
-            <div class="energy-fill" style="width: 25%;"></div>
-        </div>
+    <div id="top-panel">
+        <span id="player-name">👤 Имя</span>
+        <span id="player-energy">⚡ 0</span>
+        <span id="player-spirit">💎 0</span>
+        <span id="player-level">Ур. 1</span>
     </div>
-    <div id="map"></div>
-    <div class="menu">
-        <button>Магазин</button>
-        <button>Рейтинг</button>
-        <button>Инвентарь</button>
+
+    <div id="map-container">
+        <div id="ghost-avatar"></div>
+        <button id="collect-button">Собрать энергию</button>
     </div>
-    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+    <div id="bottom-panel">
+        <button class="menu-btn">🛒 Магазин</button>
+        <button class="menu-btn">🏆 Рейтинг</button>
+        <button class="menu-btn">🎒 Инвентарь</button>
+        <button class="menu-btn">👻 Бестиарий</button>
+    </div>
+
+    <audio id="energy-sound" src="energy.mp3"></audio>
     <script src="script.js"></script>
 </body>
 </html>

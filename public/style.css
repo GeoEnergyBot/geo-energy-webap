@@ -1,153 +1,53 @@
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
-body, html {
-  width: 100%;
-  height: 100%;
-  font-family: sans-serif;
-  background: #fff;
-  display: flex;
-  flex-direction: column;
-}
-
-#topbar {
-  background: #222;
-  color: #fff;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px;
-}
-
-#avatar-block {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-#ghost-avatar {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-}
-
-#energy-bar {
-  display: flex;
-  align-items: center;
-  background: #444;
-  width: 100px;
-  height: 10px;
-  border-radius: 5px;
-  overflow: hidden;
-  margin-left: 8px;
-  position: relative;
-}
-
-#energy-bar span {
-  margin-right: 5px;
-}
-
-#energy-fill {
-  background: limegreen;
-  width: 50%;
-  height: 100%;
-}
-
-#map {
-  flex-grow: 1;
-  width: 100%;
-  height: 100%;
-  z-index: 0;
-}
-
-#bottom-bar {
-  display: flex;
-  justify-content: space-around;
-  padding: 10px;
-  background: #f2f2f2;
-  border-top: 1px solid #ccc;
-}
-
-#bottom-bar button {
-  padding: 8px 12px;
-  border: none;
-  border-radius: 6px;
-  background-color: #007bff;
-  color: white;
-  font-weight: bold;
-  cursor: pointer;
-}
-
-
 body {
     margin: 0;
-    font-family: 'Segoe UI', sans-serif;
-    background: #000;
-}
-
-#map {
-    height: 70vh;
-    width: 100%;
-    z-index: 1;
-}
-
-.header {
-    display: flex;
-    align-items: center;
-    background: linear-gradient(135deg, #101010, #1e1e1e);
+    font-family: sans-serif;
+    background: #0f0f0f;
     color: white;
-    padding: 10px;
-    gap: 10px;
 }
-
-.avatar {
-    height: 40px;
-    width: 40px;
-}
-
-.player-info {
-    flex-grow: 1;
-}
-
-.energy-bar {
-    background: #444;
-    height: 10px;
-    width: 100px;
-    border-radius: 5px;
-    overflow: hidden;
-    margin-left: auto;
-}
-
-.energy-fill {
-    background: linear-gradient(to right, #22ff22, #aaffaa);
-    height: 100%;
-    transition: width 0.3s ease;
-}
-
-.menu {
+#top-panel {
     display: flex;
     justify-content: space-around;
-    background: #0f0f0f;
-    padding: 10px 0;
-    border-top: 2px solid #333;
-}
-
-.menu button {
-    padding: 10px 16px;
-    font-size: 14px;
-    color: #fff;
-    background: linear-gradient(145deg, #222, #333);
-    border: 1px solid #555;
-    border-radius: 12px;
-    box-shadow: 0 0 8px #00ffff55;
-    transition: transform 0.2s;
-}
-
-.menu button:hover {
-    transform: scale(1.05);
+    padding: 10px;
     background: #1a1a1a;
+    font-size: 16px;
+}
+#map-container {
+    height: 70vh;
+    background: #222;
+    position: relative;
+}
+#ghost-avatar {
+    width: 50px;
+    height: 50px;
+    background: url('ghost.png') no-repeat center/contain;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+#collect-button {
+    position: absolute;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #00ff99;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 12px;
+    font-size: 16px;
+    color: black;
+}
+#bottom-panel {
+    display: flex;
+    justify-content: space-around;
+    background: #1a1a1a;
+    padding: 10px 0;
+}
+.menu-btn {
+    background: #333;
+    color: white;
+    border: none;
+    padding: 10px;
+    border-radius: 10px;
 }
