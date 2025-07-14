@@ -1,43 +1,71 @@
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
-  <meta charset="utf-8" />
-  <title>Geo Energy Game</title>
+  <meta charset="UTF-8">
+  <title>GeoEnergyBot</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link href="css/style.css" rel="stylesheet"/>
+  <link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet"/>
+  <link href="style.css" rel="stylesheet"/>
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
 </head>
 <body>
   <div id="topbar">
-    <div id="username">Игрок</div>
-    <div id="level">Уровень: 1</div>
-    <div>⚡ <span id="energy">0</span></div>
+    <img src="ghost_avatar.png" id="avatar" alt="Аватар">
+    <div id="playerInfo">
+      <div id="username">Игрок</div>
+      <div>⚡ <span id="energy">0</span> | 🎚️ Уровень: <span id="level">1</span></div>
+    </div>
   </div>
 
   <div id="map"></div>
+  <button id="collectBtn">Собрать энергию ⚡</button>
 
-  <div id="bottom-menu">
-    <button id="btn-inventory">🎒 Инвентарь</button>
-    <button id="btn-shop">🛒 Магазин</button>
-    <button id="btn-ranking">🏆 Рейтинг</button>
-    <button id="btn-bestiary">👻 Бестиарий</button>
+  <div id="bottomMenu">
+    <button onclick="openInventory()">🎒 Инвентарь</button>
+    <button onclick="openShop()">🛒 Магазин</button>
+    <button onclick="openRanking()">🏆 Рейтинг</button>
+    <button onclick="openBestiary()">👻 Бестиарий</button>
   </div>
 
-  <div id="popup-inventory" class="popup hidden">
-    <div class="popup-header">
-      <h2>Инвентарь</h2>
-      <button id="close-inventory">Назад</button>
-    </div>
-    <img id="ghost-avatar" src="assets/images/ghost_avatar.png" alt="Призрак">
-    <div class="stats">
-      <p>Сила: <span id="stat-power">1</span></p>
-      <p>Здоровье: <span id="stat-health">100</span></p>
-      <p>Энергия: <span id="stat-energy">0</span></p>
+  <!-- Окна -->
+  <div class="overlay" id="inventoryWindow">
+    <div class="window">
+      <h2>🎒 Инвентарь</h2>
+      <img src="ghost_avatar.png" width="80">
+      <p>Сила: <span id="power">1</span></p>
+      <p>Здоровье: <span id="health">100</span></p>
+      <p>Энергия: <span id="energyBar">0 / 100</span></p>
+      <button onclick="closeWindows()">Назад</button>
     </div>
   </div>
 
-  <audio id="energy-sound" src="assets/sounds/energy.mp3" preload="auto"></audio>
-  <script src="js/script.js"></script>
+  <div class="overlay" id="shopWindow">
+    <div class="window">
+      <h2>🛒 Магазин</h2>
+      <p>Тут можно будет покупать артефакты за валюту SPIRIT</p>
+      <button onclick="closeWindows()">Назад</button>
+    </div>
+  </div>
+
+  <div class="overlay" id="rankingWindow">
+    <div class="window">
+      <h2>🏆 Рейтинг</h2>
+      <ul id="rankingList"></ul>
+      <button onclick="closeWindows()">Назад</button>
+    </div>
+  </div>
+
+  <div class="overlay" id="bestiaryWindow">
+    <div class="window">
+      <h2>👻 Бестиарий</h2>
+      <p>Здесь будут храниться пойманные призраки</p>
+      <button onclick="closeWindows()">Назад</button>
+    </div>
+  </div>
+
+  <!-- Скрипты -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+  <script src="script.js"></script>
 </body>
 </html>
