@@ -1,33 +1,23 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html>
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>GeoEnergyBot</title>
-  <link rel="stylesheet" href="style.css" />
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div id="map"></div>
-  <div class="top-bar">
-    <div class="player-info">
-      <div id="player-name">Игрок</div>
-      <div id="player-level">Уровень 1</div>
-    </div>
-    <div class="energy-bar">
-      <img src="energy.png" class="icon" />
-      <div class="bar-container">
-        <div id="energy-progress"></div>
-      </div>
-    </div>
+  <div id="header">
+    <div id="player-info">Игрок<br><span id="level">Уровень 1</span></div>
+    <div id="energy-bar"><img src="bolt.png" alt="⚡"><progress id="energy" value="0" max="100"></progress></div>
   </div>
-  <div class="bottom-menu">
-    <button onclick="openInventory()">Инвентарь</button>
-    <button onclick="openShop()">Магазин</button>
-    <button onclick="openRanking()">Рейтинг</button>
-    <button onclick="openBestiary()">Бестиарий</button>
+  <div id="map" style="height: 500px;"></div>
+  <div id="footer">
+    <button>Инвентарь</button>
+    <button>Магазин</button>
+    <button>Рейтинг</button>
+    <button>Бестиарий</button>
   </div>
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script src="script.js"></script>
 </body>
 </html>
