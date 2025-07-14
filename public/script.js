@@ -1,44 +1,37 @@
 
-const supabase = supabase.createClient(
-  "https://ptkzsrlicfhufdnegwjl.supabase.co",
-  "public-anon-key"
-);
-
 let tg = window.Telegram.WebApp;
 tg.expand();
 
-const user = tg.initDataUnsafe.user;
-const userId = user.id;
-const username = user.username || user.first_name + (user.last_name ? " " + user.last_name : "");
+document.getElementById("username").innerText = tg.initDataUnsafe.user?.first_name || "Игрок";
 
-document.getElementById("username").innerText = username;
-document.getElementById("avatar").src = "ghost_avatar.png";
+// Инициализация карты
+const map = L.map('map').setView([0, 0], 15);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© OSM',
+}).addTo(map);
 
-let energy = 0;
-const energyText = document.getElementById("energy");
-
-async function loadOrCreatePlayer() {
-  let { data, error } = await supabase
-    .from('players')
-    .select('*')
-    .eq('id', userId)
-    .single();
-
-  if (!data) {
-    await supabase.from('players').insert([{ id: userId, username, energy: 0 }]);
-    energy = 0;
-  } else {
-    energy = data.energy;
+// Определение и отображение геопозиции
+function locateUser() {
+  if (!navigator.geolocation) {
+    alert("Геолокация не поддерживается вашим устройством.");
+    return;
   }
-  energyText.innerText = energy;
+
+  navigator.geolocation.getCurrentPosition(position => {
+    const lat = position.coords.latitude;
+    const lon = position.coords.longitude;
+
+    map.setView([lat, lon], 17);
+    const marker = L.marker([lat, lon]).addTo(map).bindPopup("Вы здесь").openPopup();
+    L.circle([lat, lon], { radius: 25, color: "blue", fillOpacity: 0.2 }).addTo(map);
+  }, () => {
+    alert("Не удалось определить местоположение.");
+  });
 }
 
-async function addEnergy(amount) {
-  energy += amount;
-  energyText.innerText = energy;
-  await supabase.from('players')
-    .update({ energy })
-    .eq('id', userId);
-}
+locateUser();
 
-loadOrCreatePlayer();
+function openInventory() { alert("Инвентарь откроется"); }
+function openShop() { alert("Магазин откроется"); }
+function openRating() { alert("Рейтинг откроется"); }
+function openBestiary() { alert("Бестиарий откроется"); }

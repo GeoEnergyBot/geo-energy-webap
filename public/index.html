@@ -1,40 +1,37 @@
+
 <!DOCTYPE html>
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>GeoEnergy Game</title>
-  <link rel="stylesheet" href="style.css">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>GeoEnergyBot</title>
+  <link rel="stylesheet" href="style.css" />
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 </head>
 <body>
-  <div id="topbar">
-      <img id="avatar" src="" style="height: 40px; border-radius: 50%;" />
-      
-    <div id="avatar-block">
-      <img id="ghost-avatar" src="ghost_avatar.png" alt="Ghost Avatar" />
-      <div>
-        <div id="username">Игрок</div>
-        <div id="level">Уровень 1</div>
+  <div id="top-bar">
+    <div id="avatar-container"><img id="avatar" src="ghost_avatar.png" alt="Ghost Avatar"></div>
+    <div>
+      <div id="username">Игрок</div>
+      <div id="level">Уровень 1</div>
+    </div>
+    <div id="energy-bar-container">
+      <div id="energy-icon">⚡</div>
+      <div id="energy-bar">
+        <div id="energy-fill" style="width: 20%"></div>
       </div>
     </div>
-    <div id="energy-bar">
-      <span>⚡</span>
-      <div id="energy-fill"></div>
-    </div>
   </div>
-
   <div id="map"></div>
-
-  <div id="bottom-bar">
-    <button>Инвентарь</button>
-    <button>Магазин</button>
-    <button>Рейтинг</button>
-    <button>Бестиарий</button>
+  <div id="menu">
+    <button onclick="openInventory()">Инвентарь</button>
+    <button onclick="openShop()">Магазин</button>
+    <button onclick="openRating()">Рейтинг</button>
+    <button onclick="openBestiary()">Бестиарий</button>
   </div>
-
+  <footer>@GeoEnergy_Bot</footer>
   <script src="script.js"></script>
 </body>
 </html>
