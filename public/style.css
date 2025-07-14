@@ -1,23 +1,61 @@
-
-body, html { margin: 0; padding: 0; height: 100%; font-family: sans-serif; }
-#topbar {
-  position: fixed; top: 0; left: 0; width: 100%; height: 50px;
-  background: #1e1e1e; color: white; display: flex;
-  align-items: center; justify-content: space-between; padding: 0 12px;
+body, html {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  font-family: sans-serif;
 }
-#map { position: absolute; top: 50px; bottom: 60px; width: 100%; }
-#bottom-menu {
-  position: fixed; bottom: 0; width: 100%;
-  display: flex; justify-content: space-around;
-  background: #333; height: 60px; align-items: center;
+#map {
+  height: 100%;
+  width: 100%;
+  position: absolute;
+  top: 0;
+  z-index: 0;
 }
-#bottom-menu button {
-  background: #555; color: white; border: none; padding: 10px;
-  border-radius: 6px; font-size: 16px;
+.top-bar {
+  position: absolute;
+  top: 0;
+  width: 100%;
+  background: #222;
+  color: white;
+  display: flex;
+  justify-content: space-between;
+  padding: 10px;
+  z-index: 1000;
 }
-#collectBtn {
-  position: absolute; bottom: 70px; left: 50%;
-  transform: translateX(-50%); display: none;
-  background: #1a73e8; color: white; border: none;
-  padding: 10px 20px; border-radius: 8px;
+.player-info {
+  font-size: 14px;
+}
+.energy-bar {
+  display: flex;
+  align-items: center;
+}
+.icon {
+  width: 16px;
+  margin-right: 5px;
+}
+.bar-container {
+  background: #666;
+  width: 100px;
+  height: 10px;
+  border-radius: 5px;
+}
+#energy-progress {
+  width: 30%;
+  height: 100%;
+  background: limegreen;
+  border-radius: 5px;
+}
+.bottom-menu {
+  position: absolute;
+  bottom: 0;
+  width: 100%;
+  background: white;
+  display: flex;
+  justify-content: space-around;
+  padding: 10px 0;
+  z-index: 1000;
+}
+.bottom-menu button {
+  padding: 8px 14px;
+  font-size: 14px;
 }
