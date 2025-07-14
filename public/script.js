@@ -1,40 +1,27 @@
 
-let player = {
-    name: "Игрок",
-    energy: 0,
-    level: 1,
-    spirit: 0
-};
+let map = L.map('map').fitWorld();
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 18
+}).addTo(map);
 
-const energyDisplay = document.getElementById("energy");
-const levelDisplay = document.getElementById("level");
+let userMarker = null;
 
-function updateUI() {
-    const nextEnergy = getNextEnergy(player.level);
-    energyDisplay.textContent = `⚡ ${player.energy} / ${nextEnergy}`;
-    levelDisplay.textContent = `Lvl ${player.level}`;
+function onLocationFound(e) {
+  const radius = e.accuracy / 2;
+  if (userMarker) {
+    userMarker.setLatLng(e.latlng);
+  } else {
+    userMarker = L.marker(e.latlng).addTo(map)
+      .bindPopup("Ты здесь").openPopup();
+  }
+  L.circle(e.latlng, radius).addTo(map);
 }
 
-function getNextEnergy(level) {
-    if (level === 1) return 100;
-    if (level >= 2 && level <= 10) return level * 2 * 100;
-    if (level >= 11 && level <= 30) return level * 3 * 100;
-    if (level >= 31 && level <= 50) return level * 5 * 100;
-    if (level >= 51 && level <= 80) return level * 10 * 100;
-    return level * 20 * 100;
+function onLocationError(e) {
+  alert("Ошибка определения местоположения: " + e.message);
 }
 
-function gainEnergy(amount) {
-    player.energy += amount;
-    while (player.energy >= getNextEnergy(player.level)) {
-        player.energy -= getNextEnergy(player.level);
-        player.level++;
-    }
-    updateUI();
-}
+map.on('locationfound', onLocationFound);
+map.on('locationerror', onLocationError);
 
-setInterval(() => {
-    gainEnergy(Math.floor(Math.random() * 10));
-}, 3000);
-
-updateUI();
+map.locate({setView: true, maxZoom: 16, watch: true});
