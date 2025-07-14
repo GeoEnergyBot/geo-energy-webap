@@ -1,38 +1,30 @@
+
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>GeoEnergy Game</title>
-  <link rel="stylesheet" href="style.css">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>GeoEnergyBot</title>
+    <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div id="topbar">
-    <div id="avatar-block">
-      <img id="ghost-avatar" src="ghost_avatar.png" alt="Ghost Avatar" />
-      <div>
-        <div id="username">Игрок</div>
-        <div id="level">Уровень 1</div>
-      </div>
+    <div class="header">
+        <img src="https://i.ibb.co/YX02Z3J/ghost-icon.png" class="avatar" />
+        <div class="player-info">
+            <div id="username">Player</div>
+            <div id="level">Уровень 1</div>
+        </div>
+        <div class="energy-bar">
+            <div class="energy-fill" style="width: 25%;"></div>
+        </div>
     </div>
-    <div id="energy-bar">
-      <span>⚡</span>
-      <div id="energy-fill"></div>
+    <div id="map"></div>
+    <div class="menu">
+        <button>Магазин</button>
+        <button>Рейтинг</button>
+        <button>Инвентарь</button>
     </div>
-  </div>
-
-  <div id="map"></div>
-
-  <div id="bottom-bar">
-    <button>Инвентарь</button>
-    <button>Магазин</button>
-    <button>Рейтинг</button>
-    <button>Бестиарий</button>
-  </div>
-
-  <script src="script.js"></script>
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="script.js"></script>
 </body>
 </html>
