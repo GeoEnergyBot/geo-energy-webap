@@ -1,64 +1,13 @@
-
-body, html {
-  margin: 0;
-  padding: 0;
-  font-family: 'Segoe UI', sans-serif;
-  height: 100%;
-}
-#topbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background: #222;
-  color: white;
-  padding: 10px;
-}
-#profile {
-  display: flex;
-  align-items: center;
-}
-#avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 8px;
-  margin-right: 10px;
-}
-#energy-bar-container {
-  display: flex;
-  align-items: center;
-}
-#energy-bar {
-  width: 120px;
-  height: 12px;
-  background: #555;
-  border-radius: 6px;
-  margin-right: 5px;
-  overflow: hidden;
-}
-#energy-fill {
-  width: 40%;
-  height: 100%;
-  background: linear-gradient(to right, #aaff00, #00ff00);
-  animation: pulse 2s infinite;
-}
-@keyframes pulse {
-  0% { opacity: 0.8; }
-  50% { opacity: 1; }
-  100% { opacity: 0.8; }
-}
-#map {
-  height: calc(100% - 110px);
-  width: 100%;
-}
-#navbar {
-  display: flex;
-  justify-content: space-around;
-  background: #222;
-  padding: 10px;
-}
-#navbar button {
-  font-size: 22px;
-  background: none;
-  border: none;
-  color: white;
-}
+body, html {margin:0;padding:0;font-family:sans-serif;height:100%;overflow:hidden;}
+#topbar {position:fixed;top:0;width:100%;background:#222;color:#fff;display:flex;justify-content:space-between;align-items:center;padding:5px 10px;z-index:1000;}
+#avatar-block {display:flex;align-items:center;}
+#ghost-avatar {width:40px;height:40px;border-radius:50%;margin-right:8px;}
+#energy-bar {display:flex;align-items:center;width:150px;background:#555;border-radius:10px;padding:2px;}
+#energy-fill {width:100%;background:#ccc;border-radius:10px;margin-left:4px;overflow:hidden;}
+#energy-anim {width:30%;height:10px;background:linear-gradient(90deg,#0f0,#0c0);animation:pulse 1s infinite;}
+@keyframes pulse {0%{opacity:.5;}50%{opacity:1;}100%{opacity:.5;}}
+#map {position:absolute;top:60px;bottom:60px;width:100%;}
+#menu {position:fixed;bottom:0;width:100%;background:#222;display:flex;justify-content:space-around;padding:5px 0;z-index:1000;}
+#menu button {background:none;border:none;color:white;font-size:18px;display:flex;flex-direction:column;align-items:center;}
+#modal {display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:2000;justify-content:center;align-items:center;color:#fff;}
+#modal-content {background:#333;padding:20px;border-radius:10px;max-width:90%;max-height:80%;overflow:auto;}
