@@ -1,16 +1,26 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
 
-// Supabase подключение
+// Supabase
 const supabaseUrl = 'https://ptkzsrlicfhufdnegwjl.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0a3pzcmxpY2ZodWZkbmVnd2psIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI0NzA3NjAsImV4cCI6MjA2ODA0Njc2MH0.eI0eF_imdgGWPLiUULTprh52Jo9P69WGpe3RbCg3Afo';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Получение данных Telegram
+// Telegram
 let tg = window.Telegram.WebApp;
 tg.expand();
 
+const debugEl = document.createElement('div');
+debugEl.style.whiteSpace = 'pre-wrap';
+debugEl.style.padding = '10px';
+debugEl.style.color = '#0f0';
+debugEl.style.background = '#111';
+debugEl.style.fontSize = '12px';
+debugEl.innerText = '⏳ Получаю Telegram данные...';
+document.body.appendChild(debugEl);
+
 const user = tg.initDataUnsafe.user;
-console.log("👤 Telegram user:", user);
+debugEl.innerText = 'Telegram initDataUnsafe:
+' + JSON.stringify(tg.initDataUnsafe, null, 2);
 
 if (!user) {
     document.getElementById("username").textContent = "Ошибка: нет данных Telegram";
@@ -19,7 +29,6 @@ if (!user) {
     document.getElementById("username").textContent = user.first_name || user.username;
     document.getElementById("avatar").src = user.photo_url || "https://via.placeholder.com/40";
 
-    // Проверка игрока в Supabase
     (async () => {
         const { data, error } = await supabase
             .from('players')
@@ -31,7 +40,6 @@ if (!user) {
         console.log("⚠️ Ошибка при получении:", error);
 
         if (!data) {
-            // Создаём нового игрока
             const { error: insertError } = await supabase.from('players').insert([{
                 telegram_id: user.id,
                 username: user.username,
