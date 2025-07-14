@@ -9,46 +9,70 @@ const supabase = createClient(
 // Telegram SDK
 let tg = window.Telegram.WebApp;
 tg.expand();
-
 const user = tg.initDataUnsafe.user;
 
 document.getElementById("username").textContent = user?.first_name || user?.username || "Гость";
 document.getElementById("avatar").src = user?.photo_url || "https://via.placeholder.com/40";
 
-// Supabase: проверка игрока
-(async () => {
-  if (!user) return;
-  const { data, error } = await supabase
-    .from('players')
-    .select('*')
-    .eq('telegram_id', user.id)
-    .single();
+// Определим иконку игрока по уровню
+function getGhostIconByLevel(level) {
+  const index = Math.min(Math.floor((level - 1) / 10) + 1, 10);
+  return `ghost_icons/ghost_level_${String(index).padStart(2, '0')}.png`;
+}
 
-  if (!data) {
-    await supabase.from('players').insert([{
-      telegram_id: user.id,
-      username: user.username,
-      first_name: user.first_name,
-      avatar_url: user.photo_url
-    }]);
-  }
-})();
-
-// Инициализация карты
+let playerMarker;
 let map;
-navigator.geolocation.getCurrentPosition((pos) => {
-  const lat = pos.coords.latitude;
-  const lng = pos.coords.longitude;
 
-  map = L.map('map').setView([lat, lng], 16);
+// Получаем игрока и его уровень
+(async () => {
+  let level = 1;
+  if (user) {
+    const { data, error } = await supabase
+      .from('players')
+      .select('*')
+      .eq('telegram_id', user.id)
+      .single();
 
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-  }).addTo(map);
+    if (!data) {
+      await supabase.from('players').insert([{
+        telegram_id: user.id,
+        username: user.username,
+        first_name: user.first_name,
+        avatar_url: user.photo_url
+      }]);
+    } else {
+      level = data.level || 1;
+    }
+  }
 
-  const marker = L.marker([lat, lng]).addTo(map)
-    .bindPopup("Вы здесь!")
-    .openPopup();
-}, () => {
-  alert("Не удалось получить геопозицию.");
-});
+  const ghostIcon = L.icon({
+    iconUrl: getGhostIconByLevel(level),
+    iconSize: [48, 48],
+    iconAnchor: [24, 24],
+    popupAnchor: [0, -24]
+  });
+
+  // Инициализируем карту и отслеживаем перемещение
+  navigator.geolocation.watchPosition((pos) => {
+    const lat = pos.coords.latitude;
+    const lng = pos.coords.longitude;
+
+    if (!map) {
+      map = L.map('map').setView([lat, lng], 16);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+      }).addTo(map);
+    }
+
+    if (!playerMarker) {
+      playerMarker = L.marker([lat, lng], { icon: ghostIcon }).addTo(map)
+        .bindPopup("Вы здесь")
+        .openPopup();
+    } else {
+      playerMarker.setLatLng([lat, lng]);
+    }
+
+  }, () => {
+    alert("Ошибка: не удалось получить геопозицию.");
+  });
+})();
