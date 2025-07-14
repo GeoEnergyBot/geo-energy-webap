@@ -1,0 +1,23 @@
+
+body, html { margin: 0; padding: 0; height: 100%; font-family: sans-serif; }
+#topbar {
+  position: fixed; top: 0; left: 0; width: 100%; height: 50px;
+  background: #1e1e1e; color: white; display: flex;
+  align-items: center; justify-content: space-between; padding: 0 12px;
+}
+#map { position: absolute; top: 50px; bottom: 60px; width: 100%; }
+#bottom-menu {
+  position: fixed; bottom: 0; width: 100%;
+  display: flex; justify-content: space-around;
+  background: #333; height: 60px; align-items: center;
+}
+#bottom-menu button {
+  background: #555; color: white; border: none; padding: 10px;
+  border-radius: 6px; font-size: 16px;
+}
+#collectBtn {
+  position: absolute; bottom: 70px; left: 50%;
+  transform: translateX(-50%); display: none;
+  background: #1a73e8; color: white; border: none;
+  padding: 10px 20px; border-radius: 8px;
+}
