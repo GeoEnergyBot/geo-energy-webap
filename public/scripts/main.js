@@ -10,30 +10,43 @@ let tg = window.Telegram.WebApp;
 tg.expand();
 
 const user = tg.initDataUnsafe.user;
+console.log("👤 Telegram user:", user);
 
-document.getElementById("username").textContent = user.first_name || user.username;
-document.getElementById("avatar").src = user.photo_url || "https://via.placeholder.com/40";
+if (!user) {
+    document.getElementById("username").textContent = "Ошибка: нет данных Telegram";
+    console.error("❌ Нет доступа к Telegram WebApp. Запусти игру из Telegram.");
+} else {
+    document.getElementById("username").textContent = user.first_name || user.username;
+    document.getElementById("avatar").src = user.photo_url || "https://via.placeholder.com/40";
 
-// Проверка игрока в Supabase
-(async () => {
-    const { data, error } = await supabase
-        .from('players')
-        .select('*')
-        .eq('telegram_id', user.id)
-        .single();
+    // Проверка игрока в Supabase
+    (async () => {
+        const { data, error } = await supabase
+            .from('players')
+            .select('*')
+            .eq('telegram_id', user.id)
+            .single();
 
-    if (!data) {
-        // Создаём нового игрока
-        const { error: insertError } = await supabase.from('players').insert([{
-            telegram_id: user.id,
-            username: user.username,
-            first_name: user.first_name,
-            avatar_url: user.photo_url
-        }]);
+        console.log("📦 Получен игрок:", data);
+        console.log("⚠️ Ошибка при получении:", error);
 
-        if (insertError) console.error("Ошибка при создании игрока:", insertError);
-        else console.log("Создан новый игрок");
-    } else {
-        console.log("Игрок найден:", data);
-    }
-})();
+        if (!data) {
+            // Создаём нового игрока
+            const { error: insertError } = await supabase.from('players').insert([{
+                telegram_id: user.id,
+                username: user.username,
+                first_name: user.first_name,
+                avatar_url: user.photo_url
+            }]);
+
+            if (insertError) {
+                console.error("❌ Ошибка при создании игрока:", insertError);
+                document.getElementById("username").textContent = "Ошибка базы";
+            } else {
+                console.log("✅ Создан новый игрок");
+            }
+        } else {
+            console.log("✅ Игрок найден:", data);
+        }
+    })();
+}
