@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html>
 <head>
@@ -30,16 +31,17 @@
   <button id="collectBtn">Собрать энергию ⚡</button>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
-  <script>
-    const supabase = supabase.createClient(
+  <script type="module">
+    import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
+
+    const supabase = createClient(
       "https://ptkzsrlicfhufdnegwjl.supabase.co",
-      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0a3pzcmxpY2ZodWZkbmVnd2psIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDEzNTY0MDIsImV4cCI6MjAxNzEzMjQwMn0.xdcnOqFsdZ-x06RBDNjCvN05c7tFCQ04YkDu06D1ZuQ"
     );
 
-    let tg = window.Telegram.WebApp;
+    const tg = window.Telegram.WebApp;
     tg.expand();
-    const user = tg.initDataUnsafe.user;
+    const user = tg.initDataUnsafe?.user || { id: "demo", username: "Guest" };
     const userId = user.id;
     const username = user.username || (user.first_name + ' ' + (user.last_name || ''));
     document.getElementById("username").innerText = username;
@@ -49,16 +51,17 @@
     const collectBtn = document.getElementById("collectBtn");
 
     async function loadOrCreatePlayer() {
-      let { data, error } = await supabase
+      const { data } = await supabase
         .from('players')
         .select('*')
-        .eq('id', userId);
+        .eq('id', userId)
+        .single();
 
-      if (data.length === 0) {
+      if (!data) {
         await supabase.from('players').insert([{ id: userId, username, energy: 0 }]);
         energy = 0;
       } else {
-        energy = data[0].energy;
+        energy = data.energy;
       }
       energyText.innerText = energy;
     }
@@ -66,17 +69,18 @@
     async function addEnergy(amount) {
       energy += amount;
       energyText.innerText = energy;
-      await supabase.from('players')
-        .update({ energy })
-        .eq('id', userId);
+      await supabase.from('players').update({ energy }).eq('id', userId);
     }
 
-    let map = L.map('map').setView([51.1605, 71.4704], 15);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+    const map = L.map('map').setView([51.1605, 71.4704], 15);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
 
     const energyPoints = [
-      {lat: 51.1607, lon: 71.4700},
-      {lat: 51.1610, lon: 71.4712}
+      { lat: 51.1607, lon: 71.4700 },
+      { lat: 51.1610, lon: 71.4712 }
     ];
 
     let userMarker = null;
@@ -85,19 +89,18 @@
 
     function distance(lat1, lon1, lat2, lon2) {
       const R = 6371e3;
-      const φ1 = lat1 * Math.PI/180;
-      const φ2 = lat2 * Math.PI/180;
-      const Δφ = (lat2-lat1) * Math.PI/180;
-      const Δλ = (lon2-lon1) * Math.PI/180;
-      const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
-                Math.cos(φ1) * Math.cos(φ2) *
-                Math.sin(Δλ/2) * Math.sin(Δλ/2);
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      const φ1 = lat1 * Math.PI / 180;
+      const φ2 = lat2 * Math.PI / 180;
+      const Δφ = (lat2 - lat1) * Math.PI / 180;
+      const Δλ = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(Δφ / 2) ** 2 +
+        Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
       return R * c;
     }
 
     function checkProximity() {
-      for (let point of energyPoints) {
+      for (const point of energyPoints) {
         const dist = distance(currentLat, currentLon, point.lat, point.lon);
         if (dist < 50) {
           collectBtn.style.display = 'block';
@@ -108,7 +111,7 @@
     }
 
     energyPoints.forEach(pt => {
-      L.marker([pt.lat, pt.lon], {title: "Энергия"}).addTo(map);
+      L.marker([pt.lat, pt.lon], { title: "Энергия" }).addTo(map);
     });
 
     function onLocationFound(e) {
@@ -126,7 +129,7 @@
       alert("Ошибка геолокации: " + e.message);
     }
 
-    map.locate({setView: true, watch: true, maxZoom: 17});
+    map.locate({ setView: true, watch: true, maxZoom: 17 });
     map.on('locationfound', onLocationFound);
     map.on('locationerror', onLocationError);
 
