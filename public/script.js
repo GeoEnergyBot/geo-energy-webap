@@ -1,35 +1,44 @@
 
+const supabase = supabase.createClient(
+  "https://ptkzsrlicfhufdnegwjl.supabase.co",
+  "public-anon-key"
+);
+
 let tg = window.Telegram.WebApp;
-tg.ready();
+tg.expand();
 
-if (tg.initDataUnsafe.user) {
-  const username = tg.initDataUnsafe.user.first_name || 'Игрок';
-  document.getElementById('username').textContent = username;
+const user = tg.initDataUnsafe.user;
+const userId = user.id;
+const username = user.username || user.first_name + (user.last_name ? " " + user.last_name : "");
+
+document.getElementById("username").innerText = username;
+document.getElementById("avatar").src = "ghost_avatar.png";
+
+let energy = 0;
+const energyText = document.getElementById("energy");
+
+async function loadOrCreatePlayer() {
+  let { data, error } = await supabase
+    .from('players')
+    .select('*')
+    .eq('id', userId)
+    .single();
+
+  if (!data) {
+    await supabase.from('players').insert([{ id: userId, username, energy: 0 }]);
+    energy = 0;
+  } else {
+    energy = data.energy;
+  }
+  energyText.innerText = energy;
 }
 
-// Инициализация карты
-let map = L.map('map').setView([51.1605, 71.4704], 16); // временная позиция
-
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution: '&copy; OSM',
-  maxZoom: 19
-}).addTo(map);
-
-// Геолокация
-function onLocationFound(e) {
-  let radius = e.accuracy;
-  let marker = L.marker(e.latlng).addTo(map)
-    .bindPopup("Вы здесь").openPopup();
-
-  L.circle(e.latlng, radius).addTo(map);
-  map.setView(e.latlng, 17);
+async function addEnergy(amount) {
+  energy += amount;
+  energyText.innerText = energy;
+  await supabase.from('players')
+    .update({ energy })
+    .eq('id', userId);
 }
 
-function onLocationError(e) {
-  alert("Ошибка геолокации: " + e.message);
-}
-
-map.on('locationfound', onLocationFound);
-map.on('locationerror', onLocationError);
-
-map.locate({setView: true, maxZoom: 16, watch: true});
+loadOrCreatePlayer();
