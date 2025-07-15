@@ -13,7 +13,25 @@
         <img id="avatar" src="https://via.placeholder.com/40" alt="avatar">
         <span id="username">Загрузка...</span>
     </div>
+
     <div id="map"></div>
+
+    <!-- ✅ КНОПКА СБОРА ЭНЕРГИИ -->
+    <button id="collect-button" style="
+        display:none;
+        position:absolute;
+        bottom:20px;
+        left:50%;
+        transform:translateX(-50%);
+        padding:10px 20px;
+        background:#00ff99;
+        border:none;
+        border-radius:12px;
+        font-weight:bold;
+        box-shadow:0 0 10px #00ff99;
+        z-index:1000;
+    ">Собрать энергию ⚡</button>
+
     <script type="module" src="scripts/main.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </body>
