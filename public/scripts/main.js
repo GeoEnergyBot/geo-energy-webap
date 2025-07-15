@@ -1,115 +1,127 @@
-const SUPABASE_FUNCTION_URL = 'https://ptkzsrlicfhufdnegwjl.functions.supabase.co/generate-points';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0a3pzcmxpY2ZodWZkbmVnd2psIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI0NzA3NjAsImV4cCI6MjA2ODA0Njc2MH0.eI0eF_imdgGWPLiUULTprh52Jo9P69WGpe3RbCg3Afo';
 
-const map = L.map('map').setView([51.1605, 71.4704], 15);
+import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
 
-// Добавление слоя карты
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '© OpenStreetMap'
-}).addTo(map);
+// Supabase
+const supabase = createClient(
+  'https://ptkzsrlicfhufdnegwjl.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0a3pzcmxpY2ZodWZkbmVnd2psIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI0NzA3NjAsImV4cCI6MjA2ODA0Njc2MH0.eI0eF_imdgGWPLiUULTprh52Jo9P69WGpe3RbCg3Afo'
+);
 
-// Кастомные иконки
-const ghostIcon = L.icon({
-    iconUrl: 'ghost.gif',
-    iconSize: [48, 48],
-    iconAnchor: [24, 24]
-});
+// Telegram SDK
+let tg = window.Telegram.WebApp;
+tg.expand();
+const user = tg.initDataUnsafe.user;
 
-const energyIcons = {
-    common: L.icon({
-        iconUrl: 'energy-green.gif',
-        iconSize: [32, 32],
-        iconAnchor: [16, 16]
-    }),
-    advanced: L.icon({
-        iconUrl: 'energy-purple.gif',
-        iconSize: [32, 32],
-        iconAnchor: [16, 16]
-    }),
-    rare: L.icon({
-        iconUrl: 'energy-gold.gif',
-        iconSize: [32, 32],
-        iconAnchor: [16, 16]
-    })
-};
+document.getElementById("username").textContent = user?.first_name || user?.username || "Гость";
+document.getElementById("avatar").src = user?.photo_url || "https://via.placeholder.com/40";
 
-let userMarker = null;
-let energyMarkers = [];
-
-function getEnergyTypeName(type) {
-    switch (type) {
-        case 'common':
-            return 'Обычная энергия';
-        case 'advanced':
-            return 'Продвинутая энергия';
-        case 'rare':
-            return 'Редкая энергия';
-        default:
-            return 'Неизвестно';
-    }
+// Определим иконку игрока по уровню
+function getGhostIconByLevel(level) {
+  const index = Math.min(Math.floor((level - 1) / 10) + 1, 10);
+  return `ghost_icons/ghost_level_${String(index).padStart(2, '0')}.png`;
 }
 
-function displayPoints(points) {
-    energyMarkers.forEach(marker => map.removeLayer(marker));
-    energyMarkers = [];
+let playerMarker;
+let map;
 
-    points.forEach(point => {
-        const marker = L.marker([point.lat, point.lng], {
-            icon: energyIcons[point.type] || energyIcons.common
-        });
+// Получаем игрока и его уровень
+(async () => {
+  let level = 1;
+  if (user) {
+    const { data, error } = await supabase
+      .from('players')
+      .select('*')
+      .eq('telegram_id', user.id)
+      .single();
 
-        marker.bindPopup(`${getEnergyTypeName(point.type)}<br>Собери меня!`);
-        marker.addTo(map);
-        energyMarkers.push(marker);
-    });
-}
-
-function fetchEnergyPoints(lat, lng) {
-    fetch(SUPABASE_FUNCTION_URL, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
-        },
-        body: JSON.stringify({
-            center_lat: lat,
-            center_lng: lng
-        })
-    })
-        .then(res => res.json())
-        .then(data => {
-            if (data.success && data.points) {
-                displayPoints(data.points);
-            } else {
-                console.error('Ошибка получения точек:', data);
-            }
-        })
-        .catch(err => console.error('Ошибка запроса:', err));
-}
-
-function updateUserLocation(position) {
-    const lat = position.coords.latitude;
-    const lng = position.coords.longitude;
-
-    if (userMarker) {
-        userMarker.setLatLng([lat, lng]);
+    if (!data) {
+      await supabase.from('players').insert([{
+        telegram_id: user.id,
+        username: user.username,
+        first_name: user.first_name,
+        avatar_url: user.photo_url
+      }]);
     } else {
-        userMarker = L.marker([lat, lng], { icon: ghostIcon }).addTo(map);
+      level = data.level || 1;
+    }
+  }
+
+  const ghostIcon = L.icon({
+    iconUrl: getGhostIconByLevel(level),
+    iconSize: [48, 48],
+    iconAnchor: [24, 24],
+    popupAnchor: [0, -24]
+  });
+
+  // Инициализируем карту и отслеживаем перемещение
+  navigator.geolocation.watchPosition((pos) => {
+    const lat = pos.coords.latitude;
+    const lng = pos.coords.longitude;
+
+    if (!map) {
+      map = L.map('map').setView([lat, lng], 16);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+      }).addTo(map);
     }
 
-    map.setView([lat, lng], 15);
-    fetchEnergyPoints(lat, lng);
+    if (!playerMarker) {
+      playerMarker = L.marker([lat, lng], { icon: ghostIcon }).addTo(map)
+        .bindPopup("Вы здесь")
+        .openPopup();
+    } else {
+      playerMarker.setLatLng([lat, lng]);
+    }
+
+  }, () => {
+    alert("Ошибка: не удалось получить геопозицию.");
+  });
+})();
+
+
+// === ДОБАВЛЕНО: Загрузка и отображение точек энергии ===
+async function loadEnergyPoints(centerLat, centerLng) {
+    try {
+        const response = await fetch('https://ptkzsrlicfhufdnegwjl.functions.supabase.co/generate-points', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0a3pzcmxpY2ZodWZkbmVnd2psIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI0NzA3NjAsImV4cCI6MjA2ODA0Njc2MH0.eI0eF_imdgGWPLiUULTprh52Jo9P69WGpe3RbCg3Afo'
+            },
+            body: JSON.stringify({ center_lat: centerLat, center_lng: centerLng })
+        });
+        const result = await response.json();
+
+        if (result.success && result.points) {
+            result.points.forEach(point => {
+                const icon = L.divIcon({
+                    className: 'pulsing-energy',
+                    html: `<img src="{ getEnergyIcon(point.type) }" width="30" height="30">`,
+                    iconSize: [30, 30],
+                    iconAnchor: [15, 15]
+                });
+                const marker = L.marker([point.lat, point.lng], { icon }).addTo(map);
+                marker.on('click', () => {
+                    alert('Энергия собрана!');
+                    map.removeLayer(marker);
+                });
+            });
+        }
+    } catch (error) {
+        console.error('Ошибка при загрузке энерготочек:', error);
+    }
 }
 
-// Получение геопозиции
-if ('geolocation' in navigator) {
-    navigator.geolocation.watchPosition(updateUserLocation, err => {
-        alert('Ошибка получения геопозиции: ' + err.message);
-    }, {
-        enableHighAccuracy: true,
-        maximumAge: 0,
-        timeout: 10000
-    });
-} else {
-    alert('Геолокация не поддерживается в этом браузере.');
+function getEnergyIcon(type) {
+    switch (type) {
+        case 'rare': return 'https://cdn-icons-png.flaticon.com/512/1704/1704425.png';
+        case 'advanced': return 'https://cdn-icons-png.flaticon.com/512/4276/4276722.png';
+        default: return 'https://cdn-icons-png.flaticon.com/512/414/414927.png';
+    }
 }
+
+map.on('locationfound', (e) => {
+    const lat = e.latlng.lat;
+    const lng = e.latlng.lng;
+    loadEnergyPoints(lat, lng);
+});
