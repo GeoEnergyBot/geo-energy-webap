@@ -53,7 +53,7 @@ let map;
   });
 
   // Инициализируем карту и отслеживаем перемещение
-  navigator.geolocation.watchPosition((pos) => {
+  navigator.geolocation.getCurrentPosition((pos) => {
     const lat = pos.coords.latitude;
     const lng = pos.coords.longitude;
 
@@ -85,6 +85,7 @@ let map;
 
 // === Загрузка и отображение точек энергии ===
 async function loadEnergyPoints(centerLat, centerLng) {
+  alert("Энерготочки загружаются…"); // 👈 добавь это
   console.log("Загрузка энерготочек для:", centerLat, centerLng);
   try {
     const response = await fetch('https://ptkzsrlicfhufdnegwjl.functions.supabase.co/generate-points', {
