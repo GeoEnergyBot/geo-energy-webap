@@ -1,4 +1,4 @@
-/* Общий стиль */
+
 body {
     margin: 0;
     padding: 0;
@@ -10,7 +10,6 @@ body {
     flex-direction: column;
 }
 
-/* Верхняя панель */
 #top-menu {
     display: flex;
     align-items: center;
@@ -20,7 +19,6 @@ body {
     z-index: 1000;
 }
 
-/* Аватар */
 #avatar {
     width: 40px;
     height: 40px;
@@ -28,12 +26,10 @@ body {
     margin-right: 10px;
 }
 
-/* Имя пользователя */
 #username {
     font-size: 16px;
 }
 
-/* Карта */
 #map {
     flex: 1;
     width: 100%;

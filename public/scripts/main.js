@@ -1,12 +1,11 @@
+
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
 
-// Supabase
 const supabase = createClient(
   'https://ptkzsrlicfhufdnegwjl.supabase.co',
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0a3pzcmxpY2ZodWZkbmVnd2psIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI0NzA3NjAsImV4cCI6MjA2ODA0Njc2MH0.eI0eF_imdgGWPLiUULTprh52Jo9P69WGpe3RbCg3Afo'
 );
 
-// Telegram SDK
 let tg = window.Telegram.WebApp;
 tg.expand();
 const user = tg.initDataUnsafe.user;
@@ -14,7 +13,6 @@ const user = tg.initDataUnsafe.user;
 document.getElementById("username").textContent = user?.first_name || user?.username || "Гость";
 document.getElementById("avatar").src = user?.photo_url || "https://via.placeholder.com/40";
 
-// Иконка призрака по уровню
 function getGhostIconByLevel(level) {
   const index = Math.min(Math.floor((level - 1) / 10) + 1, 10);
   return `ghost_icons/ghost_level_${String(index).padStart(2, '0')}.png`;
@@ -26,7 +24,7 @@ let map;
 (async () => {
   let level = 1;
   if (user) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('players')
       .select('*')
       .eq('telegram_id', user.id)
@@ -51,18 +49,16 @@ let map;
     popupAnchor: [0, -24]
   });
 
-  navigator.geolocation.watchPosition(async (pos) => {
-    const lat = pos.coords.latitude;
-    const lng = pos.coords.longitude;
+  map = L.map('map').fitWorld();
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19
+  }).addTo(map);
 
-    if (!map) {
-      map = L.map('map').setView([lat, lng], 16);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-      }).addTo(map);
+  map.locate({ setView: true, maxZoom: 16 });
 
-      await loadEnergyPoints(lat, lng);
-    }
+  map.on('locationfound', async function(e) {
+    const lat = e.latlng.lat;
+    const lng = e.latlng.lng;
 
     if (!playerMarker) {
       playerMarker = L.marker([lat, lng], { icon: ghostIcon }).addTo(map)
@@ -72,12 +68,20 @@ let map;
       playerMarker.setLatLng([lat, lng]);
     }
 
-  }, () => {
-    alert("Ошибка: не удалось получить геопозицию.");
+    await loadEnergyPoints(lat, lng);
   });
+
+  map.on('locationerror', () => alert("Не удалось получить геолокацию."));
 })();
 
-// Загрузка точек энергии
+function getEnergyIcon(type) {
+  switch (type) {
+    case 'rare': return 'https://cdn-icons-png.flaticon.com/512/1704/1704425.png';
+    case 'advanced': return 'https://cdn-icons-png.flaticon.com/512/4276/4276722.png';
+    default: return 'https://cdn-icons-png.flaticon.com/512/414/414927.png';
+  }
+}
+
 async function loadEnergyPoints(centerLat, centerLng) {
   try {
     const response = await fetch('https://ptkzsrlicfhufdnegwjl.functions.supabase.co/generate-points', {
@@ -99,25 +103,14 @@ async function loadEnergyPoints(centerLat, centerLng) {
           iconSize: [30, 30],
           iconAnchor: [15, 15]
         });
-
         const marker = L.marker([point.lat, point.lng], { icon }).addTo(map);
         marker.on('click', () => {
           alert('Энергия собрана!');
           map.removeLayer(marker);
         });
       });
-    } else {
-      console.warn('Нет точек или ошибка в ответе:', result);
     }
-  } catch (err) {
-    console.error('Ошибка при загрузке энерготочек:', err);
-  }
-}
-
-function getEnergyIcon(type) {
-  switch (type) {
-    case 'rare': return 'https://cdn-icons-png.flaticon.com/512/1704/1704425.png';
-    case 'advanced': return 'https://cdn-icons-png.flaticon.com/512/4276/4276722.png';
-    default: return 'https://cdn-icons-png.flaticon.com/512/414/414927.png';
+  } catch (error) {
+    console.error('Ошибка при загрузке энерготочек:', error);
   }
 }
