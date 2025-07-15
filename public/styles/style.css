@@ -1,5 +1,7 @@
+/* Общий стиль */
 body {
     margin: 0;
+    padding: 0;
     font-family: Arial, sans-serif;
     background: #111;
     color: #fff;
@@ -7,32 +9,45 @@ body {
     display: flex;
     flex-direction: column;
 }
+
+/* Верхняя панель */
 #top-menu {
     display: flex;
     align-items: center;
     padding: 10px;
     background: #222;
     border-bottom: 1px solid #444;
+    z-index: 1000;
 }
+
+/* Аватар */
 #avatar {
     width: 40px;
     height: 40px;
-    border-radius: 20px;
+    border-radius: 50%;
     margin-right: 10px;
 }
+
+/* Имя пользователя */
 #username {
     font-size: 16px;
 }
+
+/* Карта */
 #map {
     flex: 1;
+    width: 100%;
+    height: 100%;
+    position: relative;
+    z-index: 0;
 }
-
 
 /* Пульсация энергетических точек */
 .pulsing-energy img {
     animation: pulse 1.5s infinite;
     transform-origin: center center;
 }
+
 @keyframes pulse {
     0%   { transform: scale(1); opacity: 1; }
     50%  { transform: scale(1.3); opacity: 0.6; }
