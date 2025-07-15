@@ -15,12 +15,17 @@
 <body>
   <!-- Верхняя панель -->
   <div id="top-menu">
-    <img id="avatar" src="https://via.placeholder.com/40" alt="avatar">
+    <img id="avatar" src="https://cdn-icons-png.flaticon.com/512/9131/9131529.png" alt="avatar">
     <span id="username">Загрузка...</span>
   </div>
 
   <!-- Карта -->
   <div id="map"></div>
+
+  <!-- Кнопка сбора энергии -->
+  <div id="collect-button-container" style="display:none; position:absolute; bottom: 20px; left: 50%; transform: translateX(-50%);">
+    <button id="collect-button" style="padding: 10px 20px; font-size: 16px;">Собрать энергию</button>
+  </div>
 
   <!-- Скрипты -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
