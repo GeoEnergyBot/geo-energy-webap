@@ -98,9 +98,8 @@ async function loadEnergyPoints(centerLat, centerLng) {
 
     if (result.success && result.points) {
       result.points.forEach(point => {
-        const icon = L.divIcon({
-          className: 'pulsing-energy',
-          html: `<img src="${getEnergyIcon(point.type)}" width="30" height="30">`,
+        const icon = L.icon({
+          iconUrl: getEnergyIcon(point.type),
           iconSize: [30, 30],
           iconAnchor: [15, 15]
         });
