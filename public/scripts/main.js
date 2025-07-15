@@ -1,3 +1,4 @@
+
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
 
 // Supabase
@@ -22,10 +23,55 @@ function getGhostIconByLevel(level) {
 
 let playerMarker;
 let map;
+let playerLevel = 1;
+let energyMarkers = [];
+let currentNearbyEnergy = null;
 
-// Получаем игрока и его уровень
+const energyIcons = {
+  normal: 'energy_blobs/normal_blob.png',
+  advanced: 'energy_blobs/advanced_blob.png',
+  rare: 'energy_blobs/rare_blob.png'
+};
+
+const collectButton = document.getElementById("collect-button");
+collectButton.onclick = async () => {
+  if (!currentNearbyEnergy) return;
+  const { id } = currentNearbyEnergy;
+
+  const { error } = await supabase.from('energy_points').update({
+    collected_by: user.id,
+    collected_at: new Date().toISOString()
+  }).eq('id', id);
+
+  if (!error) {
+    map.removeLayer(currentNearbyEnergy.marker);
+    collectButton.style.display = "none";
+    currentNearbyEnergy = null;
+    alert("Энергия собрана! 🔋");
+  }
+};
+
+// Загрузка точек энергии
+async function loadEnergyPoints() {
+  const { data } = await supabase
+    .from('energy_points')
+    .select('*')
+    .is('collected_by', null);
+
+  data.forEach(point => {
+    const icon = L.icon({
+      iconUrl: energyIcons[point.type],
+      iconSize: [48, 48],
+      iconAnchor: [24, 24]
+    });
+    const marker = L.marker([point.lat, point.lng], { icon }).addTo(map);
+    point.marker = marker;
+    energyMarkers.push(point);
+  });
+}
+
+// Получаем игрока и его уровень + инициализация карты
 (async () => {
-  let level = 1;
   if (user) {
     const { data, error } = await supabase
       .from('players')
@@ -41,18 +87,17 @@ let map;
         avatar_url: user.photo_url
       }]);
     } else {
-      level = data.level || 1;
+      playerLevel = data.level || 1;
     }
   }
 
   const ghostIcon = L.icon({
-    iconUrl: getGhostIconByLevel(level),
+    iconUrl: getGhostIconByLevel(playerLevel),
     iconSize: [48, 48],
     iconAnchor: [24, 24],
     popupAnchor: [0, -24]
   });
 
-  // Инициализируем карту и отслеживаем перемещение
   navigator.geolocation.watchPosition((pos) => {
     const lat = pos.coords.latitude;
     const lng = pos.coords.longitude;
@@ -62,6 +107,8 @@ let map;
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
       }).addTo(map);
+
+      loadEnergyPoints(); // загрузим точки при старте
     }
 
     if (!playerMarker) {
@@ -72,6 +119,16 @@ let map;
       playerMarker.setLatLng([lat, lng]);
     }
 
+    // Проверка на близость к точке
+    currentNearbyEnergy = null;
+    energyMarkers.forEach(point => {
+      const dist = map.distance([lat, lng], [point.lat, point.lng]);
+      if (dist < 20) {
+        currentNearbyEnergy = point;
+      }
+    });
+
+    collectButton.style.display = currentNearbyEnergy ? "block" : "none";
   }, () => {
     alert("Ошибка: не удалось получить геопозицию.");
   });
