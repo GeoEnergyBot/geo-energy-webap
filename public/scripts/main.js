@@ -1,4 +1,3 @@
-
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
 
 // Supabase
@@ -10,68 +9,73 @@ const supabase = createClient(
 // Telegram SDK
 let tg = window.Telegram.WebApp;
 tg.expand();
-const user = tg.initDataUnsafe.user;
 
-document.getElementById("username").textContent = user?.first_name || user?.username || "Гость";
-document.getElementById("avatar").src = user?.photo_url || "https://via.placeholder.com/40";
+window.onload = async () => {
+  const user = tg.initDataUnsafe?.user;
 
-// Определим иконку игрока по уровню
-function getGhostIconByLevel(level) {
-  const index = Math.min(Math.floor((level - 1) / 10) + 1, 10);
-  return `ghost_icons/ghost_level_${String(index).padStart(2, '0')}.png`;
-}
+  const usernameEl = document.getElementById("username");
+  const avatarEl = document.getElementById("avatar");
+  const collectButton = document.getElementById("collect-button");
 
-let playerMarker;
-let map;
-let playerLevel = 1;
-let energyMarkers = [];
-let currentNearbyEnergy = null;
+  if (usernameEl) usernameEl.textContent = user?.first_name || user?.username || "Гость";
+  if (avatarEl) avatarEl.src = user?.photo_url || "https://via.placeholder.com/40";
 
-const energyIcons = {
-  normal: 'energy_blobs/normal_blob.png',
-  advanced: 'energy_blobs/advanced_blob.png',
-  rare: 'energy_blobs/rare_blob.png'
-};
-
-const collectButton = document.getElementById("collect-button");
-collectButton.onclick = async () => {
-  if (!currentNearbyEnergy) return;
-  const { id } = currentNearbyEnergy;
-
-  const { error } = await supabase.from('energy_points').update({
-    collected_by: user.id,
-    collected_at: new Date().toISOString()
-  }).eq('id', id);
-
-  if (!error) {
-    map.removeLayer(currentNearbyEnergy.marker);
-    collectButton.style.display = "none";
-    currentNearbyEnergy = null;
-    alert("Энергия собрана! 🔋");
+  function getGhostIconByLevel(level) {
+    const index = Math.min(Math.floor((level - 1) / 10) + 1, 10);
+    return `ghost_icons/ghost_level_${String(index).padStart(2, '0')}.png`;
   }
-};
 
-// Загрузка точек энергии
-async function loadEnergyPoints() {
-  const { data } = await supabase
-    .from('energy_points')
-    .select('*')
-    .is('collected_by', null);
+  let playerMarker;
+  let map;
+  let playerLevel = 1;
+  let energyMarkers = [];
+  let currentNearbyEnergy = null;
 
-  data.forEach(point => {
-    const icon = L.icon({
-      iconUrl: energyIcons[point.type],
-      iconSize: [48, 48],
-      iconAnchor: [24, 24]
+  const energyIcons = {
+    normal: 'energy_blobs/normal_blob.png',
+    advanced: 'energy_blobs/advanced_blob.png',
+    rare: 'energy_blobs/rare_blob.png'
+  };
+
+  if (collectButton) {
+    collectButton.onclick = async () => {
+      if (!currentNearbyEnergy || !user) return;
+
+      const { id } = currentNearbyEnergy;
+
+      const { error } = await supabase.from('energy_points').update({
+        collected_by: user.id,
+        collected_at: new Date().toISOString()
+      }).eq('id', id);
+
+      if (!error) {
+        map.removeLayer(currentNearbyEnergy.marker);
+        collectButton.style.display = "none";
+        currentNearbyEnergy = null;
+        alert("Энергия собрана! 🔋");
+      }
+    };
+  }
+
+  async function loadEnergyPoints() {
+    const { data } = await supabase
+      .from('energy_points')
+      .select('*')
+      .is('collected_by', null);
+
+    data.forEach(point => {
+      const icon = L.icon({
+        iconUrl: energyIcons[point.type],
+        iconSize: [48, 48],
+        iconAnchor: [24, 24]
+      });
+      const marker = L.marker([point.lat, point.lng], { icon }).addTo(map);
+      point.marker = marker;
+      energyMarkers.push(point);
     });
-    const marker = L.marker([point.lat, point.lng], { icon }).addTo(map);
-    point.marker = marker;
-    energyMarkers.push(point);
-  });
-}
+  }
 
-// Получаем игрока и его уровень + инициализация карты
-(async () => {
+  // Получаем игрока
   if (user) {
     const { data, error } = await supabase
       .from('players')
@@ -108,7 +112,7 @@ async function loadEnergyPoints() {
         maxZoom: 19,
       }).addTo(map);
 
-      loadEnergyPoints(); // загрузим точки при старте
+      loadEnergyPoints(); // загружаем только после создания карты
     }
 
     if (!playerMarker) {
@@ -128,8 +132,12 @@ async function loadEnergyPoints() {
       }
     });
 
-    collectButton.style.display = currentNearbyEnergy ? "block" : "none";
-  }, () => {
+    if (collectButton) {
+      collectButton.style.display = currentNearbyEnergy ? "block" : "none";
+    }
+
+  }, (err) => {
+    console.error("Ошибка получения геопозиции:", err);
     alert("Ошибка: не удалось получить геопозицию.");
   });
-})();
+};
