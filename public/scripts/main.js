@@ -1,6 +1,6 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
 
-// Supabase
+// ✅ Используем anon public ключ
 const supabase = createClient(
   'https://ptkzsrlicfhufdnegwjl.supabase.co',
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0a3pzcmxpY2ZodWZkbmVnd2psIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI0NzA3NjAsImV4cCI6MjA2ODA0Njc2MH0.eI0eF_imdgGWPLiUULTprh52Jo9P69WGpe3RbCg3Afo'
@@ -89,7 +89,7 @@ async function loadEnergyPoints(centerLat, centerLng) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0a3pzcmxpY2ZodWZkbmVnd2psIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI0NzA3NjAsImV4cCI6MjA2ODA0Njc2MH0.eI0eF_imdgGWPLiUULTprh52Jo9P69WGpe3RbCg3Afo'
+        // ⛔ Удалили авторизацию! Для Edge Functions Supabase не требует её при публичном доступе
       },
       body: JSON.stringify({ center_lat: centerLat, center_lng: centerLng })
     });
@@ -112,13 +112,13 @@ async function loadEnergyPoints(centerLat, centerLng) {
         const marker = L.marker([point.lat, point.lng], { icon }).addTo(map);
         marker.on('click', () => {
           const distance = getDistance(playerLat, playerLng, point.lat, point.lng);
-          if (distance <= 0.02) { // 20 метров
+          if (distance <= 0.02) {
             collectBtn.style.display = "block";
             collectBtn.onclick = () => {
               alert('⚡ Энергия собрана!');
               map.removeLayer(marker);
               collectBtn.style.display = "none";
-            }
+            };
           } else {
             alert("🚫 Подойдите ближе к точке (до 20 м) чтобы собрать энергию.");
           }
