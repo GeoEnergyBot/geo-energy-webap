@@ -93,8 +93,12 @@ async function loadEnergyPoints(centerLat, centerLng) {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0a3pzcmxpY2ZodWZkbmVnd2psIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI0NzA3NjAsImV4cCI6MjA2ODA0Njc2MH0.eI0eF_imdgGWPLiUULTprh52Jo9P69WGpe3RbCg3Afo'
       },
-      body: JSON.stringify({ center_lat: centerLat, center_lng: centerLng })
-    });
+      body: JSON.stringify({ 
+        center_lat: centerLat, 
+        center_lng: centerLng,
+        telegram_id: user.id // 👈 добавили ID игрока
+      }) // ✅ исправлено: закрыта скобка JSON.stringify
+    }); // ✅ исправлено: закрыта скобка fetch
 
     if (!response.ok) {
       alert("❌ Supabase вернул ошибку: " + response.status);
