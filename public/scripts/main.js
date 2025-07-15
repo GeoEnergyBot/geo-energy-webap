@@ -58,6 +58,7 @@ let map;
     const lng = pos.coords.longitude;
 
     console.log("Игрок на позиции:", lat, lng);
+    alert("📍 Геопозиция получена: " + lat.toFixed(5) + ", " + lng.toFixed(5)); // Покажем в Telegram
 
     if (!map) {
       map = L.map('map').setView([lat, lng], 16);
@@ -76,8 +77,9 @@ let map;
 
     loadEnergyPoints(lat, lng);
 
-  }, () => {
-    alert("Ошибка: не удалось получить геопозицию.");
+  }, (error) => {
+    alert("Ошибка геолокации: " + error.message);
+    console.error("GeoError:", error);
   });
 })();
 
@@ -93,6 +95,12 @@ async function loadEnergyPoints(centerLat, centerLng) {
       },
       body: JSON.stringify({ center_lat: centerLat, center_lng: centerLng })
     });
+
+    if (!response.ok) {
+      alert("❌ Supabase вернул ошибку: " + response.status);
+      return;
+    }
+
     const result = await response.json();
     console.log("Ответ от Supabase функции:", result);
 
@@ -106,15 +114,16 @@ async function loadEnergyPoints(centerLat, centerLng) {
 
         const marker = L.marker([point.lat, point.lng], { icon }).addTo(map);
         marker.on('click', () => {
-          alert('Энергия собрана!');
+          alert('⚡ Энергия собрана!');
           map.removeLayer(marker);
         });
       });
     } else {
-      console.warn("Точек нет или формат неверный:", result);
+      console.warn("⚠ Точек нет или формат неверный:", result);
     }
   } catch (error) {
-    console.error('Ошибка при загрузке энерготочек:', error);
+    console.error('❌ Ошибка при загрузке энерготочек:', error);
+    alert("Ошибка при запросе точек энергии: " + error.message);
   }
 }
 
