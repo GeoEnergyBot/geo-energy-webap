@@ -14,23 +14,20 @@ const user = tg.initDataUnsafe.user;
 document.getElementById("username").textContent = user?.first_name || user?.username || "Гость";
 document.getElementById("avatar").src = user?.photo_url || "https://cdn-icons-png.flaticon.com/512/9131/9131529.png";
 
+// Определим иконку игрока по уровню
 function getGhostIconByLevel(level) {
   const index = Math.min(Math.floor((level - 1) / 10) + 1, 10);
   return `ghost_icons/ghost_level_${String(index).padStart(2, '0')}.png`;
 }
 
-let playerMarker, map;
-let playerLat = 0, playerLng = 0;
-const collectBtn = document.createElement('button');
-collectBtn.textContent = "⚡ Собрать энергию";
-collectBtn.id = "collect-btn";
-collectBtn.style.display = "none";
-document.body.appendChild(collectBtn);
+let playerMarker;
+let map;
 
+// Получаем игрока и его уровень
 (async () => {
   let level = 1;
   if (user) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('players')
       .select('*')
       .eq('telegram_id', user.id)
@@ -55,40 +52,47 @@ document.body.appendChild(collectBtn);
     popupAnchor: [0, -24]
   });
 
+  // Инициализируем карту и отслеживаем перемещение
   navigator.geolocation.getCurrentPosition((pos) => {
-    playerLat = pos.coords.latitude;
-    playerLng = pos.coords.longitude;
+    const lat = pos.coords.latitude;
+    const lng = pos.coords.longitude;
 
-    alert(`📍 Геопозиция получена: ${playerLat.toFixed(5)}, ${playerLng.toFixed(5)}`);
+    console.log("Игрок на позиции:", lat, lng);
+    alert("📍 Геопозиция получена: " + lat.toFixed(5) + ", " + lng.toFixed(5)); // Покажем в Telegram
 
     if (!map) {
-      map = L.map('map').setView([playerLat, playerLng], 16);
+      map = L.map('map').setView([lat, lng], 16);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
       }).addTo(map);
     }
 
     if (!playerMarker) {
-      playerMarker = L.marker([playerLat, playerLng], { icon: ghostIcon }).addTo(map)
+      playerMarker = L.marker([lat, lng], { icon: ghostIcon }).addTo(map)
         .bindPopup("Вы здесь")
         .openPopup();
     } else {
-      playerMarker.setLatLng([playerLat, playerLng]);
+      playerMarker.setLatLng([lat, lng]);
     }
 
-    loadEnergyPoints(playerLat, playerLng);
+    loadEnergyPoints(lat, lng);
+
   }, (error) => {
     alert("Ошибка геолокации: " + error.message);
+    console.error("GeoError:", error);
   });
 })();
 
+// === Загрузка и отображение точек энергии ===
 async function loadEnergyPoints(centerLat, centerLng) {
-  alert("Энерготочки загружаются…");
+  alert("Энерготочки загружаются…"); // 👈 добавь это
+  console.log("Загрузка энерготочек для:", centerLat, centerLng);
   try {
-    const response = await fetch('https://ptkzsrlicfhufdnegwjl.supabase.co/functions/v1/generate-points', {
+    const response = await fetch('https://ptkzsrlicfhufdnegwjl.functions.supabase.co/generate-points', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0a3pzcmxpY2ZodWZkbmVnd2psIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI0NzA3NjAsImV4cCI6MjA2ODA0Njc2MH0.eI0eF_imdgGWPLiUULTprh52Jo9P69WGpe3RbCg3Afo'
       },
       body: JSON.stringify({ center_lat: centerLat, center_lng: centerLng })
     });
@@ -99,6 +103,7 @@ async function loadEnergyPoints(centerLat, centerLng) {
     }
 
     const result = await response.json();
+    console.log("Ответ от Supabase функции:", result);
 
     if (result.success && result.points) {
       result.points.forEach(point => {
@@ -110,24 +115,16 @@ async function loadEnergyPoints(centerLat, centerLng) {
 
         const marker = L.marker([point.lat, point.lng], { icon }).addTo(map);
         marker.on('click', () => {
-          const distance = getDistance(playerLat, playerLng, point.lat, point.lng);
-          if (distance <= 0.02) {
-            collectBtn.style.display = "block";
-            collectBtn.onclick = () => {
-              alert('⚡ Энергия собрана!');
-              map.removeLayer(marker);
-              collectBtn.style.display = "none";
-            };
-          } else {
-            alert("🚫 Подойдите ближе к точке (до 20 м) чтобы собрать энергию.");
-          }
+          alert('⚡ Энергия собрана!');
+          map.removeLayer(marker);
         });
       });
     } else {
       console.warn("⚠ Точек нет или формат неверный:", result);
     }
   } catch (error) {
-    alert("Ошибка при загрузке точек: " + error.message);
+    console.error('❌ Ошибка при загрузке энерготочек:', error);
+    alert("Ошибка при запросе точек энергии: " + error.message);
   }
 }
 
@@ -137,15 +134,4 @@ function getEnergyIcon(type) {
     case 'advanced': return 'https://cdn-icons-png.flaticon.com/512/4276/4276722.png';
     default: return 'https://cdn-icons-png.flaticon.com/512/414/414927.png';
   }
-}
-
-function getDistance(lat1, lng1, lat2, lng2) {
-  const R = 6371;
-  const dLat = (lat2 - lat1) * Math.PI / 180;
-  const dLng = (lng2 - lng1) * Math.PI / 180;
-  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-            Math.sin(dLng / 2) * Math.sin(dLng / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c; // расстояние в км
 }
