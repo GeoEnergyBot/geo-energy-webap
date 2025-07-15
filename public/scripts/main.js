@@ -1,158 +1,115 @@
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm'
+const SUPABASE_FUNCTION_URL = 'https://ptkzsrlicfhufdnegwjl.functions.supabase.co/generate-points';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0a3pzcmxpY2ZodWZkbmVnd2psIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI0NzA3NjAsImV4cCI6MjA2ODA0Njc2MH0.eI0eF_imdgGWPLiUULTprh52Jo9P69WGpe3RbCg3Afo';
 
-// Supabase
-const supabase = createClient(
-  'https://ptkzsrlicfhufdnegwjl.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0a3pzcmxpY2ZodWZkbmVnd2psIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI0NzA3NjAsImV4cCI6MjA2ODA0Njc2MH0.eI0eF_imdgGWPLiUULTprh52Jo9P69WGpe3RbCg3Afo'
-);
+const map = L.map('map').setView([51.1605, 71.4704], 15);
 
-// Telegram SDK
-let tg = window.Telegram.WebApp;
-tg.expand();
-const user = tg.initDataUnsafe.user;
+// Добавление слоя карты
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap'
+}).addTo(map);
 
-document.getElementById("username").textContent = user?.first_name || user?.username || "Гость";
-document.getElementById("avatar").src = user?.photo_url || "https://via.placeholder.com/40";
-
-// Иконка призрака по уровню
-function getGhostIconByLevel(level) {
-  const index = Math.min(Math.floor((level - 1) / 10) + 1, 10);
-  return `ghost_icons/ghost_level_${String(index).padStart(2, '0')}.png`;
-}
-
-let playerMarker;
-let map;
-let playerLevel = 1;
-let energyMarkers = [];
-let currentNearbyEnergy = null;
-
-// Иконки энергии
-const energyIcons = {
-  normal: 'energy_blobs/normal_blob.png',
-  advanced: 'energy_blobs/advanced_blob.png',
-  rare: 'energy_blobs/rare_blob.png'
-};
-
-// Кнопка сбора
-const collectButton = document.getElementById("collect-button");
-collectButton.onclick = async () => {
-  if (!currentNearbyEnergy) return;
-  const { id } = currentNearbyEnergy;
-
-  const { error } = await supabase.from('energy_points').update({
-    collected_by: user.id,
-    collected_at: new Date().toISOString()
-  }).eq('id', id);
-
-  if (!error) {
-    map.removeLayer(currentNearbyEnergy.marker);
-    collectButton.style.display = "none";
-    currentNearbyEnergy = null;
-    alert("Энергия собрана! ⚡");
-  } else {
-    console.error("❌ Ошибка при сборе:", error);
-  }
-};
-
-// Загрузка точек энергии
-async function loadEnergyPoints() {
-  const { data, error } = await supabase
-    .from('energy_points')
-    .select('*')
-    .is('collected_by', null);
-
-  if (error) {
-    console.error("❌ Ошибка при загрузке точек:", error);
-    return;
-  }
-
-  if (!data || data.length === 0) {
-    console.warn("⚠️ Нет доступных точек энергии");
-    return;
-  }
-
-  console.log("✅ Загружено точек:", data.length);
-
-  data.forEach(point => {
-    const icon = L.icon({
-      iconUrl: energyIcons[point.type] || energyIcons.normal,
-      iconSize: [48, 48],
-      iconAnchor: [24, 24]
-    });
-    const marker = L.marker([point.lat, point.lng], { icon }).addTo(map);
-    point.marker = marker;
-    energyMarkers.push(point);
-  });
-}
-
-// Основной поток: создание игрока, карта, позиция, энергия
-(async () => {
-  if (user) {
-    const { data, error } = await supabase
-      .from('players')
-      .select('*')
-      .eq('telegram_id', user.id)
-      .single();
-
-    if (!data) {
-      const { error: insertError } = await supabase.from('players').insert([{
-        telegram_id: user.id,
-        username: user.username,
-        first_name: user.first_name,
-        avatar_url: user.photo_url
-      }]);
-
-      if (insertError) {
-        console.error("❌ Ошибка при создании игрока:", insertError);
-      }
-    } else {
-      playerLevel = data.level || 1;
-    }
-  }
-
-  const ghostIcon = L.icon({
-    iconUrl: getGhostIconByLevel(playerLevel),
+// Кастомные иконки
+const ghostIcon = L.icon({
+    iconUrl: 'ghost.gif',
     iconSize: [48, 48],
-    iconAnchor: [24, 24],
-    popupAnchor: [0, -24]
-  });
+    iconAnchor: [24, 24]
+});
 
-  navigator.geolocation.watchPosition((pos) => {
-    const lat = pos.coords.latitude;
-    const lng = pos.coords.longitude;
+const energyIcons = {
+    common: L.icon({
+        iconUrl: 'energy-green.gif',
+        iconSize: [32, 32],
+        iconAnchor: [16, 16]
+    }),
+    advanced: L.icon({
+        iconUrl: 'energy-purple.gif',
+        iconSize: [32, 32],
+        iconAnchor: [16, 16]
+    }),
+    rare: L.icon({
+        iconUrl: 'energy-gold.gif',
+        iconSize: [32, 32],
+        iconAnchor: [16, 16]
+    })
+};
 
-    // Карта
-    if (!map) {
-      map = L.map('map').setView([lat, lng], 16);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-      }).addTo(map);
+let userMarker = null;
+let energyMarkers = [];
 
-      // После инициализации карты — загружаем точки
-      loadEnergyPoints();
+function getEnergyTypeName(type) {
+    switch (type) {
+        case 'common':
+            return 'Обычная энергия';
+        case 'advanced':
+            return 'Продвинутая энергия';
+        case 'rare':
+            return 'Редкая энергия';
+        default:
+            return 'Неизвестно';
     }
+}
 
-    // Призрак игрока
-    if (!playerMarker) {
-      playerMarker = L.marker([lat, lng], { icon: ghostIcon }).addTo(map)
-        .bindPopup("Вы здесь")
-        .openPopup();
-    } else {
-      playerMarker.setLatLng([lat, lng]);
-    }
+function displayPoints(points) {
+    energyMarkers.forEach(marker => map.removeLayer(marker));
+    energyMarkers = [];
 
-    // Проверка близости к точке
-    currentNearbyEnergy = null;
-    energyMarkers.forEach(point => {
-      const dist = map.distance([lat, lng], [point.lat, point.lng]);
-      if (dist < 25) {
-        currentNearbyEnergy = point;
-      }
+    points.forEach(point => {
+        const marker = L.marker([point.lat, point.lng], {
+            icon: energyIcons[point.type] || energyIcons.common
+        });
+
+        marker.bindPopup(`${getEnergyTypeName(point.type)}<br>Собери меня!`);
+        marker.addTo(map);
+        energyMarkers.push(marker);
     });
+}
 
-    collectButton.style.display = currentNearbyEnergy ? "block" : "none";
-  }, (err) => {
-    alert("Ошибка геопозиции.");
-    console.error("Геолокация недоступна:", err);
-  });
-})();
+function fetchEnergyPoints(lat, lng) {
+    fetch(SUPABASE_FUNCTION_URL, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+        },
+        body: JSON.stringify({
+            center_lat: lat,
+            center_lng: lng
+        })
+    })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success && data.points) {
+                displayPoints(data.points);
+            } else {
+                console.error('Ошибка получения точек:', data);
+            }
+        })
+        .catch(err => console.error('Ошибка запроса:', err));
+}
+
+function updateUserLocation(position) {
+    const lat = position.coords.latitude;
+    const lng = position.coords.longitude;
+
+    if (userMarker) {
+        userMarker.setLatLng([lat, lng]);
+    } else {
+        userMarker = L.marker([lat, lng], { icon: ghostIcon }).addTo(map);
+    }
+
+    map.setView([lat, lng], 15);
+    fetchEnergyPoints(lat, lng);
+}
+
+// Получение геопозиции
+if ('geolocation' in navigator) {
+    navigator.geolocation.watchPosition(updateUserLocation, err => {
+        alert('Ошибка получения геопозиции: ' + err.message);
+    }, {
+        enableHighAccuracy: true,
+        maximumAge: 0,
+        timeout: 10000
+    });
+} else {
+    alert('Геолокация не поддерживается в этом браузере.');
+}

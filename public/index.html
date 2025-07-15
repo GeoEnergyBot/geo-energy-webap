@@ -2,49 +2,41 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>GeoEnergyBot</title>
-
-  <!-- Leaflet CSS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
-  <!-- Custom Styles -->
-  <link rel="stylesheet" href="styles/style.css" />
-
-  <!-- Telegram WebApp SDK -->
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="stylesheet" href="style.css" />
+  <link
+    rel="stylesheet"
+    href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-sA+e2dMIfj2wYp0uwrH1mPQ+ihdM+nKx4XkZgjI5rjY="
+    crossorigin=""
+  />
+  <script
+    src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-pgwLkE/zPZb3zV6v33z8kFhOcFDZyjG4ucv+Z8qDk0g="
+    crossorigin=""
+  ></script>
 </head>
 <body>
-
+  <!-- Верхнее меню -->
   <div id="top-menu">
-    <img id="avatar" src="https://via.placeholder.com/40" alt="avatar" />
-    <span id="username">Загрузка...</span>
+    <img id="avatar" src="https://telegram.org/img/t_logo.png" alt="Avatar" />
+    <div id="username">Загрузка...</div>
   </div>
 
+  <!-- Карта -->
   <div id="map"></div>
 
-  <!-- КНОПКА СБОРА ЭНЕРГИИ -->
-  <button id="collect-button" style="
-    display:none;
-    position:absolute;
-    bottom:20px;
-    left:50%;
-    transform:translateX(-50%);
-    padding:10px 20px;
-    background:#00ff99;
-    color: #000;
-    border:none;
-    border-radius:12px;
-    font-weight:bold;
-    box-shadow:0 0 10px #00ff99;
-    z-index:1000;
-  ">
-    Собрать энергию ⚡
-  </button>
+  <!-- HUD -->
+  <div id="hud">
+    <div id="level-display">Уровень: 1</div>
+    <div id="respawn-timer">Респавн через: --</div>
+  </div>
 
-  <!-- Leaflet JS -->
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <!-- Основной скрипт -->
-  <script type="module" src="scripts/main.js"></script>
+  <!-- Кнопка сбора энергии -->
+  <button id="collect-button" style="display: none;">Собрать энергию</button>
 
+  <!-- Скрипт -->
+  <script type="module" src="main.js"></script>
 </body>
 </html>
