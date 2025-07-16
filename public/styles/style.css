@@ -1,3 +1,4 @@
+
 body {
   margin: 0;
   padding: 0;
@@ -91,35 +92,4 @@ body {
   height: 100%;
   position: relative;
   z-index: 0;
-}
-
-/* Стили для светящихся клякс */
-.energy-blob {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  opacity: 0.6;
-  animation: blobPulse 2.4s infinite ease-in-out;
-  filter: blur(2px);
-  pointer-events: auto;
-}
-
-.energy-basic {
-  background: radial-gradient(circle, #00ff99 20%, transparent 70%);
-  box-shadow: 0 0 12px #00ff99aa;
-}
-
-.energy-advanced {
-  background: radial-gradient(circle, #aa33ff 20%, transparent 70%);
-  box-shadow: 0 0 16px #aa33ffaa;
-}
-
-.energy-rare {
-  background: radial-gradient(circle, #ffd700 30%, transparent 70%);
-  box-shadow: 0 0 24px #ffd700aa, 0 0 36px #ffaa00aa inset;
-}
-
-@keyframes blobPulse {
-  0%, 100% { transform: scale(1); opacity: 0.6; }
-  50%      { transform: scale(1.35); opacity: 0.85; }
 }

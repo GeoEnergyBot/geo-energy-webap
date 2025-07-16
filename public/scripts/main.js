@@ -112,11 +112,10 @@ async function loadEnergyPoints(centerLat, centerLng) {
       result.points
         .filter(point => !point.collected_by || point.collected_by !== user.id.toString())
         .forEach(point => {
-          const icon = L.divIcon({
-            className: `energy-blob energy-${point.type}`,
-            html: `<div class='energy-inner'></div>`,
-            iconSize: [36, 36],
-            iconAnchor: [18, 18]
+          const icon = L.icon({
+            iconUrl: getEnergyIcon(point.type),
+            iconSize: [30, 30],
+            iconAnchor: [15, 15]
           });
 
           const marker = L.marker([point.lat, point.lng], { icon }).addTo(map);
