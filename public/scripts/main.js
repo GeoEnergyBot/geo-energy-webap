@@ -19,6 +19,7 @@ function getGhostIconByLevel(level) {
 
 let playerMarker;
 let map;
+let lastLatLng = null;
 
 (async () => {
   let level = 1;
@@ -54,12 +55,9 @@ let map;
     popupAnchor: [0, -24]
   });
 
-  navigator.geolocation.getCurrentPosition((pos) => {
+  navigator.geolocation.watchPosition((pos) => {
     const lat = pos.coords.latitude;
     const lng = pos.coords.longitude;
-
-    console.log("Игрок на позиции:", lat, lng);
-    alert("📍 Геопозиция получена: " + lat.toFixed(5) + ", " + lng.toFixed(5));
 
     if (!map) {
       map = L.map('map').setView([lat, lng], 16);
@@ -76,15 +74,27 @@ let map;
       playerMarker.setLatLng([lat, lng]);
     }
 
-    loadEnergyPoints(lat, lng);
+    maybeReloadEnergyPoints(lat, lng);
   }, (error) => {
     alert("Ошибка геолокации: " + error.message);
     console.error("GeoError:", error);
   });
 })();
 
+function maybeReloadEnergyPoints(lat, lng) {
+  if (!lastLatLng) {
+    lastLatLng = { lat, lng };
+    loadEnergyPoints(lat, lng);
+    return;
+  }
+  const distanceMoved = getDistance(lat, lng, lastLatLng.lat, lastLatLng.lng);
+  if (distanceMoved > 0.2) {
+    lastLatLng = { lat, lng };
+    loadEnergyPoints(lat, lng);
+  }
+}
+
 async function loadEnergyPoints(centerLat, centerLng) {
-  alert("Энерготочки загружаются…");
   console.log("Загрузка энерготочек для:", centerLat, centerLng);
   try {
     const response = await fetch('https://ptkzsrlicfhufdnegwjl.functions.supabase.co/generate-points', {
