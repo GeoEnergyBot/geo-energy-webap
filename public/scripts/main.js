@@ -17,6 +17,14 @@ function getGhostIconByLevel(level) {
   return `ghost_icons/ghost_level_${String(index).padStart(2, '0')}.png`;
 }
 
+function getEnergyIcon(type) {
+  switch (type) {
+    case 'rare': return 'https://cdn-icons-png.flaticon.com/512/1704/1704425.png';
+    case 'advanced': return 'https://cdn-icons-png.flaticon.com/512/4276/4276722.png';
+    default: return 'https://cdn-icons-png.flaticon.com/512/414/414927.png';
+  }
+}
+
 let playerMarker;
 let map;
 let lastLatLng = null;
@@ -95,7 +103,6 @@ function maybeReloadEnergyPoints(lat, lng) {
 }
 
 async function loadEnergyPoints(centerLat, centerLng) {
-  console.log("Загрузка энерготочек для:", centerLat, centerLng);
   try {
     const response = await fetch('https://ptkzsrlicfhufdnegwjl.functions.supabase.co/generate-points', {
       method: 'POST',
@@ -116,17 +123,15 @@ async function loadEnergyPoints(centerLat, centerLng) {
     }
 
     const result = await response.json();
-    console.log("Ответ от Supabase функции:", result);
-
     if (result.success && result.points) {
       result.points
         .filter(point => !point.collected_by || point.collected_by !== user.id.toString())
         .forEach(point => {
-          const icon = L.divIcon({
-            className: 'custom-energy-icon ' + (point.type || 'basic'),
-            html: `<div class="energy-pulse"></div>`,
-            iconSize: [30, 30],
-            iconAnchor: [15, 15]
+          const icon = L.icon({
+            iconUrl: getEnergyIcon(point.type),
+            iconSize: [36, 36],
+            iconAnchor: [18, 18],
+            className: 'pulsing-energy'
           });
 
           const marker = L.marker([point.lat, point.lng], { icon }).addTo(map);
@@ -171,8 +176,6 @@ async function loadEnergyPoints(centerLat, centerLng) {
             }
           });
         });
-    } else {
-      console.warn("⚠ Точек нет или формат неверный:", result);
     }
   } catch (error) {
     console.error('❌ Ошибка при загрузке энерготочек:', error);
