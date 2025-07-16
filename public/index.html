@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -14,18 +15,19 @@
 </head>
 <body>
   <!-- Верхняя панель -->
-  <div id="top-menu">
-    <img id="avatar" src="https://via.placeholder.com/40" alt="avatar">
-    <span id="username">Загрузка...</span>
-  </div>
-
-  <!-- Панель прогресса -->
-  <div id="progress-panel">
-    <div id="level-label">Уровень: <span id="level-value">1</span></div>
-    <div id="energy-label">Энергия: <span id="energy-value">0</span> / <span id="energy-max">1000</span></div>
-    <div id="energy-bar-container">
-      <div id="energy-bar-fill" style="width: 0%;"></div>
+  <div id="top-panel">
+    <img id="top-avatar" src="https://via.placeholder.com/64" alt="avatar">
+    <div id="top-info">
+      <div id="top-name">Имя</div>
+      <div id="top-energy-bar">
+        <div id="top-energy-icon">⚡</div>
+        <div id="top-energy-fill-container">
+          <div id="top-energy-fill"></div>
+          <div id="top-energy-text">0 / 1000</div>
+        </div>
+      </div>
     </div>
+    <div id="top-level">1</div>
   </div>
 
   <!-- Карта -->
