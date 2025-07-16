@@ -5,36 +5,30 @@
   <meta charset="utf-8">
   <title>GeoEnergyBot</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-  <!-- Стили -->
   <link rel="stylesheet" href="styles/style.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-
-  <!-- Telegram WebApp SDK -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
-  <!-- Верхняя панель -->
-  <div id="top-menu">
-    <img id="avatar" src="https://via.placeholder.com/40" alt="avatar">
-    <div class="top-userinfo">
-      <span id="username">Загрузка...</span>
-      <span id="level-label">Уровень: <span id="level-value">1</span></span>
-    </div>
-  </div>
 
-  <!-- Панель прогресса -->
-  <div id="progress-panel">
-    <div id="energy-label">Энергия: <span id="energy-value">0</span> / <span id="energy-max">1000</span></div>
-    <div id="energy-bar-container">
-      <div id="energy-bar-fill"></div>
+  <!-- Современная верхняя панель -->
+  <div id="top-bar">
+    <div id="player-icon">
+      <img id="avatar" src="https://via.placeholder.com/48" alt="avatar">
+      <div id="level-badge">1</div>
+    </div>
+    <div id="player-info">
+      <div id="username">Загрузка...</div>
+      <div id="energy-info"><span id="energy-value">0</span> / <span id="energy-max">1000</span></div>
+      <div id="energy-bar-container">
+        <div id="energy-bar-fill"></div>
+      </div>
     </div>
   </div>
 
   <!-- Карта -->
   <div id="map"></div>
 
-  <!-- Скрипты -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script type="module" src="scripts/main.js"></script>
 </body>
