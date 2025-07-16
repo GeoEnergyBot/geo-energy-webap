@@ -38,6 +38,12 @@ let map;
       }]);
     } else {
       level = data.level || 1;
+      const currentEnergy = data.energy ?? 0;
+      const maxEnergy = data.energy_max ?? 1000;
+      document.getElementById('energy-value').textContent = currentEnergy;
+      document.getElementById('energy-max').textContent = maxEnergy;
+      const percent = Math.floor((currentEnergy / maxEnergy) * 100);
+      document.getElementById('energy-bar-fill').style.width = percent + "%";
     }
   }
 
@@ -135,7 +141,9 @@ async function loadEnergyPoints(centerLat, centerLng) {
 
               if (!playerError && player) {
                 const energyToAdd = getEnergyValue(point.type);
-                const newEnergy = Math.min(player.energy + energyToAdd, player.energy_max);
+                const currentEnergy = player.energy ?? 0;
+                const maxEnergy = player.energy_max ?? 1000;
+                const newEnergy = Math.min(currentEnergy + energyToAdd, maxEnergy);
 
                 await supabase
                   .from('players')
@@ -143,7 +151,8 @@ async function loadEnergyPoints(centerLat, centerLng) {
                   .eq('telegram_id', user.id);
 
                 document.getElementById('energy-value').textContent = newEnergy;
-                const percent = Math.floor((newEnergy / player.energy_max) * 100);
+                document.getElementById('energy-max').textContent = maxEnergy;
+                const percent = Math.floor((newEnergy / maxEnergy) * 100);
                 document.getElementById('energy-bar-fill').style.width = percent + "%";
               }
             } else {
