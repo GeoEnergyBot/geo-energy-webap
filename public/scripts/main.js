@@ -1,21 +1,17 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
 
-// Supabase client
 const supabase = createClient(
   'https://ptkzsrlicfhufdnegwjl.supabase.co',
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0a3pzcmxpY2ZodWZkbmVnd2psIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI0NzA3NjAsImV4cCI6MjA2ODA0Njc2MH0.eI0eF_imdgGWPLiUULTprh52Jo9P69WGpe3RbCg3Afo'
 );
 
-// Telegram SDK
 let tg = window.Telegram.WebApp;
 tg.expand();
 const user = tg.initDataUnsafe.user;
 
-// Отображение имени и аватара
 document.getElementById("username").textContent = user?.first_name || user?.username || "Гость";
 document.getElementById("avatar").src = user?.photo_url || "https://cdn-icons-png.flaticon.com/512/9131/9131529.png";
 
-// Определим иконку игрока по уровню
 function getGhostIconByLevel(level) {
   const index = Math.min(Math.floor((level - 1) / 10) + 1, 10);
   return `ghost_icons/ghost_level_${String(index).padStart(2, '0')}.png`;
@@ -24,7 +20,6 @@ function getGhostIconByLevel(level) {
 let playerMarker;
 let map;
 
-// Получаем игрока и его уровень
 (async () => {
   let level = 1;
   if (user) {
@@ -82,7 +77,6 @@ let map;
   });
 })();
 
-// Загрузка и отображение точек энергии
 async function loadEnergyPoints(centerLat, centerLng) {
   alert("Энерготочки загружаются…");
   console.log("Загрузка энерготочек для:", centerLat, centerLng);
@@ -96,9 +90,9 @@ async function loadEnergyPoints(centerLat, centerLng) {
       body: JSON.stringify({ 
         center_lat: centerLat, 
         center_lng: centerLng,
-        telegram_id: user.id // 👈 добавили ID игрока
-      }) // ✅ исправлено: закрыта скобка JSON.stringify
-    }); // ✅ исправлено: закрыта скобка fetch
+        telegram_id: user.id
+      })
+    });
 
     if (!response.ok) {
       alert("❌ Supabase вернул ошибку: " + response.status);
@@ -124,6 +118,7 @@ async function loadEnergyPoints(centerLat, centerLng) {
             if (distance <= 0.02) {
               alert('⚡ Энергия собрана!');
               map.removeLayer(marker);
+
               await supabase
                 .from('energy_points')
                 .update({
@@ -131,6 +126,26 @@ async function loadEnergyPoints(centerLat, centerLng) {
                   collected_at: new Date().toISOString()
                 })
                 .eq('id', point.id);
+
+              const { data: player, error: playerError } = await supabase
+                .from('players')
+                .select('*')
+                .eq('telegram_id', user.id)
+                .single();
+
+              if (!playerError && player) {
+                const energyToAdd = getEnergyValue(point.type);
+                const newEnergy = Math.min(player.energy + energyToAdd, player.energy_max);
+
+                await supabase
+                  .from('players')
+                  .update({ energy: newEnergy })
+                  .eq('telegram_id', user.id);
+
+                document.getElementById('energy-value').textContent = newEnergy;
+                const percent = Math.floor((newEnergy / player.energy_max) * 100);
+                document.getElementById('energy-bar-fill').style.width = percent + "%";
+              }
             } else {
               alert("🚫 Подойдите ближе к точке (до 20 м), чтобы собрать энергию.");
             }
@@ -153,6 +168,14 @@ function getEnergyIcon(type) {
   }
 }
 
+function getEnergyValue(type) {
+  switch (type) {
+    case 'rare': return 150;
+    case 'advanced': return 50;
+    default: return 20;
+  }
+}
+
 function getDistance(lat1, lng1, lat2, lng2) {
   const R = 6371;
   const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -162,4 +185,3 @@ function getDistance(lat1, lng1, lat2, lng2) {
             Math.sin(dLng / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
-
