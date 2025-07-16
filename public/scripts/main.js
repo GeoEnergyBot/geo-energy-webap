@@ -17,17 +17,8 @@ function getGhostIconByLevel(level) {
   return `ghost_icons/ghost_level_${String(index).padStart(2, '0')}.png`;
 }
 
-function getEnergyIcon(type) {
-  switch (type) {
-    case 'rare': return 'https://cdn-icons-png.flaticon.com/512/1704/1704425.png';
-    case 'advanced': return 'https://cdn-icons-png.flaticon.com/512/4276/4276722.png';
-    default: return 'https://cdn-icons-png.flaticon.com/512/414/414927.png';
-  }
-}
-
 let playerMarker;
 let map;
-let lastLatLng = null;
 
 (async () => {
   let level = 1;
@@ -63,9 +54,12 @@ let lastLatLng = null;
     popupAnchor: [0, -24]
   });
 
-  navigator.geolocation.watchPosition((pos) => {
+  navigator.geolocation.getCurrentPosition((pos) => {
     const lat = pos.coords.latitude;
     const lng = pos.coords.longitude;
+
+    console.log("Игрок на позиции:", lat, lng);
+    alert("📍 Геопозиция получена: " + lat.toFixed(5) + ", " + lng.toFixed(5));
 
     if (!map) {
       map = L.map('map').setView([lat, lng], 16);
@@ -82,27 +76,16 @@ let lastLatLng = null;
       playerMarker.setLatLng([lat, lng]);
     }
 
-    maybeReloadEnergyPoints(lat, lng);
+    loadEnergyPoints(lat, lng);
   }, (error) => {
     alert("Ошибка геолокации: " + error.message);
     console.error("GeoError:", error);
   });
 })();
 
-function maybeReloadEnergyPoints(lat, lng) {
-  if (!lastLatLng) {
-    lastLatLng = { lat, lng };
-    loadEnergyPoints(lat, lng);
-    return;
-  }
-  const distanceMoved = getDistance(lat, lng, lastLatLng.lat, lastLatLng.lng);
-  if (distanceMoved > 0.2) {
-    lastLatLng = { lat, lng };
-    loadEnergyPoints(lat, lng);
-  }
-}
-
 async function loadEnergyPoints(centerLat, centerLng) {
+  alert("Энерготочки загружаются…");
+  console.log("Загрузка энерготочек для:", centerLat, centerLng);
   try {
     const response = await fetch('https://ptkzsrlicfhufdnegwjl.functions.supabase.co/generate-points', {
       method: 'POST',
@@ -123,15 +106,16 @@ async function loadEnergyPoints(centerLat, centerLng) {
     }
 
     const result = await response.json();
+    console.log("Ответ от Supabase функции:", result);
+
     if (result.success && result.points) {
       result.points
         .filter(point => !point.collected_by || point.collected_by !== user.id.toString())
         .forEach(point => {
           const icon = L.icon({
             iconUrl: getEnergyIcon(point.type),
-            iconSize: [36, 36],
-            iconAnchor: [18, 18],
-            className: 'pulsing-energy'
+            iconSize: [30, 30],
+            iconAnchor: [15, 15]
           });
 
           const marker = L.marker([point.lat, point.lng], { icon }).addTo(map);
@@ -176,10 +160,20 @@ async function loadEnergyPoints(centerLat, centerLng) {
             }
           });
         });
+    } else {
+      console.warn("⚠ Точек нет или формат неверный:", result);
     }
   } catch (error) {
     console.error('❌ Ошибка при загрузке энерготочек:', error);
     alert("Ошибка при запросе точек энергии: " + error.message);
+  }
+}
+
+function getEnergyIcon(type) {
+  switch (type) {
+    case 'rare': return 'https://cdn-icons-png.flaticon.com/512/1704/1704425.png';
+    case 'advanced': return 'https://cdn-icons-png.flaticon.com/512/4276/4276722.png';
+    default: return 'https://cdn-icons-png.flaticon.com/512/414/414927.png';
   }
 }
 
@@ -200,3 +194,32 @@ function getDistance(lat1, lng1, lat2, lng2) {
             Math.sin(dLng / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
+
+
+let lastLat = null;
+let lastLng = null;
+
+navigator.geolocation.watchPosition((pos) => {
+  const lat = pos.coords.latitude;
+  const lng = pos.coords.longitude;
+
+  if (!map) return;
+
+  if (!lastLat || !lastLng || getDistance(lastLat, lastLng, lat, lng) > 0.2) {
+    console.log("📍 Обновление позиции:", lat, lng);
+    lastLat = lat;
+    lastLng = lng;
+
+    if (playerMarker) {
+      playerMarker.setLatLng([lat, lng]);
+    }
+
+    loadEnergyPoints(lat, lng);
+  }
+}, (error) => {
+  console.error("❌ Ошибка отслеживания геолокации:", error);
+}, {
+  enableHighAccuracy: true,
+  maximumAge: 10000,
+  timeout: 5000
+});
