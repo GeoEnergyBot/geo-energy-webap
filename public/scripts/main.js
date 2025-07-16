@@ -114,8 +114,9 @@ async function loadEnergyPoints(centerLat, centerLng) {
         .forEach(point => {
           const icon = L.divIcon({
             className: `energy-blob energy-${point.type}`,
-            html: `<div></div>`,
-            iconSize: [0, 0]
+            html: `<div class='energy-inner'></div>`,
+            iconSize: [36, 36],
+            iconAnchor: [18, 18]
           });
 
           const marker = L.marker([point.lat, point.lng], { icon }).addTo(map);
