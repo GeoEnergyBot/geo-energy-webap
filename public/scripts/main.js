@@ -194,32 +194,3 @@ function getDistance(lat1, lng1, lat2, lng2) {
             Math.sin(dLng / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
-
-
-let lastLat = null;
-let lastLng = null;
-
-navigator.geolocation.watchPosition((pos) => {
-  const lat = pos.coords.latitude;
-  const lng = pos.coords.longitude;
-
-  if (!map) return;
-
-  if (!lastLat || !lastLng || getDistance(lastLat, lastLng, lat, lng) > 0.2) {
-    console.log("📍 Обновление позиции:", lat, lng);
-    lastLat = lat;
-    lastLng = lng;
-
-    if (playerMarker) {
-      playerMarker.setLatLng([lat, lng]);
-    }
-
-    loadEnergyPoints(lat, lng);
-  }
-}, (error) => {
-  console.error("❌ Ошибка отслеживания геолокации:", error);
-}, {
-  enableHighAccuracy: true,
-  maximumAge: 10000,
-  timeout: 5000
-});
