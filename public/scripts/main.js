@@ -112,7 +112,9 @@ async function loadEnergyPoints(centerLat, centerLng) {
       result.points
         .filter(point => !point.collected_by || point.collected_by !== user.id.toString())
         .forEach(point => {
-          const icon = L.icon({
+          const icon = L.divIcon({
+            className: `energy-blot energy-${point.type}`,
+            html: `<div></div>`,
             iconUrl: getEnergyIcon(point.type),
             iconSize: [30, 30],
             iconAnchor: [15, 15]

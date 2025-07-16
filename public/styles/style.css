@@ -93,3 +93,46 @@ body {
   position: relative;
   z-index: 0;
 }
+
+
+/* Энергетические кляксы */
+.energy-blot {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  opacity: 0.8;
+  animation: pulse 2s infinite ease-in-out;
+  filter: blur(2px);
+}
+
+.energy-basic {
+  background: radial-gradient(circle, #00ff99, transparent);
+  box-shadow: 0 0 12px #00ff99aa;
+}
+
+.energy-advanced {
+  background: radial-gradient(circle, #bb00ff, transparent);
+  box-shadow: 0 0 16px #bb00ffaa;
+  animation: pulse 2s infinite ease-in-out, float 3s infinite ease-in-out;
+}
+
+.energy-rare {
+  background: radial-gradient(circle, #ffd700, transparent);
+  box-shadow: 0 0 20px #ffd700aa, 0 0 40px #ffaa00aa inset;
+  animation: pulse 1.8s infinite ease-in-out, spin 5s linear infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); opacity: 0.9; }
+  50%      { transform: scale(1.3); opacity: 0.6; }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50%      { transform: translateY(-5px); }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
