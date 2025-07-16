@@ -112,8 +112,9 @@ async function loadEnergyPoints(centerLat, centerLng) {
       result.points
         .filter(point => !point.collected_by || point.collected_by !== user.id.toString())
         .forEach(point => {
-          const icon = L.icon({
-            iconUrl: getEnergyIcon(point.type),
+          const icon = L.divIcon({
+            className: 'custom-energy-icon ' + (point.type || 'basic'),
+            html: `<div class="energy-pulse"></div>`,
             iconSize: [30, 30],
             iconAnchor: [15, 15]
           });
@@ -166,14 +167,6 @@ async function loadEnergyPoints(centerLat, centerLng) {
   } catch (error) {
     console.error('❌ Ошибка при загрузке энерготочек:', error);
     alert("Ошибка при запросе точек энергии: " + error.message);
-  }
-}
-
-function getEnergyIcon(type) {
-  switch (type) {
-    case 'rare': return 'https://cdn-icons-png.flaticon.com/512/1704/1704425.png';
-    case 'advanced': return 'https://cdn-icons-png.flaticon.com/512/4276/4276722.png';
-    default: return 'https://cdn-icons-png.flaticon.com/512/414/414927.png';
   }
 }
 
