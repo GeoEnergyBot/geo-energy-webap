@@ -26,6 +26,7 @@ let map;
 let ghostIcon;
 let initialized = false;
 let lastTileId = null;
+let energyMarkers = [];
 
 (async () => {
   let level = 1;
@@ -110,12 +111,17 @@ let lastTileId = null;
 
 async function loadEnergyPoints(centerLat, centerLng) {
   console.log("Загрузка энерготочек для:", centerLat, centerLng);
+
+  // Очистка старых маркеров
+  energyMarkers.forEach(marker => map.removeLayer(marker));
+  energyMarkers = [];
+
   try {
     const response = await fetch('https://ptkzsrlicfhufdnegwjl.functions.supabase.co/generate-points', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0a3pzcmxpY2ZodWZkbmVnd2psIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI0NzA3NjAsImV4cCI6MjA2ODA0Njc2MH0.eI0eF_imdgGWPLiUULTprh52Jo9P69WGpe3RbCg3Afo'
+        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9....' // Сокращён
       },
       body: JSON.stringify({ 
         center_lat: centerLat, 
@@ -124,13 +130,7 @@ async function loadEnergyPoints(centerLat, centerLng) {
       })
     });
 
-    if (!response.ok) {
-      alert("❌ Supabase вернул ошибку: " + response.status);
-      return;
-    }
-
     const result = await response.json();
-    console.log("Ответ от Supabase функции:", result);
 
     if (result.success && result.points) {
       result.points
@@ -143,28 +143,35 @@ async function loadEnergyPoints(centerLat, centerLng) {
           });
 
           const marker = L.marker([point.lat, point.lng], { icon }).addTo(map);
+          energyMarkers.push(marker);
+
           marker.on('click', async () => {
             const distance = getDistance(centerLat, centerLng, point.lat, point.lng);
             if (distance <= 0.02) {
-              alert('⚡ Энергия собрана!');
-              map.removeLayer(marker);
-
-              await supabase
+              const { error } = await supabase
                 .from('energy_points')
                 .update({
                   collected_by: user.id.toString(),
                   collected_at: new Date().toISOString()
                 })
-                .eq('id', point.id);
+                .eq('id', point.id)
+                .is('collected_by', null); // Предотвращение гонки
 
-              const { data: player, error: playerError } = await supabase
+              if (error) {
+                alert("🚫 Энергия уже собрана другим игроком.");
+                return;
+              }
+
+              map.removeLayer(marker);
+
+              const { data: player } = await supabase
                 .from('players')
                 .select('*')
                 .eq('telegram_id', user.id)
                 .single();
 
-              if (!playerError && player) {
-                const energyToAdd = getEnergyValue(point.type);
+              if (player) {
+                const energyToAdd = point.energy_value;
                 const currentEnergy = player.energy ?? 0;
                 const maxEnergy = player.energy_max ?? 1000;
                 const newEnergy = Math.min(currentEnergy + energyToAdd, maxEnergy);
@@ -178,14 +185,14 @@ async function loadEnergyPoints(centerLat, centerLng) {
                 document.getElementById('energy-max').textContent = maxEnergy;
                 const percent = Math.floor((newEnergy / maxEnergy) * 100);
                 document.getElementById('energy-bar-fill').style.width = percent + "%";
+
+                alert(`⚡ Вы собрали ${energyToAdd} энергии!`);
               }
             } else {
-              alert("🚫 Подойдите ближе к точке (до 20 м), чтобы собрать энергию.");
+              alert("🚫 Подойдите ближе (до 20 м), чтобы собрать энергию.");
             }
           });
         });
-    } else {
-      console.warn("⚠ Точек нет или формат неверный:", result);
     }
   } catch (error) {
     console.error('❌ Ошибка при загрузке энерготочек:', error);
@@ -198,14 +205,6 @@ function getEnergyIcon(type) {
     case 'rare': return 'https://cdn-icons-png.flaticon.com/512/1704/1704425.png';
     case 'advanced': return 'https://cdn-icons-png.flaticon.com/512/4276/4276722.png';
     default: return 'https://cdn-icons-png.flaticon.com/512/414/414927.png';
-  }
-}
-
-function getEnergyValue(type) {
-  switch (type) {
-    case 'rare': return 150;
-    case 'advanced': return 50;
-    default: return 20;
   }
 }
 
