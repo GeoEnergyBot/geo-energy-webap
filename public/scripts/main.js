@@ -87,7 +87,8 @@ async function loadEnergyPoints(centerLat, centerLng) {
   alert("Энерготочки загружаются…");
   console.log("Загрузка энерготочек для:", centerLat, centerLng);
   try {
-    const response = await fetch('https://ptkzsrlicfhufdnegwjl.functions.supabase.co/generate-points', {
+    const response = await fetch('https://ptkzsrlicfhufdnegwjl.supabase.co/functions/v1/generate-points', {
+
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
