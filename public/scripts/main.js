@@ -17,10 +17,15 @@ function getGhostIconByLevel(level) {
   return `ghost_icons/ghost_level_${String(index).padStart(2, '0')}.png`;
 }
 
+function getTileId(lat, lng) {
+  return `${Math.floor(lat * 100)}_${Math.floor(lng * 100)}`;
+}
+
 let playerMarker;
 let map;
 let ghostIcon;
 let initialized = false;
+let lastTileId = null;
 
 (async () => {
   let level = 1;
@@ -62,8 +67,6 @@ let initialized = false;
         const lat = pos.coords.latitude;
         const lng = pos.coords.longitude;
 
-        console.log("📍 Новая позиция игрока:", lat, lng);
-
         if (!initialized) {
           map = L.map('map').setView([lat, lng], 16);
           L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -74,10 +77,20 @@ let initialized = false;
             .bindPopup("Вы здесь")
             .openPopup();
 
+          const tileId = getTileId(lat, lng);
+          lastTileId = tileId;
           loadEnergyPoints(lat, lng);
+
           initialized = true;
         } else {
           playerMarker.setLatLng([lat, lng]);
+
+          const tileId = getTileId(lat, lng);
+          if (tileId !== lastTileId) {
+            console.log("🧭 Новый тайл:", tileId);
+            loadEnergyPoints(lat, lng);
+            lastTileId = tileId;
+          }
         }
       },
       (error) => {
