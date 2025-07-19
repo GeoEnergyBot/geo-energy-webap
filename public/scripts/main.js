@@ -19,6 +19,8 @@ function getGhostIconByLevel(level) {
 
 let playerMarker;
 let map;
+let ghostIcon;
+let initialized = false;
 
 (async () => {
   let level = 1;
@@ -47,44 +49,53 @@ let map;
     }
   }
 
-  const ghostIcon = L.icon({
+  ghostIcon = L.icon({
     iconUrl: getGhostIconByLevel(level),
     iconSize: [48, 48],
     iconAnchor: [24, 24],
     popupAnchor: [0, -24]
   });
 
-  navigator.geolocation.getCurrentPosition((pos) => {
-    const lat = pos.coords.latitude;
-    const lng = pos.coords.longitude;
+  if ("geolocation" in navigator) {
+    navigator.geolocation.watchPosition(
+      (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
 
-    console.log("Игрок на позиции:", lat, lng);
-    alert("📍 Геопозиция получена: " + lat.toFixed(5) + ", " + lng.toFixed(5));
+        console.log("📍 Новая позиция игрока:", lat, lng);
 
-    if (!map) {
-      map = L.map('map').setView([lat, lng], 16);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-      }).addTo(map);
-    }
+        if (!initialized) {
+          map = L.map('map').setView([lat, lng], 16);
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+          }).addTo(map);
 
-    if (!playerMarker) {
-      playerMarker = L.marker([lat, lng], { icon: ghostIcon }).addTo(map)
-        .bindPopup("Вы здесь")
-        .openPopup();
-    } else {
-      playerMarker.setLatLng([lat, lng]);
-    }
+          playerMarker = L.marker([lat, lng], { icon: ghostIcon }).addTo(map)
+            .bindPopup("Вы здесь")
+            .openPopup();
 
-    loadEnergyPoints(lat, lng);
-  }, (error) => {
-    alert("Ошибка геолокации: " + error.message);
-    console.error("GeoError:", error);
-  });
+          loadEnergyPoints(lat, lng);
+          initialized = true;
+        } else {
+          playerMarker.setLatLng([lat, lng]);
+        }
+      },
+      (error) => {
+        alert("Ошибка геолокации: " + error.message);
+        console.error("GeoError:", error);
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 1000,
+        timeout: 10000,
+      }
+    );
+  } else {
+    alert("Геолокация не поддерживается на этом устройстве.");
+  }
 })();
 
 async function loadEnergyPoints(centerLat, centerLng) {
-  alert("Энерготочки загружаются…");
   console.log("Загрузка энерготочек для:", centerLat, centerLng);
   try {
     const response = await fetch('https://ptkzsrlicfhufdnegwjl.functions.supabase.co/generate-points', {
