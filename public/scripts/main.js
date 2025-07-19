@@ -90,13 +90,11 @@ async function loadEnergyPoints(centerLat, centerLng) {
     const response = await fetch('https://ptkzsrlicfhufdnegwjl.functions.supabase.co/generate-points', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0a3pzcmxpY2ZodWZkbmVnd2psIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI0NzA3NjAsImV4cCI6MjA2ODA0Njc2MH0.eI0eF_imdgGWPLiUULTprh52Jo9P69WGpe3RbCg3Afo'
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({ 
         center_lat: centerLat, 
-        center_lng: centerLng,
-        telegram_id: user.id
+        center_lng: centerLng
       })
     });
 
@@ -110,7 +108,7 @@ async function loadEnergyPoints(centerLat, centerLng) {
 
     if (result.success && result.points) {
       result.points
-        .filter(point => !point.collected_by || point.collected_by !== user.id.toString())
+        .filter(point => !point.collected_by)
         .forEach(point => {
           const icon = L.icon({
             iconUrl: getEnergyIcon(point.type),
@@ -122,7 +120,7 @@ async function loadEnergyPoints(centerLat, centerLng) {
           marker.on('click', async () => {
             const distance = getDistance(centerLat, centerLng, point.lat, point.lng);
             if (distance <= 0.02) {
-              alert('⚡ Энергия собрана!');
+              alert('* Энергия собрана!');
               map.removeLayer(marker);
 
               await supabase
