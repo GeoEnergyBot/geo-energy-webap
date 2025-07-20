@@ -121,6 +121,7 @@ let energyMarkers = [];
 async function loadEnergyPoints(centerLat, centerLng) {
   console.log("Загрузка энерготочек для:", centerLat, centerLng);
 
+  // Очистка старых маркеров
   energyMarkers.forEach(marker => map.removeLayer(marker));
   energyMarkers = [];
 
@@ -129,7 +130,7 @@ async function loadEnergyPoints(centerLat, centerLng) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9....' // сокращён
+        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9....' // Сокращён
       },
       body: JSON.stringify({ 
         center_lat: centerLat, 
@@ -163,7 +164,7 @@ async function loadEnergyPoints(centerLat, centerLng) {
                   collected_at: new Date().toISOString()
                 })
                 .eq('id', point.id)
-                .is('collected_by', null);
+                .is('collected_by', null); // Предотвращение гонки
 
               if (error) {
                 alert("🚫 Энергия уже собрана другим игроком.");
@@ -210,10 +211,11 @@ async function loadEnergyPoints(centerLat, centerLng) {
 
 function getEnergyIcon(type) {
   switch (type) {
-    case 'rare': return 'https://cdn-icons-png.flaticon.com/512/1704/1704425.png';
-    case 'advanced': return 'https://cdn-icons-png.flaticon.com/512/4276/4276722.png';
-    default: return 'https://cdn-icons-png.flaticon.com/512/414/414927.png';
+    case 'rare': return 'energy_yellow.png';
+    case 'advanced': return 'energy_purple.png';
+    default: return 'energy_green.png';
   }
+}
 }
 
 function getDistance(lat1, lng1, lat2, lng2) {
