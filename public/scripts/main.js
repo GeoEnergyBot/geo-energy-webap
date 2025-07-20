@@ -104,6 +104,15 @@ let energyMarkers = [];
         timeout: 10000,
       }
     );
+
+    // ✅ ДОБАВЛЕНО: обновление точек каждые 60 сек, даже если игрок стоит на месте
+    setInterval(() => {
+      if (initialized && playerMarker) {
+        const latlng = playerMarker.getLatLng();
+        loadEnergyPoints(latlng.lat, latlng.lng);
+      }
+    }, 60000); // каждые 60 секунд
+
   } else {
     alert("Геолокация не поддерживается на этом устройстве.");
   }
@@ -112,7 +121,6 @@ let energyMarkers = [];
 async function loadEnergyPoints(centerLat, centerLng) {
   console.log("Загрузка энерготочек для:", centerLat, centerLng);
 
-  // Очистка старых маркеров
   energyMarkers.forEach(marker => map.removeLayer(marker));
   energyMarkers = [];
 
@@ -121,7 +129,7 @@ async function loadEnergyPoints(centerLat, centerLng) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9....' // Сокращён
+        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9....' // сокращён
       },
       body: JSON.stringify({ 
         center_lat: centerLat, 
@@ -155,7 +163,7 @@ async function loadEnergyPoints(centerLat, centerLng) {
                   collected_at: new Date().toISOString()
                 })
                 .eq('id', point.id)
-                .is('collected_by', null); // Предотвращение гонки
+                .is('collected_by', null);
 
               if (error) {
                 alert("🚫 Энергия уже собрана другим игроком.");
