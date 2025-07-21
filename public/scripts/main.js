@@ -142,9 +142,7 @@ async function loadEnergyPoints(centerLat, centerLng) {
       result.points
         .filter(point => !point.collected_by || point.collected_by !== user.id.toString())
         .forEach(point => {
-          const typeClass = point.type === 'normal' ? 'basic' : point.type;
-          const className = `custom-energy-icon ${typeClass}`;
-
+          const className = `custom-energy-icon ${point.type}`;
 
           const divIcon = L.divIcon({
             className,
@@ -219,4 +217,13 @@ function getDistance(lat1, lng1, lat2, lng2) {
             Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
             Math.sin(dLng / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+
+function getEnergyIcon(type) {
+  switch (type) {
+    case 'rare': return '/energy_blobs/rare_blob.png';
+    case 'advanced': return '/energy_blobs/advanced_blob.png';
+    default: return '/energy_blobs/normal_blob.png';
+  }
 }
