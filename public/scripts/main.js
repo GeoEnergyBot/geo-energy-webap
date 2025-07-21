@@ -22,24 +22,10 @@ function getTileId(lat, lng) {
 }
 
 function getEnergyIcon(type) {
-  let url = '';
   switch (type) {
-    case 'rare': url = '/energy_blobs/rare_blob.png'; break;
-    case 'advanced': url = '/energy_blobs/advanced_blob.png'; break;
-    default: url = '/energy_blobs/normal_blob.png';
-  }
-  return L.icon({
-    iconUrl: url,
-    iconSize: [60, 100], // подходящее соотношение
-    iconAnchor: [30, 50]
-  });
-}
-
-function getEnergyValue(type) {
-  switch (type) {
-    case 'rare': return 150;
-    case 'advanced': return 50;
-    default: return 20;
+    case 'rare': return '/energy_blobs/rare_blob.png';
+    case 'advanced': return '/energy_blobs/advanced_blob.png';
+    default: return '/energy_blobs/normal_blob.png';
   }
 }
 
@@ -61,7 +47,7 @@ let energyMarkers = [];
 (async () => {
   let level = 1;
   if (user) {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('players')
       .select('*')
       .eq('telegram_id', user.id)
@@ -72,10 +58,13 @@ let energyMarkers = [];
         telegram_id: user.id,
         username: user.username,
         first_name: user.first_name,
-        avatar_url: user.photo_url
+        avatar_url: user.photo_url,
+        energy: 0,
+        energy_max: 1000,
+        level: 1
       }]);
     } else {
-      level = data.level || 1;
+      level = data.level ?? 1;
       const currentEnergy = data.energy ?? 0;
       const maxEnergy = data.energy_max ?? 1000;
       document.getElementById('energy-value').textContent = currentEnergy;
@@ -153,7 +142,7 @@ async function loadEnergyPoints(centerLat, centerLng) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0a3pzcmxpY2ZodWZkbmVnd2psIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI0NzA3NjAsImV4cCI6MjA2ODA0Njc2MH0.eI0eF_imdgGWPLiUULTprh52Jo9P69WGpe3RbCg3Afo'
+        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
       },
       body: JSON.stringify({
         center_lat: centerLat,
@@ -168,7 +157,11 @@ async function loadEnergyPoints(centerLat, centerLng) {
     result.points
       .filter(p => !p.collected_by || p.collected_by !== user.id.toString())
       .forEach(point => {
-        const icon = getEnergyIcon(point.type);
+        const icon = L.icon({
+          iconUrl: getEnergyIcon(point.type),
+          iconSize: [50, 50], // исправлено со сжатого вида
+          iconAnchor: [25, 25]
+        });
 
         const marker = L.marker([point.lat, point.lng], { icon }).addTo(map);
         energyMarkers.push(marker);
@@ -203,7 +196,7 @@ async function loadEnergyPoints(centerLat, centerLng) {
             .single();
 
           if (player) {
-            const energyToAdd = getEnergyValue(point.type);
+            const energyToAdd = point.energy_value ?? 0;
             const currentEnergy = player.energy ?? 0;
             const maxEnergy = player.energy_max ?? 1000;
             const newEnergy = Math.min(currentEnergy + energyToAdd, maxEnergy);
