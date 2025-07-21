@@ -59,8 +59,6 @@ let energyMarkers = [];
       .eq('telegram_id', user.id)
       .single();
 
-    console.log("Данные игрока:", data);
-
     if (!data) {
       await supabase.from('players').insert([{
         telegram_id: user.id,
@@ -147,7 +145,7 @@ async function loadEnergyPoints(centerLat, centerLng) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0a3pzcmxpY2ZodWZkbmVnd2psIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI0NzA3NjAsImV4cCI6MjA2ODA0Njc2MH0.eI0eF_imdgGWPLiUULTprh52Jo9P69WGpe3RbCg3Afo'
+        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
       },
       body: JSON.stringify({
         center_lat: centerLat,
@@ -163,56 +161,23 @@ async function loadEnergyPoints(centerLat, centerLng) {
       .filter(p => !p.collected_by || p.collected_by !== user.id.toString())
       .forEach(point => {
         const icon = getEnergyIcon(point.type);
-
         const marker = L.marker([point.lat, point.lng], { icon }).addTo(map);
         energyMarkers.push(marker);
 
         marker.on('click', async () => {
           const distance = getDistance(centerLat, centerLng, point.lat, point.lng);
-          
-          const sound = document.getElementById('energy-sound');
-          if (sound) {
-            sound.currentTime = 0;
-            sound.play();
-          }
-
-          const animatedCircle = L.circleMarker([point.lat, point.lng], {
-            radius: 10,
-            color: "#00ff00",
-            fillColor: "#00ff00",
-            fillOpacity: 0.8
-          }).addTo(map);
-
-          const start = L.latLng(point.lat, point.lng);
-          const end = playerMarker.getLatLng();
-          let progress = 0;
-          const duration = 500;
-          const startTime = performance.now();
-
-          function animate(timestamp) {
-            progress = (timestamp - startTime) / duration;
-            if (progress >= 1) {
-              map.removeLayer(animatedCircle);
-              const playerEl = playerMarker.getElement();
-              if (playerEl) {
-                playerEl.classList.add('flash');
-                setTimeout(() => playerEl.classList.remove('flash'), 300);
-              }
-              return;
-            }
-            const lat = start.lat + (end.lat - start.lat) * progress;
-            const lng = start.lng + (end.lng - start.lng) * progress;
-            animatedCircle.setLatLng([lat, lng]);
-            requestAnimationFrame(animate);
-          }
-          requestAnimationFrame(animate);
-
           if (distance > 0.02) {
             alert("🚫 Подойдите ближе (до 20 м), чтобы собрать энергию.");
             return;
           }
 
-          const { error } = await supabase
+          const energyToAdd = Number(point.energy_value);
+          if (!point.energy_value || energyToAdd <= 0) {
+            alert("⚠️ Ошибка: точка содержит недопустимое значение энергии.");
+            return;
+          }
+
+          const { error: updateError } = await supabase
             .from('energy_points')
             .update({
               collected_by: user.id.toString(),
@@ -221,7 +186,7 @@ async function loadEnergyPoints(centerLat, centerLng) {
             .eq('id', point.id)
             .is('collected_by', null);
 
-          if (error) {
+          if (updateError) {
             alert("🚫 Энергия уже собрана другим игроком.");
             return;
           }
@@ -235,14 +200,12 @@ async function loadEnergyPoints(centerLat, centerLng) {
             .single();
 
           if (player) {
-            const energyToAdd = Number(point.energy_value) || 0;
             let currentEnergy = Number(player.energy) || 0;
-            let maxEnergy = Number(player.energy_max) || 1000;
             let level = player.level || 1;
+            let maxEnergy = Number(player.energy_max) || 1000;
 
             let newEnergy = currentEnergy + energyToAdd;
-
-            const levelUpThreshold = (lvl) => lvl * 1000;
+            const levelUpThreshold = lvl => lvl * 1000;
             let levelUp = false;
 
             while (newEnergy >= levelUpThreshold(level)) {
@@ -255,7 +218,11 @@ async function loadEnergyPoints(centerLat, centerLng) {
 
             await supabase
               .from('players')
-              .update({ energy: newEnergy, level, energy_max: newMaxEnergy })
+              .update({
+                energy: newEnergy,
+                level,
+                energy_max: newMaxEnergy
+              })
               .eq('telegram_id', user.id);
 
             document.getElementById('energy-value').textContent = newEnergy;
