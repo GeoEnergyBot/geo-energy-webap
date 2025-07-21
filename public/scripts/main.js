@@ -30,17 +30,9 @@ function getEnergyIcon(type) {
   }
   return L.icon({
     iconUrl: url,
-    iconSize: [60, 100], // подходящее соотношение
+    iconSize: [60, 100],
     iconAnchor: [30, 50]
   });
-}
-
-function getEnergyValue(type) {
-  switch (type) {
-    case 'rare': return 150;
-    case 'advanced': return 50;
-    default: return 20;
-  }
 }
 
 function getDistance(lat1, lng1, lat2, lng2) {
@@ -66,6 +58,8 @@ let energyMarkers = [];
       .select('*')
       .eq('telegram_id', user.id)
       .single();
+
+    console.log("Данные игрока:", data);
 
     if (!data) {
       await supabase.from('players').insert([{
@@ -203,7 +197,7 @@ async function loadEnergyPoints(centerLat, centerLng) {
             .single();
 
           if (player) {
-            const energyToAdd = getEnergyValue(point.type);
+            const energyToAdd = point.energy_value; // ✅ Используем значение из базы
             const currentEnergy = player.energy ?? 0;
             const maxEnergy = player.energy_max ?? 1000;
             const newEnergy = Math.min(currentEnergy + energyToAdd, maxEnergy);
