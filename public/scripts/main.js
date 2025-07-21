@@ -105,12 +105,14 @@ let energyMarkers = [];
       }
     );
 
+    // ✅ ДОБАВЛЕНО: обновление точек каждые 60 сек, даже если игрок стоит на месте
     setInterval(() => {
       if (initialized && playerMarker) {
         const latlng = playerMarker.getLatLng();
         loadEnergyPoints(latlng.lat, latlng.lng);
       }
-    }, 60000);
+    }, 60000); // каждые 60 секунд
+
   } else {
     alert("Геолокация не поддерживается на этом устройстве.");
   }
@@ -127,7 +129,7 @@ async function loadEnergyPoints(centerLat, centerLng) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9....'
+        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9....' // сокращён
       },
       body: JSON.stringify({ 
         center_lat: centerLat, 
@@ -142,16 +144,13 @@ async function loadEnergyPoints(centerLat, centerLng) {
       result.points
         .filter(point => !point.collected_by || point.collected_by !== user.id.toString())
         .forEach(point => {
-          const className = `custom-energy-icon ${point.type}`;
-
-          const divIcon = L.divIcon({
-            className,
-            html: '<div class="energy-pulse"></div>',
+          const icon = L.icon({
+            iconUrl: getEnergyIcon(point.type),
             iconSize: [30, 30],
             iconAnchor: [15, 15]
           });
 
-          const marker = L.marker([point.lat, point.lng], { icon: divIcon }).addTo(map);
+          const marker = L.marker([point.lat, point.lng], { icon }).addTo(map);
           energyMarkers.push(marker);
 
           marker.on('click', async () => {
@@ -209,6 +208,14 @@ async function loadEnergyPoints(centerLat, centerLng) {
   }
 }
 
+function getEnergyIcon(type) {
+  switch (type) {
+    case 'rare': return 'https://cdn-icons-png.flaticon.com/512/1704/1704425.png';
+    case 'advanced': return 'https://cdn-icons-png.flaticon.com/512/4276/4276722.png';
+    default: return 'https://cdn-icons-png.flaticon.com/512/414/414927.png';
+  }
+}
+
 function getDistance(lat1, lng1, lat2, lng2) {
   const R = 6371;
   const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -217,13 +224,4 @@ function getDistance(lat1, lng1, lat2, lng2) {
             Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
             Math.sin(dLng / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-
-function getEnergyIcon(type) {
-  switch (type) {
-    case 'rare': return '/energy_blobs/rare_blob.png';
-    case 'advanced': return '/energy_blobs/advanced_blob.png';
-    default: return '/energy_blobs/normal_blob.png';
-  }
 }
