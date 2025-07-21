@@ -142,7 +142,9 @@ async function loadEnergyPoints(centerLat, centerLng) {
       result.points
         .filter(point => !point.collected_by || point.collected_by !== user.id.toString())
         .forEach(point => {
-          const className = `custom-energy-icon ${point.type}`;
+          const typeClass = point.type === 'normal' ? 'basic' : point.type;
+          const className = `custom-energy-icon ${typeClass}`;
+
 
           const divIcon = L.divIcon({
             className,
