@@ -59,14 +59,15 @@ let energyMarkers = [];
       .eq('telegram_id', user.id)
       .single();
 
-    console.log("Данные игрока:", data);
-
     if (!data) {
       await supabase.from('players').insert([{
         telegram_id: user.id,
         username: user.username,
         first_name: user.first_name,
-        avatar_url: user.photo_url
+        avatar_url: user.photo_url,
+        level: 1,
+        energy: 0,
+        energy_max: 1000
       }]);
     } else {
       level = data.level || 1;
@@ -106,9 +107,7 @@ let energyMarkers = [];
       (pos) => {
         const lat = pos.coords.latitude;
         const lng = pos.coords.longitude;
-
         if (playerMarker) playerMarker.setLatLng([lat, lng]);
-
         const tileId = getTileId(lat, lng);
         if (tileId !== lastTileId) {
           lastTileId = tileId;
@@ -117,7 +116,6 @@ let energyMarkers = [];
       },
       (error) => {
         alert("Ошибка геолокации: " + error.message);
-        console.error("GeoError:", error);
       },
       {
         enableHighAccuracy: true,
@@ -132,9 +130,6 @@ let energyMarkers = [];
         loadEnergyPoints(latlng.lat, latlng.lng);
       }
     }, 60000);
-
-  } else {
-    alert("Геолокация не поддерживается на этом устройстве.");
   }
 })();
 
@@ -163,7 +158,6 @@ async function loadEnergyPoints(centerLat, centerLng) {
       .filter(p => !p.collected_by || p.collected_by !== user.id.toString())
       .forEach(point => {
         const icon = getEnergyIcon(point.type);
-
         const marker = L.marker([point.lat, point.lng], { icon }).addTo(map);
         energyMarkers.push(marker);
 
@@ -211,10 +205,10 @@ async function loadEnergyPoints(centerLat, centerLng) {
             animatedCircle.setLatLng([lat, lng]);
             requestAnimationFrame(animate);
           }
-          requestAnimationFrame(animate);
 
-if (distance > 0.02) {
-            alert("🚫 Подойдите ближе (до 20 м), чтобы собрать энергию.");
+          const energyToAdd = Number(point.energy_value);
+          if (!energyToAdd || energyToAdd <= 0) {
+            alert("⚠️ Точка энергии некорректна или пуста.");
             return;
           }
 
@@ -241,28 +235,50 @@ if (distance > 0.02) {
             .single();
 
           if (player) {
-            const energyToAdd = Number(point.energy_value) || 0;
-            const currentEnergy = Number(player.energy) || 0;
-            const maxEnergy = Number(player.energy_max) || 1000;
-            const newEnergy = Math.min(currentEnergy + energyToAdd, maxEnergy);
+            let energy = player.energy || 0;
+            let level = player.level || 1;
+            let maxEnergy = player.energy_max || 1000;
 
+            energy += energyToAdd;
+            let leveledUp = false;
+            const levelUpThreshold = (lvl) => lvl * 1000;
 
-            await supabase
-              .from('players')
-              .update({ energy: newEnergy })
-              .eq('telegram_id', user.id);
+            while (energy >= levelUpThreshold(level)) {
+              energy -= levelUpThreshold(level);
+              level++;
+              leveledUp = true;
+            }
 
-            document.getElementById('energy-value').textContent = newEnergy;
-            document.getElementById('energy-max').textContent = maxEnergy;
-            const percent = Math.floor((newEnergy / maxEnergy) * 100);
+            const newMaxEnergy = 1000 + (level - 1) * 200;
+
+            await supabase.from('players').update({
+              energy,
+              level,
+              energy_max: newMaxEnergy
+            }).eq('telegram_id', user.id);
+
+            document.getElementById('energy-value').textContent = energy;
+            document.getElementById('energy-max').textContent = newMaxEnergy;
+            const percent = Math.floor((energy / newMaxEnergy) * 100);
             document.getElementById('energy-bar-fill').style.width = percent + "%";
 
-            alert(`⚡ Вы собрали ${energyToAdd} энергии!`);
+            const newIcon = getGhostIconByLevel(level);
+            playerMarker.setIcon(L.icon({
+              iconUrl: newIcon,
+              iconSize: [48, 48],
+              iconAnchor: [24, 24],
+              popupAnchor: [0, -24]
+            }));
+
+            if (leveledUp) {
+              alert(`🎉 Уровень повышен! Теперь ваш уровень: ${level}`);
+            } else {
+              alert(`⚡ Вы собрали ${energyToAdd} энергии!`);
+            }
           }
         });
       });
-
   } catch (error) {
-    console.error("Ошибка загрузки энерготочек:", error);
+    console.error("Ошибка загрузки точек:", error);
   }
 }
