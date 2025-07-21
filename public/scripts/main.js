@@ -160,24 +160,24 @@ async function loadEnergyPoints(centerLat, centerLng) {
     if (!result.success || !result.points) return;
 
     result.points
-      .filter(p =>
-        (!p.collected_by || p.collected_by !== user.id.toString()) &&
-        p.energy_value > 0 // ✅ Убираем нулевые точки
-      )
+      .filter(p => !p.collected_by || p.collected_by !== user.id.toString())
       .forEach(point => {
         const icon = getEnergyIcon(point.type);
+
         const marker = L.marker([point.lat, point.lng], { icon }).addTo(map);
         energyMarkers.push(marker);
 
         marker.on('click', async () => {
           const distance = getDistance(centerLat, centerLng, point.lat, point.lng);
-
+          
+          // 🎵 Звук
           const sound = document.getElementById('energy-sound');
           if (sound) {
             sound.currentTime = 0;
             sound.play();
           }
 
+          // ⚡ Эффект "энергия летит к игроку"
           const animatedCircle = L.circleMarker([point.lat, point.lng], {
             radius: 10,
             color: "#00ff00",
@@ -196,6 +196,8 @@ async function loadEnergyPoints(centerLat, centerLng) {
             progress = (timestamp - startTime) / duration;
             if (progress >= 1) {
               map.removeLayer(animatedCircle);
+
+              // ⚡ Вспышка вокруг игрока
               const playerEl = playerMarker.getElement();
               if (playerEl) {
                 playerEl.classList.add('flash');
@@ -211,7 +213,7 @@ async function loadEnergyPoints(centerLat, centerLng) {
           }
           requestAnimationFrame(animate);
 
-          if (distance > 0.02) {
+if (distance > 0.02) {
             alert("🚫 Подойдите ближе (до 20 м), чтобы собрать энергию.");
             return;
           }
@@ -240,41 +242,22 @@ async function loadEnergyPoints(centerLat, centerLng) {
 
           if (player) {
             const energyToAdd = Number(point.energy_value) || 0;
-            let energy = Number(player.energy) || 0;
-            let level = Number(player.level) || 1;
+            const currentEnergy = Number(player.energy) || 0;
+            const maxEnergy = Number(player.energy_max) || 1000;
+            const newEnergy = Math.min(currentEnergy + energyToAdd, maxEnergy);
 
-            energy += energyToAdd;
-
-            while (level < 100 && energy >= level * 1000) {
-              energy -= level * 1000;
-              level++;
-            }
-
-            const energyMax = Math.min(level * 1000, 100000);
 
             await supabase
               .from('players')
-              .update({
-                energy,
-                level,
-                energy_max: energyMax
-              })
+              .update({ energy: newEnergy })
               .eq('telegram_id', user.id);
 
-            document.getElementById('energy-value').textContent = energy;
-            document.getElementById('energy-max').textContent = energyMax;
-            document.getElementById('energy-bar-fill').style.width = Math.floor((energy / energyMax) * 100) + "%";
+            document.getElementById('energy-value').textContent = newEnergy;
+            document.getElementById('energy-max').textContent = maxEnergy;
+            const percent = Math.floor((newEnergy / maxEnergy) * 100);
+            document.getElementById('energy-bar-fill').style.width = percent + "%";
 
-            // 👻 Обновим иконку
-            const newIcon = L.icon({
-              iconUrl: getGhostIconByLevel(level),
-              iconSize: [48, 48],
-              iconAnchor: [24, 24],
-              popupAnchor: [0, -24]
-            });
-            playerMarker.setIcon(newIcon);
-
-            alert(`⚡ Вы собрали ${energyToAdd} энергии! Уровень: ${level}`);
+            alert(`⚡ Вы собрали ${energyToAdd} энергии!`);
           }
         });
       });
