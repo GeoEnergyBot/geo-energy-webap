@@ -59,15 +59,14 @@ let energyMarkers = [];
       .eq('telegram_id', user.id)
       .single();
 
+    console.log("Данные игрока:", data);
+
     if (!data) {
       await supabase.from('players').insert([{
         telegram_id: user.id,
         username: user.username,
         first_name: user.first_name,
-        avatar_url: user.photo_url,
-        level: 1,
-        energy: 0,
-        energy_max: 1000
+        avatar_url: user.photo_url
       }]);
     } else {
       level = data.level || 1;
@@ -107,7 +106,9 @@ let energyMarkers = [];
       (pos) => {
         const lat = pos.coords.latitude;
         const lng = pos.coords.longitude;
+
         if (playerMarker) playerMarker.setLatLng([lat, lng]);
+
         const tileId = getTileId(lat, lng);
         if (tileId !== lastTileId) {
           lastTileId = tileId;
@@ -116,6 +117,7 @@ let energyMarkers = [];
       },
       (error) => {
         alert("Ошибка геолокации: " + error.message);
+        console.error("GeoError:", error);
       },
       {
         enableHighAccuracy: true,
@@ -130,6 +132,9 @@ let energyMarkers = [];
         loadEnergyPoints(latlng.lat, latlng.lng);
       }
     }, 60000);
+
+  } else {
+    alert("Геолокация не поддерживается на этом устройстве.");
   }
 })();
 
@@ -158,19 +163,58 @@ async function loadEnergyPoints(centerLat, centerLng) {
       .filter(p => !p.collected_by || p.collected_by !== user.id.toString())
       .forEach(point => {
         const icon = getEnergyIcon(point.type);
+
         const marker = L.marker([point.lat, point.lng], { icon }).addTo(map);
         energyMarkers.push(marker);
 
         marker.on('click', async () => {
           const distance = getDistance(centerLat, centerLng, point.lat, point.lng);
-          if (distance > 0.02) {
-            alert("🚫 Подойдите ближе (до 20 м), чтобы собрать энергию.");
-            return;
+          
+          // 🎵 Звук
+          const sound = document.getElementById('energy-sound');
+          if (sound) {
+            sound.currentTime = 0;
+            sound.play();
           }
 
-          const energyToAdd = Number(point.energy_value);
-          if (!energyToAdd || energyToAdd <= 0) {
-            alert("⚠️ Точка энергии некорректна или пуста.");
+          // ⚡ Эффект "энергия летит к игроку"
+          const animatedCircle = L.circleMarker([point.lat, point.lng], {
+            radius: 10,
+            color: "#00ff00",
+            fillColor: "#00ff00",
+            fillOpacity: 0.8
+          }).addTo(map);
+
+          const start = L.latLng(point.lat, point.lng);
+          const end = playerMarker.getLatLng();
+
+          let progress = 0;
+          const duration = 500;
+          const startTime = performance.now();
+
+          function animate(timestamp) {
+            progress = (timestamp - startTime) / duration;
+            if (progress >= 1) {
+              map.removeLayer(animatedCircle);
+
+              // ⚡ Вспышка вокруг игрока
+              const playerEl = playerMarker.getElement();
+              if (playerEl) {
+                playerEl.classList.add('flash');
+                setTimeout(() => playerEl.classList.remove('flash'), 300);
+              }
+              return;
+            }
+
+            const lat = start.lat + (end.lat - start.lat) * progress;
+            const lng = start.lng + (end.lng - start.lng) * progress;
+            animatedCircle.setLatLng([lat, lng]);
+            requestAnimationFrame(animate);
+          }
+          requestAnimationFrame(animate);
+
+if (distance > 0.02) {
+            alert("🚫 Подойдите ближе (до 20 м), чтобы собрать энергию.");
             return;
           }
 
@@ -197,50 +241,28 @@ async function loadEnergyPoints(centerLat, centerLng) {
             .single();
 
           if (player) {
-            let energy = player.energy || 0;
-            let level = player.level || 1;
-            let maxEnergy = player.energy_max || 1000;
+            const energyToAdd = Number(point.energy_value) || 0;
+            const currentEnergy = Number(player.energy) || 0;
+            const maxEnergy = Number(player.energy_max) || 1000;
+            const newEnergy = Math.min(currentEnergy + energyToAdd, maxEnergy);
 
-            energy += energyToAdd;
-            let leveledUp = false;
-            const levelUpThreshold = (lvl) => lvl * 1000;
 
-            while (energy >= levelUpThreshold(level)) {
-              energy -= levelUpThreshold(level);
-              level++;
-              leveledUp = true;
-            }
+            await supabase
+              .from('players')
+              .update({ energy: newEnergy })
+              .eq('telegram_id', user.id);
 
-            const newMaxEnergy = 1000 + (level - 1) * 200;
-
-            await supabase.from('players').update({
-              energy,
-              level,
-              energy_max: newMaxEnergy
-            }).eq('telegram_id', user.id);
-
-            document.getElementById('energy-value').textContent = energy;
-            document.getElementById('energy-max').textContent = newMaxEnergy;
-            const percent = Math.floor((energy / newMaxEnergy) * 100);
+            document.getElementById('energy-value').textContent = newEnergy;
+            document.getElementById('energy-max').textContent = maxEnergy;
+            const percent = Math.floor((newEnergy / maxEnergy) * 100);
             document.getElementById('energy-bar-fill').style.width = percent + "%";
 
-            const newIcon = getGhostIconByLevel(level);
-            playerMarker.setIcon(L.icon({
-              iconUrl: newIcon,
-              iconSize: [48, 48],
-              iconAnchor: [24, 24],
-              popupAnchor: [0, -24]
-            }));
-
-            if (leveledUp) {
-              alert(`🎉 Уровень повышен! Теперь ваш уровень: ${level}`);
-            } else {
-              alert(`⚡ Вы собрали ${energyToAdd} энергии!`);
-            }
+            alert(`⚡ Вы собрали ${energyToAdd} энергии!`);
           }
         });
       });
+
   } catch (error) {
-    console.error("Ошибка загрузки точек:", error);
+    console.error("Ошибка загрузки энерготочек:", error);
   }
 }
