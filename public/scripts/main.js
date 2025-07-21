@@ -241,10 +241,11 @@ if (distance > 0.02) {
             .single();
 
           if (player) {
-            const energyToAdd = point.energy_value; // ✅ Используем значение из базы
-            const currentEnergy = player.energy ?? 0;
-            const maxEnergy = player.energy_max ?? 1000;
+            const energyToAdd = Number(point.energy_value) || 0;
+            const currentEnergy = Number(player.energy) || 0;
+            const maxEnergy = Number(player.energy_max) || 1000;
             const newEnergy = Math.min(currentEnergy + energyToAdd, maxEnergy);
+
 
             await supabase
               .from('players')
