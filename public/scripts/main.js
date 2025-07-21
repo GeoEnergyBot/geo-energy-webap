@@ -105,14 +105,12 @@ let energyMarkers = [];
       }
     );
 
-    // ✅ ДОБАВЛЕНО: обновление точек каждые 60 сек, даже если игрок стоит на месте
     setInterval(() => {
       if (initialized && playerMarker) {
         const latlng = playerMarker.getLatLng();
         loadEnergyPoints(latlng.lat, latlng.lng);
       }
-    }, 60000); // каждые 60 секунд
-
+    }, 60000);
   } else {
     alert("Геолокация не поддерживается на этом устройстве.");
   }
@@ -129,7 +127,7 @@ async function loadEnergyPoints(centerLat, centerLng) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9....' // сокращён
+        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9....'
       },
       body: JSON.stringify({ 
         center_lat: centerLat, 
@@ -144,13 +142,16 @@ async function loadEnergyPoints(centerLat, centerLng) {
       result.points
         .filter(point => !point.collected_by || point.collected_by !== user.id.toString())
         .forEach(point => {
-          const icon = L.icon({
-            iconUrl: getEnergyIcon(point.type),
+          const className = `custom-energy-icon ${point.type}`;
+
+          const divIcon = L.divIcon({
+            className,
+            html: '<div class="energy-pulse"></div>',
             iconSize: [30, 30],
             iconAnchor: [15, 15]
           });
 
-          const marker = L.marker([point.lat, point.lng], { icon }).addTo(map);
+          const marker = L.marker([point.lat, point.lng], { icon: divIcon }).addTo(map);
           energyMarkers.push(marker);
 
           marker.on('click', async () => {
@@ -205,14 +206,6 @@ async function loadEnergyPoints(centerLat, centerLng) {
   } catch (error) {
     console.error('❌ Ошибка при загрузке энерготочек:', error);
     alert("Ошибка при запросе точек энергии: " + error.message);
-  }
-}
-
-function getEnergyIcon(type) {
-  switch (type) {
-    case 'rare': return '/energy_blobs/rare_blob.png';
-    case 'advanced': return '/energy_blobs/advanced_blob.png';
-    default: return '/energy_blobs/normal_blob.png';
   }
 }
 
