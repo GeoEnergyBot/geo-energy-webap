@@ -169,7 +169,51 @@ async function loadEnergyPoints(centerLat, centerLng) {
 
         marker.on('click', async () => {
           const distance = getDistance(centerLat, centerLng, point.lat, point.lng);
-          if (distance > 0.02) {
+          
+          // 🎵 Звук
+          const sound = document.getElementById('energy-sound');
+          if (sound) {
+            sound.currentTime = 0;
+            sound.play();
+          }
+
+          // ⚡ Эффект "энергия летит к игроку"
+          const animatedCircle = L.circleMarker([point.lat, point.lng], {
+            radius: 10,
+            color: "#00ff00",
+            fillColor: "#00ff00",
+            fillOpacity: 0.8
+          }).addTo(map);
+
+          const start = L.latLng(point.lat, point.lng);
+          const end = playerMarker.getLatLng();
+
+          let progress = 0;
+          const duration = 500;
+          const startTime = performance.now();
+
+          function animate(timestamp) {
+            progress = (timestamp - startTime) / duration;
+            if (progress >= 1) {
+              map.removeLayer(animatedCircle);
+
+              // ⚡ Вспышка вокруг игрока
+              const playerEl = playerMarker.getElement();
+              if (playerEl) {
+                playerEl.classList.add('flash');
+                setTimeout(() => playerEl.classList.remove('flash'), 300);
+              }
+              return;
+            }
+
+            const lat = start.lat + (end.lat - start.lat) * progress;
+            const lng = start.lng + (end.lng - start.lng) * progress;
+            animatedCircle.setLatLng([lat, lng]);
+            requestAnimationFrame(animate);
+          }
+          requestAnimationFrame(animate);
+
+if (distance > 0.02) {
             alert("🚫 Подойдите ближе (до 20 м), чтобы собрать энергию.");
             return;
           }
