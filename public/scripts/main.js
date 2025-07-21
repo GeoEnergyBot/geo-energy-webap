@@ -204,6 +204,9 @@ async function loadEnergyPoints(centerLat, centerLng) {
             const lng = start.lng + (end.lng - start.lng) * progress;
             animatedCircle.setLatLng([lat, lng]);
             requestAnimationFrame(animate);
+          if (distance > 0.02) {
+            alert("🚫 Подойдите ближе (до 20 м), чтобы собрать энергию.");
+            return;
           }
 
           const energyToAdd = Number(point.energy_value);
