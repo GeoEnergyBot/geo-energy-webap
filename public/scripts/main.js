@@ -22,10 +22,24 @@ function getTileId(lat, lng) {
 }
 
 function getEnergyIcon(type) {
+  let url = '';
   switch (type) {
-    case 'rare': return '/energy_blobs/rare_blob.png';
-    case 'advanced': return '/energy_blobs/advanced_blob.png';
-    default: return '/energy_blobs/normal_blob.png';
+    case 'rare': url = '/energy_blobs/rare_blob.png'; break;
+    case 'advanced': url = '/energy_blobs/advanced_blob.png'; break;
+    default: url = '/energy_blobs/normal_blob.png';
+  }
+  return L.icon({
+    iconUrl: url,
+    iconSize: [60, 100], // подходящее соотношение
+    iconAnchor: [30, 50]
+  });
+}
+
+function getEnergyValue(type) {
+  switch (type) {
+    case 'rare': return 150;
+    case 'advanced': return 50;
+    default: return 20;
   }
 }
 
@@ -154,11 +168,7 @@ async function loadEnergyPoints(centerLat, centerLng) {
     result.points
       .filter(p => !p.collected_by || p.collected_by !== user.id.toString())
       .forEach(point => {
-        const icon = L.icon({
-          iconUrl: getEnergyIcon(point.type),
-          iconSize: [30, 30],
-          iconAnchor: [15, 15]
-        });
+        const icon = getEnergyIcon(point.type);
 
         const marker = L.marker([point.lat, point.lng], { icon }).addTo(map);
         energyMarkers.push(marker);
@@ -193,7 +203,7 @@ async function loadEnergyPoints(centerLat, centerLng) {
             .single();
 
           if (player) {
-            const energyToAdd = point.energy_value;
+            const energyToAdd = getEnergyValue(point.type);
             const currentEnergy = player.energy ?? 0;
             const maxEnergy = player.energy_max ?? 1000;
             const newEnergy = Math.min(currentEnergy + energyToAdd, maxEnergy);
