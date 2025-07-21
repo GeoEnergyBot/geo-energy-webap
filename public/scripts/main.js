@@ -17,16 +17,8 @@ function getGhostIconByLevel(level) {
   return `ghost_icons/ghost_level_${String(index).padStart(2, '0')}.png`;
 }
 
-function getTileId(lat, lng) {
-  return `${Math.floor(lat * 100)}_${Math.floor(lng * 100)}`;
-}
-
 let playerMarker;
 let map;
-let ghostIcon;
-let initialized = false;
-let lastTileId = null;
-let energyMarkers = [];
 
 (async () => {
   let level = 1;
@@ -55,81 +47,51 @@ let energyMarkers = [];
     }
   }
 
-  ghostIcon = L.icon({
+  const ghostIcon = L.icon({
     iconUrl: getGhostIconByLevel(level),
     iconSize: [48, 48],
     iconAnchor: [24, 24],
     popupAnchor: [0, -24]
   });
 
-  if ("geolocation" in navigator) {
-    navigator.geolocation.watchPosition(
-      (pos) => {
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
+  navigator.geolocation.getCurrentPosition((pos) => {
+    const lat = pos.coords.latitude;
+    const lng = pos.coords.longitude;
 
-        if (!initialized) {
-          map = L.map('map').setView([lat, lng], 16);
-          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 19,
-          }).addTo(map);
+    console.log("Игрок на позиции:", lat, lng);
+    alert("📍 Геопозиция получена: " + lat.toFixed(5) + ", " + lng.toFixed(5));
 
-          playerMarker = L.marker([lat, lng], { icon: ghostIcon }).addTo(map)
-            .bindPopup("Вы здесь")
-            .openPopup();
+    if (!map) {
+      map = L.map('map').setView([lat, lng], 16);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+      }).addTo(map);
+    }
 
-          const tileId = getTileId(lat, lng);
-          lastTileId = tileId;
-          loadEnergyPoints(lat, lng);
+    if (!playerMarker) {
+      playerMarker = L.marker([lat, lng], { icon: ghostIcon }).addTo(map)
+        .bindPopup("Вы здесь")
+        .openPopup();
+    } else {
+      playerMarker.setLatLng([lat, lng]);
+    }
 
-          initialized = true;
-        } else {
-          playerMarker.setLatLng([lat, lng]);
-
-          const tileId = getTileId(lat, lng);
-          if (tileId !== lastTileId) {
-            console.log("🧭 Новый тайл:", tileId);
-            loadEnergyPoints(lat, lng);
-            lastTileId = tileId;
-          }
-        }
-      },
-      (error) => {
-        alert("Ошибка геолокации: " + error.message);
-        console.error("GeoError:", error);
-      },
-      {
-        enableHighAccuracy: true,
-        maximumAge: 1000,
-        timeout: 10000,
-      }
-    );
-
-    // ✅ ДОБАВЛЕНО: обновление точек каждые 60 сек, даже если игрок стоит на месте
-    setInterval(() => {
-      if (initialized && playerMarker) {
-        const latlng = playerMarker.getLatLng();
-        loadEnergyPoints(latlng.lat, latlng.lng);
-      }
-    }, 60000); // каждые 60 секунд
-
-  } else {
-    alert("Геолокация не поддерживается на этом устройстве.");
-  }
+    loadEnergyPoints(lat, lng);
+  }, (error) => {
+    alert("Ошибка геолокации: " + error.message);
+    console.error("GeoError:", error);
+  });
 })();
 
 async function loadEnergyPoints(centerLat, centerLng) {
+  alert("Энерготочки загружаются…");
   console.log("Загрузка энерготочек для:", centerLat, centerLng);
-
-  energyMarkers.forEach(marker => map.removeLayer(marker));
-  energyMarkers = [];
-
   try {
     const response = await fetch('https://ptkzsrlicfhufdnegwjl.functions.supabase.co/generate-points', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9....' // сокращён
+        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0a3pzcmxpY2ZodWZkbmVnd2psIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI0NzA3NjAsImV4cCI6MjA2ODA0Njc2MH0.eI0eF_imdgGWPLiUULTprh52Jo9P69WGpe3RbCg3Afo'
       },
       body: JSON.stringify({ 
         center_lat: centerLat, 
@@ -138,7 +100,13 @@ async function loadEnergyPoints(centerLat, centerLng) {
       })
     });
 
+    if (!response.ok) {
+      alert("❌ Supabase вернул ошибку: " + response.status);
+      return;
+    }
+
     const result = await response.json();
+    console.log("Ответ от Supabase функции:", result);
 
     if (result.success && result.points) {
       result.points
@@ -151,35 +119,28 @@ async function loadEnergyPoints(centerLat, centerLng) {
           });
 
           const marker = L.marker([point.lat, point.lng], { icon }).addTo(map);
-          energyMarkers.push(marker);
-
           marker.on('click', async () => {
             const distance = getDistance(centerLat, centerLng, point.lat, point.lng);
             if (distance <= 0.02) {
-              const { error } = await supabase
+              alert('⚡ Энергия собрана!');
+              map.removeLayer(marker);
+
+              await supabase
                 .from('energy_points')
                 .update({
                   collected_by: user.id.toString(),
                   collected_at: new Date().toISOString()
                 })
-                .eq('id', point.id)
-                .is('collected_by', null);
+                .eq('id', point.id);
 
-              if (error) {
-                alert("🚫 Энергия уже собрана другим игроком.");
-                return;
-              }
-
-              map.removeLayer(marker);
-
-              const { data: player } = await supabase
+              const { data: player, error: playerError } = await supabase
                 .from('players')
                 .select('*')
                 .eq('telegram_id', user.id)
                 .single();
 
-              if (player) {
-                const energyToAdd = point.energy_value;
+              if (!playerError && player) {
+                const energyToAdd = getEnergyValue(point.type);
                 const currentEnergy = player.energy ?? 0;
                 const maxEnergy = player.energy_max ?? 1000;
                 const newEnergy = Math.min(currentEnergy + energyToAdd, maxEnergy);
@@ -193,14 +154,14 @@ async function loadEnergyPoints(centerLat, centerLng) {
                 document.getElementById('energy-max').textContent = maxEnergy;
                 const percent = Math.floor((newEnergy / maxEnergy) * 100);
                 document.getElementById('energy-bar-fill').style.width = percent + "%";
-
-                alert(`⚡ Вы собрали ${energyToAdd} энергии!`);
               }
             } else {
-              alert("🚫 Подойдите ближе (до 20 м), чтобы собрать энергию.");
+              alert("🚫 Подойдите ближе к точке (до 20 м), чтобы собрать энергию.");
             }
           });
         });
+    } else {
+      console.warn("⚠ Точек нет или формат неверный:", result);
     }
   } catch (error) {
     console.error('❌ Ошибка при загрузке энерготочек:', error);
@@ -213,6 +174,14 @@ function getEnergyIcon(type) {
     case 'rare': return 'https://cdn-icons-png.flaticon.com/512/1704/1704425.png';
     case 'advanced': return 'https://cdn-icons-png.flaticon.com/512/4276/4276722.png';
     default: return 'https://cdn-icons-png.flaticon.com/512/414/414927.png';
+  }
+}
+
+function getEnergyValue(type) {
+  switch (type) {
+    case 'rare': return 150;
+    case 'advanced': return 50;
+    default: return 20;
   }
 }
 
