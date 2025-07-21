@@ -210,9 +210,9 @@ async function loadEnergyPoints(centerLat, centerLng) {
 
 function getEnergyIcon(type) {
   switch (type) {
-    case 'rare': return '/energy_blobs/rare_blob.png';
-    case 'advanced': return '/energy_blobs/advanced_blob.png';
-    default: return '/energy_blobs/normal_blob.png';
+    case 'rare': return 'https://cdn-icons-png.flaticon.com/512/1704/1704425.png';
+    case 'advanced': return 'https://cdn-icons-png.flaticon.com/512/4276/4276722.png';
+    default: return 'https://cdn-icons-png.flaticon.com/512/414/414927.png';
   }
 }
 
