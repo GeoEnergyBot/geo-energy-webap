@@ -65,7 +65,7 @@ function getDistance(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-// ⚡ Обработка сбора точки энергии
+// ⚡ Обработка сбора точки энергии (теперь через сервер)
 async function collectEnergy(point, playerLat, playerLng, marker) {
   const distance = getDistance(playerLat, playerLng, point.lat, point.lng);
   if (distance > 0.02) {
@@ -77,7 +77,7 @@ async function collectEnergy(point, playerLat, playerLng, marker) {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0a3pzcmxpY2ZodWZkbmVnd2psIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI0NzA3NjAsImV4cCI6MjA2ODA0Njc2MH0.eI0eF_imdgGWPLiUULTprh52Jo9P69WGpe3RbCg3Afo'
+      'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0a3pzcmxpY2ZodWZkbmVnd2psIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI0NzA3NjAsImV4cCI6MjA2ODA0Njc2MH0.eI0eF_imdgGWPLiUULTprh52Jo9P69WGpe3RbCg3Afo'
     },
     body: JSON.stringify({
       action: "collect",
@@ -92,14 +92,11 @@ async function collectEnergy(point, playerLat, playerLng, marker) {
     return;
   }
 
-  // 🎉 Успешный сбор
   map.removeLayer(marker);
 
   updatePlayerUI(result.energy, result.energy_max, result.level);
 
-  // 🛎️ Звук сбора (опционально)
   new Audio('/sounds/collect.mp3').play().catch(() => {});
-
   alert(`⚡ Вы собрали ${point.energy_value} энергии! Уровень: ${result.level}`);
 }
 
@@ -113,7 +110,7 @@ async function loadEnergyPoints(centerLat, centerLng) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0a3pzcmxpY2ZodWZkbmVnd2psIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI0NzA3NjAsImV4cCI6MjA2ODA0Njc2MH0.eI0eF_imdgGWPLiUULTprh52Jo9P69WGpe3RbCg3Afo'
+        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0a3pzcmxpY2ZodWZkbmVnd2psIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI0NzA3NjAsImV4cCI6MjA2ODA0Njc2MH0.eI0eF_imdgGWPLiUULTprh52Jo9P69WGpe3RbCg3Afo'
       },
       body: JSON.stringify({
         action: "generate",
@@ -177,7 +174,6 @@ async function loadEnergyPoints(centerLat, centerLng) {
     popupAnchor: [0, -24]
   });
 
-  // 🌐 Геолокация и карта
   if ("geolocation" in navigator) {
     navigator.geolocation.getCurrentPosition((pos) => {
       const lat = pos.coords.latitude;
@@ -218,7 +214,6 @@ async function loadEnergyPoints(centerLat, centerLng) {
       }
     );
 
-    // 🔁 Периодическая подгрузка точек
     setInterval(() => {
       if (initialized && playerMarker) {
         const latlng = playerMarker.getLatLng();
