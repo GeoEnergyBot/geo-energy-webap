@@ -24,7 +24,6 @@ function updatePlayerUI(energy, energy_max, level) {
   const percent = Math.floor((energy / energy_max) * 100);
   document.getElementById('energy-bar-fill').style.width = percent + "%";
 
-  // 👻 Обновить иконку призрака
   playerMarker?.setIcon(L.icon({
     iconUrl: getGhostIconByLevel(level),
     iconSize: [48, 48],
@@ -32,18 +31,15 @@ function updatePlayerUI(energy, energy_max, level) {
   }));
 }
 
-// 🧠 Получить иконку призрака по уровню
 function getGhostIconByLevel(level) {
   const index = Math.min(Math.floor((level - 1) / 10) + 1, 10);
   return `ghost_icons/ghost_level_${String(index).padStart(2, '0')}.png`;
 }
 
-// 🌍 Преобразование координат в tileId
 function getTileId(lat, lng) {
   return `${Math.floor(lat * 100)}_${Math.floor(lng * 100)}`;
 }
 
-// 💠 Получить иконку энергии
 function getEnergyIcon(type) {
   let url = '';
   switch (type) {
@@ -54,7 +50,6 @@ function getEnergyIcon(type) {
   return L.icon({ iconUrl: url, iconSize: [60, 100], iconAnchor: [30, 50] });
 }
 
-// 📏 Расстояние между двумя точками (в км)
 function getDistance(lat1, lng1, lat2, lng2) {
   const R = 6371;
   const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -65,7 +60,6 @@ function getDistance(lat1, lng1, lat2, lng2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-// ⚡ Обработка сбора точки энергии
 async function collectEnergy(point, playerLat, playerLng, marker) {
   const distance = getDistance(playerLat, playerLng, point.lat, point.lng);
   if (distance > 0.02) {
@@ -77,7 +71,7 @@ async function collectEnergy(point, playerLat, playerLng, marker) {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0a3pzcmxpY2ZodWZkbmVnd2psIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI0NzA3NjAsImV4cCI6MjA2ODA0Njc2MH0.eI0eF_imdgGWPLiUULTprh52Jo9P69WGpe3RbCg3Afo'
+      'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0a3pzcmxpY2ZodWZkbmVnd2psIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI0NzA3NjAsImV4cCI6MjA2ODA0Njc2MH0.eI0eF_imdgGWPLiUULTprh52Jo9P69WGpe3RbCg3Afo'
     },
     body: JSON.stringify({
       action: "collect",
@@ -92,18 +86,12 @@ async function collectEnergy(point, playerLat, playerLng, marker) {
     return;
   }
 
-  // 🎉 Успешный сбор
   map.removeLayer(marker);
-
   updatePlayerUI(result.energy, result.energy_max, result.level);
-
-  // 🛎️ Звук сбора (опционально)
   new Audio('/sounds/collect.mp3').play().catch(() => {});
-
-  alert(`⚡ Вы собрали ${point.energy_value} энергии! Уровень: ${result.level}`);
+  alert(`⚡ Вы собрали ${result.point_energy_value} энергии! Уровень: ${result.level}`);
 }
 
-// 🔄 Загрузка энерготочек
 async function loadEnergyPoints(centerLat, centerLng) {
   try {
     energyMarkers.forEach(marker => map.removeLayer(marker));
@@ -113,7 +101,7 @@ async function loadEnergyPoints(centerLat, centerLng) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0a3pzcmxpY2ZodWZkbmVnd2psIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI0NzA3NjAsImV4cCI6MjA2ODA0Njc2MH0.eI0eF_imdgGWPLiUULTprh52Jo9P69WGpe3RbCg3Afo'
+        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0a3pzcmxpY2ZodWZkbmVnd2psIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI0NzA3NjAsImV4cCI6MjA2ODA0Njc2MH0.eI0eF_imdgGWPLiUULTprh52Jo9P69WGpe3RbCg3Afo'
       },
       body: JSON.stringify({
         action: "generate",
@@ -143,7 +131,6 @@ async function loadEnergyPoints(centerLat, centerLng) {
   }
 }
 
-// 🚀 Инициализация игры
 (async () => {
   document.getElementById("username").textContent = user?.first_name || user?.username || "Гость";
   document.getElementById("avatar").src = user?.photo_url || "https://cdn-icons-png.flaticon.com/512/9131/9131529.png";
@@ -151,7 +138,7 @@ async function loadEnergyPoints(centerLat, centerLng) {
   let level = 1;
 
   if (user) {
-    const { data: player } = await supabase
+    let { data: player } = await supabase
       .from('players')
       .select('*')
       .eq('telegram_id', user.id)
@@ -162,8 +149,26 @@ async function loadEnergyPoints(centerLat, centerLng) {
         telegram_id: user.id,
         username: user.username,
         first_name: user.first_name,
-        avatar_url: user.photo_url
+        avatar_url: user.photo_url,
+        energy: 0,
+        level: 1,
+        energy_max: 1000,
+        created_at: new Date().toISOString()
       }]);
+
+      const { data: newPlayer } = await supabase
+        .from('players')
+        .select('*')
+        .eq('telegram_id', user.id)
+        .single();
+
+      if (!newPlayer) {
+        alert("Ошибка создания игрока. Повторите позже.");
+        return;
+      }
+
+      level = newPlayer.level;
+      updatePlayerUI(newPlayer.energy, newPlayer.energy_max, newPlayer.level);
     } else {
       level = player.level || 1;
       updatePlayerUI(player.energy ?? 0, player.energy_max ?? 1000, level);
@@ -177,7 +182,6 @@ async function loadEnergyPoints(centerLat, centerLng) {
     popupAnchor: [0, -24]
   });
 
-  // 🌐 Геолокация и карта
   if ("geolocation" in navigator) {
     navigator.geolocation.getCurrentPosition((pos) => {
       const lat = pos.coords.latitude;
@@ -218,11 +222,20 @@ async function loadEnergyPoints(centerLat, centerLng) {
       }
     );
 
-    // 🔁 Периодическая подгрузка точек
-    setInterval(() => {
+    setInterval(async () => {
       if (initialized && playerMarker) {
         const latlng = playerMarker.getLatLng();
         loadEnergyPoints(latlng.lat, latlng.lng);
+
+        const { data: updatedPlayer } = await supabase
+          .from('players')
+          .select('*')
+          .eq('telegram_id', user.id)
+          .single();
+
+        if (updatedPlayer) {
+          updatePlayerUI(updatedPlayer.energy, updatedPlayer.energy_max, updatedPlayer.level);
+        }
       }
     }, 60000);
   } else {
