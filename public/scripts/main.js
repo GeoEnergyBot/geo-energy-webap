@@ -168,20 +168,16 @@ async function loadEnergyPoints(centerLat, centerLng) {
         energyMarkers.push(marker);
 
         marker.on('click', async () => {
-          const playerLatLng = playerMarker.getLatLng();
-          const distance = getDistance(playerLatLng.lat, playerLatLng.lng, point.lat, point.lng);
-
-          if (distance > 0.02) {
-            alert("🚫 Подойдите ближе (до 20 м), чтобы собрать энергию.");
-            return;
-          }
-
+          const distance = getDistance(centerLat, centerLng, point.lat, point.lng);
+          
+          // 🎵 Звук
           const sound = document.getElementById('energy-sound');
           if (sound) {
             sound.currentTime = 0;
             sound.play();
           }
 
+          // ⚡ Эффект "энергия летит к игроку"
           const animatedCircle = L.circleMarker([point.lat, point.lng], {
             radius: 10,
             color: "#00ff00",
@@ -200,6 +196,8 @@ async function loadEnergyPoints(centerLat, centerLng) {
             progress = (timestamp - startTime) / duration;
             if (progress >= 1) {
               map.removeLayer(animatedCircle);
+
+              // ⚡ Вспышка вокруг игрока
               const playerEl = playerMarker.getElement();
               if (playerEl) {
                 playerEl.classList.add('flash');
@@ -215,40 +213,55 @@ async function loadEnergyPoints(centerLat, centerLng) {
           }
           requestAnimationFrame(animate);
 
-          // ✅ Запрос на серверную функцию сбора энергии и возврат обновлённых данных игрока
-          const collectResponse = await fetch('https://ptkzsrlicfhufdnegwjl.functions.supabase.co/generate-points', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0a3pzcmxpY2ZodWZkbmVnd2psIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI0NzA3NjAsImV4cCI6MjA2ODA0Njc2MH0.eI0eF_imdgGWPLiUULTprh52Jo9P69WGpe3RbCg3Afo'
-            },
-            body: JSON.stringify({
-              action: 'collect',
-              telegram_id: user.id,
-              point_id: point.id
-            })
-          });
+if (distance > 0.02) {
+            alert("🚫 Подойдите ближе (до 20 м), чтобы собрать энергию.");
+            return;
+          }
 
-          const collectResult = await collectResponse.json();
-          if (collectResult.success) {
-            map.removeLayer(marker);
-            document.getElementById('energy-value').textContent = collectResult.energy;
-            document.getElementById('energy-max').textContent = collectResult.energy_max;
-            const percent = Math.floor((collectResult.energy / collectResult.energy_max) * 100);
+          const { error } = await supabase
+            .from('energy_points')
+            .update({
+              collected_by: user.id.toString(),
+              collected_at: new Date().toISOString()
+            })
+            .eq('id', point.id)
+            .is('collected_by', null);
+
+          if (error) {
+            alert("🚫 Энергия уже собрана другим игроком.");
+            return;
+          }
+
+          map.removeLayer(marker);
+
+          const { data: player } = await supabase
+            .from('players')
+            .select('*')
+            .eq('telegram_id', user.id)
+            .single();
+
+          if (player) {
+            const energyToAdd = Number(point.energy_value) || 0;
+            const currentEnergy = Number(player.energy) || 0;
+            const maxEnergy = Number(player.energy_max) || 1000;
+            const newEnergy = Math.min(currentEnergy + energyToAdd, maxEnergy);
+
+
+            await supabase
+              .from('players')
+              .update({ energy: newEnergy })
+              .eq('telegram_id', user.id);
+
+            document.getElementById('energy-value').textContent = newEnergy;
+            document.getElementById('energy-max').textContent = maxEnergy;
+            const percent = Math.floor((newEnergy / maxEnergy) * 100);
             document.getElementById('energy-bar-fill').style.width = percent + "%";
-            const newIcon = L.icon({
-              iconUrl: getGhostIconByLevel(collectResult.level),
-              iconSize: [48, 48],
-              iconAnchor: [24, 24],
-              popupAnchor: [0, -24]
-            });
-            playerMarker.setIcon(newIcon);
-            alert(`⚡ Вы собрали ${point.energy_value} энергии!`);
-          } else {
-            alert("🚫 Не удалось собрать энергию: " + (collectResult.error || "Неизвестная ошибка"));
+
+            alert(`⚡ Вы собрали ${energyToAdd} энергии!`);
           }
         });
       });
+
   } catch (error) {
     console.error("Ошибка загрузки энерготочек:", error);
   }
