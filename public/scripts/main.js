@@ -5,6 +5,8 @@ const supabase = createClient(
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0a3pzcmxpY2ZodWZkbmVnd2psIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI0NzA3NjAsImV4cCI6MjA2ODA0Njc2MH0.eI0eF_imdgGWPLiUULTprh52Jo9P69WGpe3RbCg3Afo'
 );
 
+const FUNCTION_URL = 'https://ptkzsrlicfhufdnegwjl.functions.supabase.co/generate-points';
+
 let tg = window.Telegram.WebApp;
 tg.expand();
 const user = tg.initDataUnsafe.user;
@@ -40,8 +42,8 @@ function getDistance(lat1, lng1, lat2, lng2) {
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLng = (lng2 - lng1) * Math.PI / 180;
   const a = Math.sin(dLat / 2) ** 2 +
-            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-            Math.sin(dLng / 2) ** 2;
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLng / 2) ** 2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
@@ -58,8 +60,6 @@ let energyMarkers = [];
       .select('*')
       .eq('telegram_id', user.id)
       .single();
-
-    console.log("Данные игрока:", data);
 
     if (!data) {
       await supabase.from('players').insert([{
@@ -132,7 +132,6 @@ let energyMarkers = [];
         loadEnergyPoints(latlng.lat, latlng.lng);
       }
     }, 60000);
-
   } else {
     alert("Геолокация не поддерживается на этом устройстве.");
   }
@@ -143,13 +142,11 @@ async function loadEnergyPoints(centerLat, centerLng) {
     energyMarkers.forEach(marker => map.removeLayer(marker));
     energyMarkers = [];
 
-    const response = await fetch('https://ptkzsrlicfhufdnegwjl.functions.supabase.co/generate-points', {
+    const response = await fetch(FUNCTION_URL, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0a3pzcmxpY2ZodWZkbmVnd2psIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI0NzA3NjAsImV4cCI6MjA2ODA0Njc2MH0.eI0eF_imdgGWPLiUULTprh52Jo9P69WGpe3RbCg3Afo'
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
+        action: "generate",
         center_lat: centerLat,
         center_lng: centerLng,
         telegram_id: user.id
@@ -163,21 +160,14 @@ async function loadEnergyPoints(centerLat, centerLng) {
       .filter(p => !p.collected_by || p.collected_by !== user.id.toString())
       .forEach(point => {
         const icon = getEnergyIcon(point.type);
-
         const marker = L.marker([point.lat, point.lng], { icon }).addTo(map);
         energyMarkers.push(marker);
 
         marker.on('click', async () => {
           const distance = getDistance(centerLat, centerLng, point.lat, point.lng);
-          
-          // 🎵 Звук
           const sound = document.getElementById('energy-sound');
-          if (sound) {
-            sound.currentTime = 0;
-            sound.play();
-          }
+          if (sound) { sound.currentTime = 0; sound.play(); }
 
-          // ⚡ Эффект "энергия летит к игроку"
           const animatedCircle = L.circleMarker([point.lat, point.lng], {
             radius: 10,
             color: "#00ff00",
@@ -187,7 +177,6 @@ async function loadEnergyPoints(centerLat, centerLng) {
 
           const start = L.latLng(point.lat, point.lng);
           const end = playerMarker.getLatLng();
-
           let progress = 0;
           const duration = 500;
           const startTime = performance.now();
@@ -196,8 +185,6 @@ async function loadEnergyPoints(centerLat, centerLng) {
             progress = (timestamp - startTime) / duration;
             if (progress >= 1) {
               map.removeLayer(animatedCircle);
-
-              // ⚡ Вспышка вокруг игрока
               const playerEl = playerMarker.getElement();
               if (playerEl) {
                 playerEl.classList.add('flash');
@@ -205,7 +192,6 @@ async function loadEnergyPoints(centerLat, centerLng) {
               }
               return;
             }
-
             const lat = start.lat + (end.lat - start.lat) * progress;
             const lng = start.lng + (end.lng - start.lng) * progress;
             animatedCircle.setLatLng([lat, lng]);
@@ -213,52 +199,43 @@ async function loadEnergyPoints(centerLat, centerLng) {
           }
           requestAnimationFrame(animate);
 
-if (distance > 0.02) {
+          if (distance > 0.02) {
             alert("🚫 Подойдите ближе (до 20 м), чтобы собрать энергию.");
             return;
           }
 
-          const { error } = await supabase
-            .from('energy_points')
-            .update({
-              collected_by: user.id.toString(),
-              collected_at: new Date().toISOString()
+          const collectRes = await fetch(FUNCTION_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: "collect",
+              telegram_id: user.id,
+              point_id: point.id
             })
-            .eq('id', point.id)
-            .is('collected_by', null);
+          });
 
-          if (error) {
-            alert("🚫 Энергия уже собрана другим игроком.");
+          const result = await collectRes.json();
+          if (!result.success) {
+            alert(result.message || "🚫 Энергия уже собрана другим игроком.");
             return;
           }
 
           map.removeLayer(marker);
 
-          const { data: player } = await supabase
-            .from('players')
-            .select('*')
-            .eq('telegram_id', user.id)
-            .single();
+          document.getElementById('energy-value').textContent = result.energy;
+          document.getElementById('energy-max').textContent = result.energy_max;
+          const percent = Math.floor((result.energy / result.energy_max) * 100);
+          document.getElementById('energy-bar-fill').style.width = percent + "%";
 
-          if (player) {
-            const energyToAdd = Number(point.energy_value) || 0;
-            const currentEnergy = Number(player.energy) || 0;
-            const maxEnergy = Number(player.energy_max) || 1000;
-            const newEnergy = Math.min(currentEnergy + energyToAdd, maxEnergy);
+          const newIconUrl = getGhostIconByLevel(result.level);
+          playerMarker.setIcon(L.icon({
+            iconUrl: newIconUrl,
+            iconSize: [48, 48],
+            iconAnchor: [24, 24],
+            popupAnchor: [0, -24]
+          }));
 
-
-            await supabase
-              .from('players')
-              .update({ energy: newEnergy })
-              .eq('telegram_id', user.id);
-
-            document.getElementById('energy-value').textContent = newEnergy;
-            document.getElementById('energy-max').textContent = maxEnergy;
-            const percent = Math.floor((newEnergy / maxEnergy) * 100);
-            document.getElementById('energy-bar-fill').style.width = percent + "%";
-
-            alert(`⚡ Вы собрали ${energyToAdd} энергии!`);
-          }
+          alert(`⚡ Вы собрали ${point.energy_value} энергии! Сейчас у вас уровень ${result.level}`);
         });
       });
 
@@ -266,3 +243,27 @@ if (distance > 0.02) {
     console.error("Ошибка загрузки энерготочек:", error);
   }
 }
+
+// 🔁 Синхронизация прогресса каждые 30 секунд
+setInterval(async () => {
+  const { data: player } = await supabase
+    .from('players')
+    .select('*')
+    .eq('telegram_id', user.id)
+    .single();
+
+  if (player) {
+    document.getElementById('energy-value').textContent = player.energy;
+    document.getElementById('energy-max').textContent = player.energy_max;
+    const percent = Math.floor((player.energy / player.energy_max) * 100);
+    document.getElementById('energy-bar-fill').style.width = percent + "%";
+
+    const updatedIcon = getGhostIconByLevel(player.level);
+    playerMarker.setIcon(L.icon({
+      iconUrl: updatedIcon,
+      iconSize: [48, 48],
+      iconAnchor: [24, 24],
+      popupAnchor: [0, -24]
+    }));
+  }
+}, 30000);
