@@ -12,6 +12,9 @@ const user = tg.initDataUnsafe.user;
 document.getElementById("username").textContent = user?.first_name || user?.username || "Гость";
 document.getElementById("avatar").src = user?.photo_url || "https://cdn-icons-png.flaticon.com/512/9131/9131529.png";
 
+// 🔊 Звук сбора
+const collectSound = new Audio('/sounds/collect.mp3');
+
 function getGhostIconByLevel(level) {
   const index = Math.min(Math.floor((level - 1) / 10) + 1, 10);
   return `ghost_icons/ghost_level_${String(index).padStart(2, '0')}.png`;
@@ -74,9 +77,9 @@ let energyMarkers = [];
         avatar_url: user.photo_url
       }]);
     } else {
-      level = data.level || 1;
-      const currentEnergy = data.energy ?? 0;
-      const maxEnergy = data.energy_max ?? 1000;
+      level = parseInt(data.level ?? 1);
+      const currentEnergy = parseInt(data.energy ?? 0);
+      const maxEnergy = parseInt(data.energy_max ?? 1000);
       document.getElementById('energy-value').textContent = currentEnergy;
       document.getElementById('energy-max').textContent = maxEnergy;
       const percent = Math.floor((currentEnergy / maxEnergy) * 100);
@@ -163,80 +166,87 @@ async function loadEnergyPoints(centerLat, centerLng) {
     const result = await response.json();
     if (!result.success || !result.points) return;
 
-    result.points
-      .filter(p => !p.collected_by || p.collected_by !== user.id.toString())
-      .forEach(point => {
-        const icon = getEnergyIcon(point.type);
+    for (const point of result.points) {
+      if (!point.energy_value || isNaN(point.energy_value)) {
+        // ❌ Удаляем некорректную точку из базы
+        await supabase.from('energy_points').delete().eq('id', point.id);
+        continue;
+      }
 
-        const marker = L.marker([point.lat, point.lng], { icon }).addTo(map);
-        energyMarkers.push(marker);
+      if (point.collected_by && point.collected_by === user.id.toString()) continue;
 
-        marker.on('click', async () => {
-          const distance = getDistance(centerLat, centerLng, point.lat, point.lng);
-          if (distance > 0.02) {
-            alert("🚫 Подойдите ближе (до 20 м), чтобы собрать энергию.");
-            return;
+      const icon = getEnergyIcon(point.type);
+      const marker = L.marker([point.lat, point.lng], { icon }).addTo(map);
+      energyMarkers.push(marker);
+
+      marker.on('click', async () => {
+        const distance = getDistance(centerLat, centerLng, point.lat, point.lng);
+        if (distance > 0.02) {
+          alert("🚫 Подойдите ближе (до 20 м), чтобы собрать энергию.");
+          return;
+        }
+
+        const { error } = await supabase
+          .from('energy_points')
+          .update({
+            collected_by: user.id.toString(),
+            collected_at: new Date().toISOString()
+          })
+          .eq('id', point.id)
+          .is('collected_by', null);
+
+        if (error) {
+          alert("🚫 Энергия уже собрана другим игроком.");
+          return;
+        }
+
+        map.removeLayer(marker);
+
+        const { data: player } = await supabase
+          .from('players')
+          .select('*')
+          .eq('telegram_id', user.id)
+          .single();
+
+        if (player) {
+          let energy = parseInt(player.energy ?? 0) + point.energy_value;
+          let level = parseInt(player.level ?? 1);
+          let energyMax = parseInt(player.energy_max ?? 1000);
+          let leveledUp = false;
+
+          while (energy >= energyMax) {
+            energy -= energyMax;
+            level += 1;
+            energyMax += getEnergyIncrementByLevel(level);
+            leveledUp = true;
           }
 
-          const { error } = await supabase
-            .from('energy_points')
-            .update({
-              collected_by: user.id.toString(),
-              collected_at: new Date().toISOString()
-            })
-            .eq('id', point.id)
-            .is('collected_by', null);
-
-          if (error) {
-            alert("🚫 Энергия уже собрана другим игроком.");
-            return;
-          }
-
-          map.removeLayer(marker);
-
-          const { data: player } = await supabase
+          await supabase
             .from('players')
-            .select('*')
-            .eq('telegram_id', user.id)
-            .single();
+            .update({ energy, level, energy_max: energyMax })
+            .eq('telegram_id', user.id);
 
-          if (player) {
-            let energy = (player.energy ?? 0) + point.energy_value;
-            let level = player.level ?? 1;
-            let energyMax = player.energy_max ?? 1000;
-            let leveledUp = false;
+          document.getElementById('energy-value').textContent = energy;
+          document.getElementById('energy-max').textContent = energyMax;
+          const percent = Math.floor((energy / energyMax) * 100);
+          document.getElementById('energy-bar-fill').style.width = percent + "%";
 
-            while (energy >= energyMax) {
-              energy -= energyMax;
-              level += 1;
-              energyMax += getEnergyIncrementByLevel(level);
-              leveledUp = true;
-            }
-
-            await supabase
-              .from('players')
-              .update({ energy, level, energy_max: energyMax })
-              .eq('telegram_id', user.id);
-
-            document.getElementById('energy-value').textContent = energy;
-            document.getElementById('energy-max').textContent = energyMax;
-            const percent = Math.floor((energy / energyMax) * 100);
-            document.getElementById('energy-bar-fill').style.width = percent + "%";
-
-            if (leveledUp) {
-              alert(`🎉 Уровень повышен! Текущий уровень: ${level}`);
-              playerMarker.setIcon(L.icon({
-                iconUrl: getGhostIconByLevel(level),
-                iconSize: [48, 48],
-                iconAnchor: [24, 24],
-                popupAnchor: [0, -24]
-              }));
-            }
-
-            alert(`⚡ Вы собрали ${point.energy_value} энергии!`);
+          if (leveledUp) {
+            alert(`🎉 Уровень повышен! Текущий уровень: ${level}`);
+            ghostIcon = L.icon({
+              iconUrl: getGhostIconByLevel(level),
+              iconSize: [48, 48],
+              iconAnchor: [24, 24],
+              popupAnchor: [0, -24]
+            });
+            playerMarker.setIcon(ghostIcon);
           }
-        });
+
+          collectSound.play(); // 🔊 Звук сбора
+          alert(`⚡ Вы собрали ${point.energy_value} энергии!`);
+        }
       });
+    }
 
   } catch (error) {
     console.error("Ошибка загрузки энерготочек:", error);
