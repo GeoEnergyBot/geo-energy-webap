@@ -104,7 +104,11 @@ let energyMarkers = [];
         maxZoom: 19,
       }).addTo(map);
 
-      playerMarker = L.marker([lat, lng], { icon: ghostIcon }).addTo(map).bindPopup("Вы здесь").openPopup();
+      playerMarker = L.marker([lat, lng], { icon: ghostIcon })
+        .addTo(map)
+        .bindPopup(`Уровень ${level}`)
+        .openPopup();
+
       lastTileId = getTileId(lat, lng);
       loadEnergyPoints(lat, lng);
       initialized = true;
@@ -168,7 +172,6 @@ async function loadEnergyPoints(centerLat, centerLng) {
 
     for (const point of result.points) {
       if (!point.energy_value || isNaN(point.energy_value)) {
-        // ❌ Удаляем некорректную точку из базы
         await supabase.from('energy_points').delete().eq('id', point.id);
         continue;
       }
@@ -221,10 +224,14 @@ async function loadEnergyPoints(centerLat, centerLng) {
             leveledUp = true;
           }
 
-          await supabase
+          const { error: updateError } = await supabase
             .from('players')
             .update({ energy, level, energy_max: energyMax })
             .eq('telegram_id', user.id);
+
+          if (updateError) {
+            console.error("Ошибка при сохранении прогресса:", updateError);
+          }
 
           document.getElementById('energy-value').textContent = energy;
           document.getElementById('energy-max').textContent = energyMax;
@@ -239,10 +246,16 @@ async function loadEnergyPoints(centerLat, centerLng) {
               iconAnchor: [24, 24],
               popupAnchor: [0, -24]
             });
-            playerMarker.setIcon(ghostIcon);
+
+            playerMarker
+              .setIcon(ghostIcon)
+              .bindPopup(`Уровень ${level}`)
+              .openPopup();
+          } else {
+            playerMarker.bindPopup(`Уровень ${level}`);
           }
 
-          collectSound.play(); // 🔊 Звук сбора
+          collectSound.play();
           alert(`⚡ Вы собрали ${point.energy_value} энергии!`);
         }
       });
