@@ -209,7 +209,7 @@ async function loadEnergyPoints(centerLat, centerLng) {
           requestAnimationFrame(animate);
 
           // 🚀 Вызов серверной функции
-          const res = await fetch('https://ptkzsrlicfhufdnegwjl.functions.supabase.co/collect-energy', {
+          const res = await fetch('https://ptkzsrlicfhufdnegwjl.functions.supabase.co/generate-points', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
