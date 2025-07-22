@@ -11,8 +11,6 @@ const user = tg.initDataUnsafe.user;
 
 document.getElementById("username").textContent = user?.first_name || user?.username || "Гость";
 document.getElementById("avatar").src = user?.photo_url || "https://cdn-icons-png.flaticon.com/512/9131/9131529.png";
-
-// 🔊 Звук сбора
 const collectSound = new Audio('/sounds/collect.mp3');
 
 function getGhostIconByLevel(level) {
@@ -82,6 +80,7 @@ let energyMarkers = [];
       const maxEnergy = parseInt(data.energy_max ?? 1000);
       document.getElementById('energy-value').textContent = currentEnergy;
       document.getElementById('energy-max').textContent = maxEnergy;
+      document.getElementById('level-badge').textContent = level;
       const percent = Math.floor((currentEnergy / maxEnergy) * 100);
       document.getElementById('energy-bar-fill').style.width = percent + "%";
     }
@@ -104,11 +103,7 @@ let energyMarkers = [];
         maxZoom: 19,
       }).addTo(map);
 
-      playerMarker = L.marker([lat, lng], { icon: ghostIcon })
-        .addTo(map)
-        .bindPopup(`Уровень ${level}`)
-        .openPopup();
-
+      playerMarker = L.marker([lat, lng], { icon: ghostIcon }).addTo(map);
       lastTileId = getTileId(lat, lng);
       loadEnergyPoints(lat, lng);
       initialized = true;
@@ -212,8 +207,9 @@ async function loadEnergyPoints(centerLat, centerLng) {
           .single();
 
         if (player) {
+          let oldLevel = parseInt(player.level ?? 1);
           let energy = parseInt(player.energy ?? 0) + point.energy_value;
-          let level = parseInt(player.level ?? 1);
+          let level = oldLevel;
           let energyMax = parseInt(player.energy_max ?? 1000);
           let leveledUp = false;
 
@@ -235,10 +231,11 @@ async function loadEnergyPoints(centerLat, centerLng) {
 
           document.getElementById('energy-value').textContent = energy;
           document.getElementById('energy-max').textContent = energyMax;
+          document.getElementById('level-badge').textContent = level;
           const percent = Math.floor((energy / energyMax) * 100);
           document.getElementById('energy-bar-fill').style.width = percent + "%";
 
-          if (leveledUp) {
+          if (level > oldLevel) {
             alert(`🎉 Уровень повышен! Текущий уровень: ${level}`);
             ghostIcon = L.icon({
               iconUrl: getGhostIconByLevel(level),
@@ -246,13 +243,7 @@ async function loadEnergyPoints(centerLat, centerLng) {
               iconAnchor: [24, 24],
               popupAnchor: [0, -24]
             });
-
-            playerMarker
-              .setIcon(ghostIcon)
-              .bindPopup(`Уровень ${level}`)
-              .openPopup();
-          } else {
-            playerMarker.bindPopup(`Уровень ${level}`);
+            playerMarker.setIcon(ghostIcon);
           }
 
           collectSound.play();
