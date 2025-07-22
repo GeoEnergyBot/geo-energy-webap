@@ -77,7 +77,7 @@ async function collectEnergy(point, playerLat, playerLng, marker) {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0a3pzcmxpY2ZodWZkbmVnd2psIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI0NzA3NjAsImV4cCI6MjA2ODA0Njc2MH0.eI0eF_imdgGWPLiUULTprh52Jo9P69WGpe3RbCg3Afo'
+      'Authorization': 'Bearer eyJ...твой_anon_key...'
     },
     body: JSON.stringify({
       action: "collect",
@@ -97,47 +97,7 @@ async function collectEnergy(point, playerLat, playerLng, marker) {
   updatePlayerUI(result.energy, result.energy_max, result.level);
 
   new Audio('/sounds/collect.mp3').play().catch(() => {});
-  alert(`⚡ Вы собрали ${point.energy_value} энергии! Уровень: ${result.level}`);
-}
-
-// 🔄 Загрузка энерготочек
-async function loadEnergyPoints(centerLat, centerLng) {
-  try {
-    energyMarkers.forEach(marker => map.removeLayer(marker));
-    energyMarkers = [];
-
-    const response = await fetch('https://ptkzsrlicfhufdnegwjl.functions.supabase.co/generate-points', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0a3pzcmxpY2ZodWZkbmVnd2psIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI0NzA3NjAsImV4cCI6MjA2ODA0Njc2MH0.eI0eF_imdgGWPLiUULTprh52Jo9P69WGpe3RbCg3Afo'
-      },
-      body: JSON.stringify({
-        action: "generate",
-        center_lat: centerLat,
-        center_lng: centerLng,
-        telegram_id: user.id
-      })
-    });
-
-    const result = await response.json();
-    if (!result.success || !result.points) return;
-
-    result.points
-      .filter(p => !p.collected_by || p.collected_by !== user.id.toString())
-      .forEach(point => {
-        const icon = getEnergyIcon(point.type);
-        const marker = L.marker([point.lat, point.lng], { icon }).addTo(map);
-        energyMarkers.push(marker);
-
-        marker.on('click', () => {
-          collectEnergy(point, centerLat, centerLng, marker);
-        });
-      });
-
-  } catch (error) {
-    console.error("Ошибка загрузки энерготочек:", error);
-  }
+  alert(`⚡ Вы собрали ${result.point_energy_value} энергии! Уровень: ${result.level}`);
 }
 
 // 🚀 Инициализация игры
@@ -148,7 +108,7 @@ async function loadEnergyPoints(centerLat, centerLng) {
   let level = 1;
 
   if (user) {
-    const { data: player } = await supabase
+    let { data: player } = await supabase
       .from('players')
       .select('*')
       .eq('telegram_id', user.id)
@@ -159,8 +119,26 @@ async function loadEnergyPoints(centerLat, centerLng) {
         telegram_id: user.id,
         username: user.username,
         first_name: user.first_name,
-        avatar_url: user.photo_url
+        avatar_url: user.photo_url,
+        energy: 0,
+        level: 1,
+        energy_max: 1000,
+        created_at: new Date().toISOString()
       }]);
+
+      const { data: newPlayer } = await supabase
+        .from('players')
+        .select('*')
+        .eq('telegram_id', user.id)
+        .single();
+
+      if (!newPlayer) {
+        alert("Ошибка создания игрока. Повторите позже.");
+        return;
+      }
+
+      level = newPlayer.level;
+      updatePlayerUI(newPlayer.energy, newPlayer.energy_max, newPlayer.level);
     } else {
       level = player.level || 1;
       updatePlayerUI(player.energy ?? 0, player.energy_max ?? 1000, level);
