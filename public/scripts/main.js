@@ -52,6 +52,7 @@ let energyMarkers = [];
 
 (async () => {
   let level = 1;
+
   if (user) {
     const { data } = await supabase
       .from('players')
@@ -59,21 +60,24 @@ let energyMarkers = [];
       .eq('telegram_id', user.id)
       .single();
 
-    console.log("Данные игрока:", data);
-
     if (!data) {
       await supabase.from('players').insert([{
         telegram_id: user.id,
         username: user.username,
         first_name: user.first_name,
-        avatar_url: user.photo_url
+        avatar_url: user.photo_url,
+        energy: 0,
+        energy_max: 1000,
+        level: 1
       }]);
     } else {
       level = data.level || 1;
       const currentEnergy = data.energy ?? 0;
       const maxEnergy = data.energy_max ?? 1000;
+
       document.getElementById('energy-value').textContent = currentEnergy;
       document.getElementById('energy-max').textContent = maxEnergy;
+      document.getElementById('player-level').textContent = level;
       const percent = Math.floor((currentEnergy / maxEnergy) * 100);
       document.getElementById('energy-bar-fill').style.width = percent + "%";
     }
@@ -132,7 +136,6 @@ let energyMarkers = [];
         loadEnergyPoints(latlng.lat, latlng.lng);
       }
     }, 60000);
-
   } else {
     alert("Геолокация не поддерживается на этом устройстве.");
   }
@@ -163,7 +166,6 @@ async function loadEnergyPoints(centerLat, centerLng) {
       .filter(p => !p.collected_by || p.collected_by !== user.id.toString())
       .forEach(point => {
         const icon = getEnergyIcon(point.type);
-
         const marker = L.marker([point.lat, point.lng], { icon }).addTo(map);
         energyMarkers.push(marker);
 
@@ -207,7 +209,6 @@ async function loadEnergyPoints(centerLat, centerLng) {
             while (currentEnergy >= maxEnergy) {
               currentEnergy -= maxEnergy;
               level++;
-
               if (level < 10) maxEnergy += 1000;
               else if (level < 30) maxEnergy += 2000;
               else if (level < 50) maxEnergy += 3000;
@@ -225,6 +226,8 @@ async function loadEnergyPoints(centerLat, centerLng) {
 
             document.getElementById('energy-value').textContent = currentEnergy;
             document.getElementById('energy-max').textContent = maxEnergy;
+            document.getElementById('player-level').textContent = level;
+
             const percent = Math.floor((currentEnergy / maxEnergy) * 100);
             document.getElementById('energy-bar-fill').style.width = percent + "%";
 
@@ -240,7 +243,6 @@ async function loadEnergyPoints(centerLat, centerLng) {
           }
         });
       });
-
   } catch (error) {
     console.error("Ошибка загрузки энерготочек:", error);
   }
