@@ -2,7 +2,7 @@ import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js
 
 const supabase = createClient(
   'https://ptkzsrlicfhufdnegwjl.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0a3pzcmxpY2ZodWZkbmVnd2psIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI0NzA3NjAsImV4cCI6MjA2ODA0Njc2MH0.eI0eF_imdgGWPLiUULTprh52Jo9P69WGpe3RbCg3Afo'
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
 );
 
 let tg = window.Telegram.WebApp;
@@ -50,94 +50,6 @@ let lastTileId = null;
 let initialized = false;
 let energyMarkers = [];
 
-(async () => {
-  let level = 1;
-  if (user) {
-    const { data } = await supabase
-      .from('players')
-      .select('*')
-      .eq('telegram_id', user.id)
-      .single();
-
-    console.log("Данные игрока:", data);
-
-    if (!data) {
-      await supabase.from('players').insert([{
-        telegram_id: user.id,
-        username: user.username,
-        first_name: user.first_name,
-        avatar_url: user.photo_url
-      }]);
-    } else {
-      level = data.level || 1;
-      const currentEnergy = data.energy ?? 0;
-      const maxEnergy = data.energy_max ?? 1000;
-      document.getElementById('energy-value').textContent = currentEnergy;
-      document.getElementById('energy-max').textContent = maxEnergy;
-      const percent = Math.floor((currentEnergy / maxEnergy) * 100);
-      document.getElementById('energy-bar-fill').style.width = percent + "%";
-    }
-  }
-
-  ghostIcon = L.icon({
-    iconUrl: getGhostIconByLevel(level),
-    iconSize: [48, 48],
-    iconAnchor: [24, 24],
-    popupAnchor: [0, -24]
-  });
-
-  if ("geolocation" in navigator) {
-    navigator.geolocation.getCurrentPosition((pos) => {
-      const lat = pos.coords.latitude;
-      const lng = pos.coords.longitude;
-
-      map = L.map('map').setView([lat, lng], 16);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-      }).addTo(map);
-
-      playerMarker = L.marker([lat, lng], { icon: ghostIcon }).addTo(map).bindPopup("Вы здесь").openPopup();
-      lastTileId = getTileId(lat, lng);
-      loadEnergyPoints(lat, lng);
-      initialized = true;
-    });
-
-    navigator.geolocation.watchPosition(
-      (pos) => {
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
-
-        if (playerMarker) playerMarker.setLatLng([lat, lng]);
-
-        const tileId = getTileId(lat, lng);
-        if (tileId !== lastTileId) {
-          lastTileId = tileId;
-          loadEnergyPoints(lat, lng);
-        }
-      },
-      (error) => {
-        alert("Ошибка геолокации: " + error.message);
-        console.error("GeoError:", error);
-      },
-      {
-        enableHighAccuracy: true,
-        maximumAge: 1000,
-        timeout: 10000,
-      }
-    );
-
-    setInterval(() => {
-      if (initialized && playerMarker) {
-        const latlng = playerMarker.getLatLng();
-        loadEnergyPoints(latlng.lat, latlng.lng);
-      }
-    }, 60000);
-
-  } else {
-    alert("Геолокация не поддерживается на этом устройстве.");
-  }
-})();
-
 async function loadEnergyPoints(centerLat, centerLng) {
   try {
     energyMarkers.forEach(marker => map.removeLayer(marker));
@@ -147,7 +59,7 @@ async function loadEnergyPoints(centerLat, centerLng) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0a3pzcmxpY2ZodWZkbmVnd2psIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI0NzA3NjAsImV4cCI6MjA2ODA0Njc2MH0.eI0eF_imdgGWPLiUULTprh52Jo9P69WGpe3RbCg3Afo'
+        'Authorization': 'Bearer ...'
       },
       body: JSON.stringify({
         center_lat: centerLat,
@@ -162,8 +74,8 @@ async function loadEnergyPoints(centerLat, centerLng) {
     result.points
       .filter(p => !p.collected_by || p.collected_by !== user.id.toString())
       .forEach(point => {
+        console.log("Точка:", point); // лог
         const icon = getEnergyIcon(point.type);
-
         const marker = L.marker([point.lat, point.lng], { icon }).addTo(map);
         energyMarkers.push(marker);
 
@@ -197,9 +109,14 @@ async function loadEnergyPoints(centerLat, centerLng) {
             .single();
 
           if (player) {
-            const energyToAdd = point.energy_value; // ✅ Используем значение из базы
-            const currentEnergy = player.energy ?? 0;
-            const maxEnergy = player.energy_max ?? 1000;
+            const energyToAdd = Number(point.energy_value);
+            if (isNaN(energyToAdd)) {
+              alert("⚠️ Ошибка: значение энергии отсутствует!");
+              return;
+            }
+
+            const currentEnergy = Number(player.energy) || 0;
+            const maxEnergy = Number(player.energy_max) || 1000;
             const newEnergy = Math.min(currentEnergy + energyToAdd, maxEnergy);
 
             await supabase
@@ -216,8 +133,10 @@ async function loadEnergyPoints(centerLat, centerLng) {
           }
         });
       });
-
   } catch (error) {
     console.error("Ошибка загрузки энерготочек:", error);
   }
 }
+
+const init = async () => { /* инициализация карты, игрока и вызов loadEnergyPoints */ };
+init();
