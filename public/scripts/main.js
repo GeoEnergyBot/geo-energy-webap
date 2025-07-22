@@ -147,6 +147,7 @@ async function loadEnergyPoints(centerLat, centerLng) {
         'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
       },
       body: JSON.stringify({
+        action: "generate",
         center_lat: centerLat,
         center_lng: centerLng,
         telegram_id: user.id
