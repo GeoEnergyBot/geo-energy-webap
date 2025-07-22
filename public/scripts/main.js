@@ -208,7 +208,6 @@ async function loadEnergyPoints(centerLat, centerLng) {
           }
           requestAnimationFrame(animate);
 
-          // 🚀 Вызов серверной функции
           const res = await fetch('https://ptkzsrlicfhufdnegwjl.functions.supabase.co/generate-points', {
             method: 'POST',
             headers: {
@@ -229,11 +228,32 @@ async function loadEnergyPoints(centerLat, centerLng) {
           }
 
           map.removeLayer(marker);
-          document.getElementById('energy-value').textContent = result.energy;
-          document.getElementById('energy-max').textContent = result.energy_max;
-          const percent = Math.floor((result.energy / result.energy_max) * 100);
+
+          const { data: updatedPlayer, error: fetchError } = await supabase
+            .from("players")
+            .select("*")
+            .eq("telegram_id", user.id)
+            .single();
+
+          if (fetchError || !updatedPlayer) {
+            alert("🚫 Ошибка при обновлении данных игрока");
+            return;
+          }
+
+          const { energy, energy_max, level } = updatedPlayer;
+          document.getElementById('energy-value').textContent = energy;
+          document.getElementById('energy-max').textContent = energy_max;
+          const percent = Math.floor((energy / energy_max) * 100);
           document.getElementById('energy-bar-fill').style.width = percent + "%";
-          alert(`⚡ Собрано: ${point.energy_value} энергии. Уровень: ${result.level}`);
+
+          playerMarker.setIcon(L.icon({
+            iconUrl: getGhostIconByLevel(level),
+            iconSize: [48, 48],
+            iconAnchor: [24, 24],
+            popupAnchor: [0, -24]
+          }));
+
+          alert(`⚡ Собрано: ${point.energy_value} энергии. Уровень: ${level}`);
         });
       });
 
