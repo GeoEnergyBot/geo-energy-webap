@@ -150,7 +150,7 @@ async function loadEnergyPoints(centerLat, centerLng) {
         action: "generate",
         center_lat: centerLat,
         center_lng: centerLng,
-        telegram_id: user.id
+        telegram_id: user.id.toString()
       })
     });
 
@@ -217,7 +217,7 @@ async function loadEnergyPoints(centerLat, centerLng) {
             },
             body: JSON.stringify({
               action: "collect",
-              telegram_id: user.id,
+              telegram_id: user.id.toString(),
               point_id: point.id
             })
           });
