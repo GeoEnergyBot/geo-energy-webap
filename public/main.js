@@ -12,9 +12,20 @@ if (tg) tg.expand();
 const user = tg?.initDataUnsafe?.user ?? { id: 'guest', first_name: 'Гость', username: 'guest' };
 
 // 🧩 Утилиты
+// (1..100) → assets/ghosts/ghost_###.png
 function getGhostIconByLevel(level) {
-  const index = Math.min(Math.floor((level - 1) / 10) + 1, 10);
-  return `ghost_icons/ghost_level_${String(index).padStart(2, '0')}.png`;
+  const lvl = Math.max(1, Math.min(100, Math.floor(level || 1)));
+  return `assets/ghosts/ghost_${String(lvl).padStart(3, '0')}.png`;
+}
+
+// Leaflet-иконка для карты
+function makeLeafletGhostIcon(level) {
+  return L.icon({
+    iconUrl: getGhostIconByLevel(level),
+    iconSize: [64, 64],
+    iconAnchor: [32, 32],
+    popupAnchor: [0, -28]
+  });
 }
 
 function getTileId(lat, lng) {
@@ -55,8 +66,11 @@ let isLoadingPoints = false;
 // 👤 Инициализация UI игрока
 function updatePlayerHeader({ username, avatar_url, level, energy, energy_max }) {
   document.getElementById("username").textContent = username || "Гость";
-  document.getElementById("avatar").src = avatar_url || "https://cdn-icons-png.flaticon.com/512/9131/9131529.png";
+  // В шапке показываем скин призрака текущего уровня
+  const headerIcon = getGhostIconByLevel(level ?? 1);
+  document.getElementById("avatar").src = headerIcon;
   document.getElementById("level-badge").textContent = level ?? 1;
+
   if (typeof energy === "number" && typeof energy_max === "number") {
     document.getElementById('energy-value').textContent = energy;
     document.getElementById('energy-max').textContent = energy_max;
@@ -110,13 +124,8 @@ function updatePlayerHeader({ username, avatar_url, level, energy, energy_max })
     });
   }
 
-  // 2) Иконка призрака по уровню
-  ghostIcon = L.icon({
-    iconUrl: getGhostIconByLevel(level),
-    iconSize: [48, 48],
-    iconAnchor: [24, 24],
-    popupAnchor: [0, -24]
-  });
+  // 2) Иконка призрака по уровню (для карты)
+  ghostIcon = makeLeafletGhostIcon(level);
 
   // 3) Инициализация карты и геолокации
   const onPosition = (pos) => {
@@ -272,23 +281,18 @@ async function loadEnergyPoints(centerLat, centerLng) {
             return;
           }
 
-          // UI обновление
+          // UI обновление (в шапку кладём скин по уровню)
           updatePlayerHeader({
             username: p.first_name || p.username,
-            avatar_url: p.avatar_url,
+            avatar_url: getGhostIconByLevel(p.level),
             level: p.level,
             energy: p.energy,
             energy_max: p.energy_max
           });
 
-          // Обновляем иконку призрака по новому уровню
+          // Обновляем иконку призрака на карте
           if (playerMarker) {
-            playerMarker.setIcon(L.icon({
-              iconUrl: getGhostIconByLevel(p.level),
-              iconSize: [48, 48],
-              iconAnchor: [24, 24],
-              popupAnchor: [0, -24]
-            }));
+            playerMarker.setIcon(makeLeafletGhostIcon(p.level));
           }
 
           // Небольшой визуальный фидбек
