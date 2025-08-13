@@ -1,4 +1,3 @@
-
 // 🔌 Supabase-клиент
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
 
@@ -25,7 +24,7 @@ function getTileId(lat, lng) {
 function getEnergyIcon(type) {
   let url = '';
   switch (type) {
-    case 'rare': url = 'energy_blobs/rare_blob.png'; break;      // относительные пути
+    case 'rare': url = 'energy_blobs/rare_blob.png'; break;
     case 'advanced': url = 'energy_blobs/advanced_blob.png'; break;
     default: url = 'energy_blobs/normal_blob.png';
   }
@@ -70,18 +69,20 @@ function updatePlayerHeader({ username, avatar_url, level, energy, energy_max })
 (async () => {
   // 1) Получаем игрока из БД / создаём при отсутствии
   let level = 1, energy = 0, energy_max = 1000;
-  if (user?.id !== 'guest') {
+  const tid = String(user.id);
+
+  if (tid !== 'guest') {
     const { data, error } = await supabase
       .from('players')
       .select('*')
-      .eq('telegram_id', user.id)
+      .eq('telegram_id', tid)
       .maybeSingle();
 
     if (error) console.warn('Ошибка загрузки игрока:', error);
 
     if (!data) {
       const { error: insertErr } = await supabase.from('players').insert([{
-        telegram_id: user.id,
+        telegram_id: tid,
         username: user.username,
         first_name: user.first_name,
         avatar_url: user.photo_url
@@ -263,43 +264,41 @@ async function loadEnergyPoints(centerLat, centerLng) {
             energyMarkers.splice(idx, 1);
           }
 
-          // Обновляем состояние игрока из БД
-          const { data: updatedPlayer, error: fetchError } = await supabase
-            .from("players")
-            .select("*")
-            .eq("telegram_id", user.id)
-            .single();
-
-          if (fetchError || !updatedPlayer) {
-            alert("🚫 Ошибка при обновлении данных игрока");
+          // ⬇️ Берём актуальные данные игрока ПРЯМО из ответа сервера
+          const p = collectResult.player;
+          if (!p) {
+            // Фолбэк: если по какой-то причине сервер не вернул player
+            alert("ℹ️ Энергия собрана, но не удалось получить данные игрока.");
             return;
           }
 
           // UI обновление
           updatePlayerHeader({
-            username: updatedPlayer.first_name || updatedPlayer.username,
-            avatar_url: updatedPlayer.avatar_url,
-            level: updatedPlayer.level,
-            energy: updatedPlayer.energy,
-            energy_max: updatedPlayer.energy_max
+            username: p.first_name || p.username,
+            avatar_url: p.avatar_url,
+            level: p.level,
+            energy: p.energy,
+            energy_max: p.energy_max
           });
 
           // Обновляем иконку призрака по новому уровню
-          playerMarker.setIcon(L.icon({
-            iconUrl: getGhostIconByLevel(updatedPlayer.level),
-            iconSize: [48, 48],
-            iconAnchor: [24, 24],
-            popupAnchor: [0, -24]
-          }));
+          if (playerMarker) {
+            playerMarker.setIcon(L.icon({
+              iconUrl: getGhostIconByLevel(p.level),
+              iconSize: [48, 48],
+              iconAnchor: [24, 24],
+              popupAnchor: [0, -24]
+            }));
+          }
 
           // Небольшой визуальный фидбек
-          const playerEl = playerMarker.getElement();
+          const playerEl = playerMarker?.getElement?.();
           if (playerEl) {
             playerEl.classList.add('flash');
             setTimeout(() => playerEl.classList.remove('flash'), 300);
           }
 
-          alert(`⚡ Собрано: ${point.energy_value} энергии. Уровень: ${updatedPlayer.level}`);
+          alert(`⚡ Собрано: ${collectResult.point_energy_value} энергии. Уровень: ${p.level}`);
         });
       });
 
