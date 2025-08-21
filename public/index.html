@@ -1,70 +1,25 @@
+
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="utf-8" />
+  <meta charset="utf-8">
   <title>GeoEnergyBot</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
-  <!-- Ваши стили + Leaflet -->
-  <link rel="stylesheet" href="style.css" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-
-  <!-- Telegram WebApp -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-
-  <!-- Быстрый стиль для тостов (локально, чтобы не трогать style.css) -->
-  <style>
-    #toast-container {
-      position: fixed;
-      right: 12px;
-      bottom: 12px;
-      z-index: 9999;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      pointer-events: none;
-    }
-    .toast {
-      pointer-events: auto;
-      background: rgba(20,20,20,0.95);
-      color: #fff;
-      border: 1px solid rgba(255,255,255,0.08);
-      border-radius: 10px;
-      padding: 10px 12px;
-      font-size: 14px;
-      box-shadow: 0 6px 20px rgba(0,0,0,0.35);
-      max-width: 300px;
-      opacity: 0;
-      transform: translateY(10px);
-      animation: toast-in 220ms ease forwards;
-    }
-    .toast.success { border-color: rgba(0,255,170,0.4); }
-    .toast.error   { border-color: rgba(255,80,80,0.5); }
-    .toast.info    { border-color: rgba(140,180,255,0.4); }
-
-    @keyframes toast-in {
-      from { opacity: 0; transform: translateY(10px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-    @keyframes toast-out {
-      from { opacity: 1; transform: translateY(0); }
-      to   { opacity: 0; transform: translateY(10px); }
-    }
-  </style>
 </head>
 <body>
 
-  <!-- Верхняя панель -->
+  <!-- Современная верхняя панель -->
   <div id="top-bar">
-    <img id="avatar" src="" alt="avatar" />
+    <div id="player-icon">
+      <img id="avatar" src="https://via.placeholder.com/48" alt="avatar">
+      <div id="level-badge">1</div>
+    </div>
     <div id="player-info">
-      <div class="name-and-level">
-        <span id="username">Гость</span>
-        <span id="level-badge">1</span>
-      </div>
-      <div id="energy-info">
-        <span id="energy-value">0</span>/<span id="energy-max">1000</span>
-      </div>
+      <div id="username">Загрузка...</div>
+      <div id="energy-info"><span id="energy-value">0</span> / <span id="energy-max">1000</span></div>
       <div id="energy-bar-container">
         <div id="energy-bar-fill"></div>
       </div>
@@ -74,14 +29,9 @@
   <!-- Карта -->
   <div id="map"></div>
 
-  <!-- Тосты -->
-  <div id="toast-container"></div>
-
-  <!-- Leaflet + ваш модуль -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script type="module" src="main.js"></script>
 
-  <!-- Звук сбора -->
   <audio id="energy-sound" src="sounds/pickup.mp3" preload="auto"></audio>
 </body>
 </html>
