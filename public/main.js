@@ -13,8 +13,9 @@ if (tg) tg.expand();
 const user = tg?.initDataUnsafe?.user ?? { id: 'guest', first_name: 'Гость', username: 'guest' };
 
 // ===== Константы AR =====
+const EXTERNAL_AR_URL = 'https://deum.kz/ar.html'; // полный режим WebXR
 const TARGETS_MIND_URL =
-  'https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.1.4/examples/image-tracking/assets/card-example/card.mind';
+  'https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.1.4/examples/image-tracking/assets/card-example/card.mind'; // fallback-таргет
 
 // 🧩 Утилиты
 function getGhostIconByLevel(level) {
@@ -57,9 +58,8 @@ let lastTileId = null;
 let energyMarkers = [];
 let isLoadingPoints = false;
 
-// ======== AR (MindAR image-tracking + фолбэк) ========
+// ======== AR (WebXR внешний + MindAR fallback) ========
 let arMarker = null;      // маркер на карте для входа в AR
-let mindarThree = null;   // инстанс MindARThree
 
 // Создать AR-точку примерно в 15 м восточнее игрока
 function spawnArDemoPointNear(lat, lng) {
@@ -86,16 +86,38 @@ function spawnArDemoPointNear(lat, lng) {
     .addTo(map)
     .bindPopup('AR-существо: подойдите ближе и нажмите');
 
-  arMarker.on('click', () => {
+  arMarker.on('click', async () => {
     if (!playerMarker) return;
     const p = playerMarker.getLatLng();
     const km = getDistanceKm(p.lat, p.lng, sLat, sLng);
     if (km > 0.02) { alert('Подойдите ближе (до 20 м), чтобы включить AR.'); return; }
-    openArModalWithMindAR();
+    openAr(); // запускаем AR-поток
   });
 }
 
-// Открыть AR-модалку и запустить MindAR (с фолбэком на обычную камеру)
+// Главная функция AR: сначала пытаемся запустить внешний WebXR, иначе — MindAR
+async function openAr() {
+  // 1) Если доступен WebXR (как в Pokémon GO) — открываем ваш внешний режим
+  try {
+    if (navigator.xr && (await navigator.xr.isSessionSupported?.('immersive-ar'))) {
+      const url = `${EXTERNAL_AR_URL}?spawn_id=demo`;
+      if (window.Telegram?.WebApp?.openLink) {
+        window.Telegram.WebApp.openLink(url, { try_instant_view: false });
+      } else {
+        window.open(url, '_blank', 'noopener');
+      }
+      return;
+    }
+  } catch (e) {
+    console.warn('Проверка WebXR упала, пробуем fallback:', e);
+  }
+
+  // 2) Fallback: MindAR image-tracking в самом Telegram WebApp
+  await openArModalWithMindAR();
+}
+
+// Встроенный режим: MindAR (image tracking по таргету)
+// Требует подключённых скриптов three.js и mindar-image-three в index.html
 async function openArModalWithMindAR() {
   const modal = document.getElementById('ar-modal');
   const closeBtn = document.getElementById('ar-close');
@@ -107,32 +129,32 @@ async function openArModalWithMindAR() {
   catchBtn.style.opacity = 0.6;
 
   let cleanup = () => {};
-
   const close = () => {
     try { cleanup(); } catch (_) {}
     modal.classList.add('hidden');
-    stage.innerHTML = ''; // убрать видео/канвасы MindAR или фолбэка
+    stage.innerHTML = ''; // очистим контейнер
   };
   closeBtn.onclick = close;
 
-  // Попытка MindAR
   try {
-    mindarThree = new window.MINDAR.IMAGE.MindARThree({
+    const mindarThree = new window.MINDAR.IMAGE.MindARThree({
       container: stage,
       imageTargetSrc: TARGETS_MIND_URL,
       videoSettings: { facingMode: { ideal: 'environment' } },
       uiScanning: true,
-      uiLoading: true,
+      uiLoading: true
     });
 
     const { renderer, scene, camera } = mindarThree;
 
+    // Свет
     const hemi = new THREE.HemisphereLight(0xffffff, 0x222222, 1.0);
     scene.add(hemi);
 
+    // Якорь к первому таргету
     const anchor = mindarThree.addAnchor(0);
 
-    // «Основание» на маркере (как тень)
+    // «Тень/основание» на плоскости маркера
     const ground = new THREE.Mesh(
       new THREE.CircleGeometry(0.6, 36),
       new THREE.MeshBasicMaterial({ color: 0x00ffd0, transparent: true, opacity: 0.15 })
@@ -140,7 +162,7 @@ async function openArModalWithMindAR() {
     ground.rotation.x = -Math.PI/2;
     anchor.group.add(ground);
 
-    // «Покемон» — шарик; можно заменить GLB через GLTFLoader
+    // Сам призрак (заглушка)
     const body = new THREE.Mesh(
       new THREE.SphereGeometry(0.35, 32, 32),
       new THREE.MeshStandardMaterial({ color: 0x66ccff, roughness: 0.35, metalness: 0.15 })
@@ -148,13 +170,15 @@ async function openArModalWithMindAR() {
     body.position.y = 0.4;
     anchor.group.add(body);
 
+    // Контроль видимости
+    let visible = false;
+    anchor.onTargetFound = () => { visible = true; catchBtn.disabled = false; catchBtn.style.opacity = 1; };
+    anchor.onTargetLost  = () => { visible = false; catchBtn.disabled = true;  catchBtn.style.opacity = .6; };
+
+    // Старт
+    await mindarThree.start();
+
     let t = 0;
-    let anchorVisible = false;
-    anchor.onTargetFound = () => { anchorVisible = true; catchBtn.disabled = false; catchBtn.style.opacity = 1; };
-    anchor.onTargetLost  = () => { anchorVisible = false; catchBtn.disabled = true;  catchBtn.style.opacity = .6; };
-
-    await mindarThree.start(); // если бросит исключение — фолбэк ниже
-
     renderer.setAnimationLoop(() => {
       t += 0.02;
       body.position.y = 0.4 + Math.sin(t) * 0.05;
@@ -167,50 +191,25 @@ async function openArModalWithMindAR() {
         mindarThree.renderer.setAnimationLoop(null);
         mindarThree.renderer.dispose();
       } catch(_) {}
-      mindarThree = null;
     };
 
+    // Поймать — только когда таргет виден
     catchBtn.onclick = () => {
-      if (!anchorVisible) return;
+      if (!visible) return;
       alert('Покемон пойман');
       close();
     };
 
-    return; // MindAR успешно запущен
   } catch (err) {
-    console.warn('MindAR не стартовал, включаю фолбэк камеры:', err);
-  }
-
-  // Фолбэк: обычная камера через getUserMedia (без трекинга)
-  try {
-    const video = document.createElement('video');
-    video.setAttribute('autoplay', '');
-    video.setAttribute('playsinline', '');
-    video.muted = true;
-    Object.assign(video.style, {
-      position: 'absolute', inset: '0', width: '100%', height: '100%', objectFit: 'cover'
-    });
-    stage.appendChild(video);
-
-    // Сначала просим заднюю камеру, при отказе — фронталку
-    let stream;
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
-    } catch {
-      stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+    console.warn('MindAR не стартовал:', err);
+    alert('Для полноценной AR откроем внешний режим в браузере.');
+    // Открываем внешний режим как запасной вариант
+    const url = `${EXTERNAL_AR_URL}?spawn_id=demo`;
+    if (window.Telegram?.WebApp?.openLink) {
+      window.Telegram.WebApp.openLink(url, { try_instant_view: false });
+    } else {
+      window.open(url, '_blank', 'noopener');
     }
-    video.srcObject = stream;
-    await video.play();
-
-    cleanup = () => { try { stream.getTracks().forEach(t => t.stop()); } catch(_) {} };
-
-    catchBtn.disabled = false;
-    catchBtn.style.opacity = 1;
-    catchBtn.onclick = () => { alert('Покемон пойман'); close(); };
-
-  } catch (err2) {
-    console.error('Камера не запустилась даже в фолбэке:', err2);
-    alert('Не удалось получить доступ к камере. Проверьте разрешения Telegram на камеру и HTTPS.');
     close();
   }
 }
@@ -367,7 +366,7 @@ async function loadEnergyPoints(centerLat, centerLng) {
     energyMarkers.forEach(m => map && map.removeLayer(m.marker));
     energyMarkers = [];
 
-    const response = await fetch(`${SUPABASE_URL.replace('.supabase.co','')}.functions.supabase.co/generate-points`, {
+    const response = await fetch('https://ptkzsrlicfhufdnegwjl.functions.supabase.co/generate-points', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -421,7 +420,7 @@ async function loadEnergyPoints(centerLat, centerLng) {
           requestAnimationFrame(animate);
 
           // Запрос на сбор
-          const res = await fetch(`${SUPABASE_URL.replace('.supabase.co','')}.functions.supabase.co/generate-points`, {
+          const res = await fetch('https://ptkzsrlicfhufdnegwjl.functions.supabase.co/generate-points', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
