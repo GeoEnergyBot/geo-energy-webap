@@ -1,5 +1,5 @@
 import { FUNCTIONS_ENDPOINT, SUPABASE_ANON } from '../env.js';
-import { getEnergyIcon, getDistanceKm } from '../utils.js';
+import { getEnergyIcon, getDistanceKm, makeLeafletGhostIconAsync } from '../utils.js';
 import { updatePlayerHeader, flashPlayerMarker } from '../ui.js';
 
 let isLoadingPoints = false;
@@ -48,7 +48,6 @@ export async function loadEnergyPoints(map, playerMarker, user) {
             return;
           }
 
-          // Визуальная анимация
           const sound = document.getElementById('energy-sound');
           if (sound) { try { sound.currentTime = 0; await sound.play(); } catch (_) {} }
           const animatedCircle = L.circleMarker([point.lat, point.lng], {
@@ -68,7 +67,6 @@ export async function loadEnergyPoints(map, playerMarker, user) {
           }
           requestAnimationFrame(animate);
 
-          // Сбор
           const res = await fetch(FUNCTIONS_ENDPOINT, {
             method: 'POST',
             headers: {
@@ -88,7 +86,6 @@ export async function loadEnergyPoints(map, playerMarker, user) {
             return;
           }
 
-          // Удалить маркер
           const idx = energyMarkers.findIndex(x => x.id === point.id);
           if (idx >= 0) {
             map.removeLayer(energyMarkers[idx].marker);
@@ -98,7 +95,7 @@ export async function loadEnergyPoints(map, playerMarker, user) {
           const p = collectResult.player;
           if (!p) { alert("ℹ️ Энергия собрана, но нет данных игрока."); return; }
 
-          updatePlayerHeader({
+          await updatePlayerHeader({
             username: p.first_name || p.username,
             avatar_url: '',
             level: p.level,
@@ -107,10 +104,8 @@ export async function loadEnergyPoints(map, playerMarker, user) {
           });
 
           if (playerMarker) {
-            playerMarker.setIcon(L.icon({
-              iconUrl: `ghost_icons/ghost_${String(p.level).padStart(3,'0')}.png`,
-              iconSize: [64,64], iconAnchor: [32,32], popupAnchor: [0,-28]
-            }));
+            const newIcon = await makeLeafletGhostIconAsync(p.level);
+            playerMarker.setIcon(newIcon);
             flashPlayerMarker(playerMarker);
           }
 

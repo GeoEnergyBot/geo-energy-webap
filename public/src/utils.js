@@ -1,11 +1,49 @@
-// Общие утилиты
+import { GHOST_ICON_BASES } from './env.js';
 
-export function getGhostIconByLevel(level) {
+// Сгенерировать путь "base/ghost_###.png"
+function ghostPath(base, level) {
   const lvl = Math.max(1, Math.min(100, Math.floor(level || 1)));
-  // под текущую структуру проекта — папка ghost_icons
-  return `ghost_icons/ghost_${String(lvl).padStart(3, '0')}.png`;
+  return `${base}/ghost_${String(lvl).padStart(3, '0')}.png`;
 }
 
+// Асинхронно находим первый доступный URL спрайта
+export function resolveGhostUrl(level) {
+  const bases = Array.isArray(GHOST_ICON_BASES) ? GHOST_ICON_BASES : ['ghost_icons', 'assets/ghosts'];
+  return new Promise((resolve) => {
+    let i = 0;
+    const tryNext = () => {
+      if (i >= bases.length) {
+        // финальный фолбэк — первый вариант
+        return resolve(ghostPath(bases[0], level));
+      }
+      const url = ghostPath(bases[i++], level);
+      const img = new Image();
+      img.onload = () => resolve(url);
+      img.onerror = tryNext;
+      img.src = url;
+    };
+    tryNext();
+  });
+}
+
+// Синхронный путь (используется редко, только как быстрый плейсхолдер)
+export function getGhostIconByLevel(level) {
+  const bases = Array.isArray(GHOST_ICON_BASES) ? GHOST_ICON_BASES : ['ghost_icons', 'assets/ghosts'];
+  return ghostPath(bases[0], level);
+}
+
+// Асинхронная иконка для Leaflet (надёжно с фолбэком)
+export async function makeLeafletGhostIconAsync(level) {
+  const url = await resolveGhostUrl(level);
+  return L.icon({
+    iconUrl: url,
+    iconSize: [64, 64],
+    iconAnchor: [32, 32],
+    popupAnchor: [0, -28]
+  });
+}
+
+// Остальные утилиты
 export function makeLeafletGhostIcon(level) {
   return L.icon({
     iconUrl: getGhostIconByLevel(level),

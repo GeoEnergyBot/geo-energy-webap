@@ -5,7 +5,10 @@ export const SUPABASE_ANON =
 // Edge Function для точек энергии
 export const FUNCTIONS_ENDPOINT = 'https://ptkzsrlicfhufdnegwjl.functions.supabase.co/generate-points';
 
-// ===== Параметры сложности «погони» (можно править без изменения логики) =====
+// Где искать спрайты призраков (код попробует по очереди)
+export const GHOST_ICON_BASES = ['ghost_icons', 'assets/ghosts'];
+
+// ===== Параметры сложности «погони» =====
 export const DIFFICULTY = {
   common:   { reticleRadiusPx: 50,  holdMs: 1200, baseSpeed: 200, nearBoost: 100 },
   advanced: { reticleRadiusPx: 45,  holdMs: 1600, baseSpeed: 240, nearBoost: 120 },
@@ -14,10 +17,10 @@ export const DIFFICULTY = {
 
 // Глобальные настройки AR/гиро
 export const AR_TUNING = {
-  fatigueMs: 700,          // замедление после почти-поимки
-  edgeBounce: 0.8,         // отскок от границ мира
-  feintEveryMs: 2800,      // частота «финтов»/рывков
-  sensorYawToPx: 6,        // чувствительность yaw (градусы → пиксели)
-  sensorPitchToPx: 6,      // чувствительность pitch (градусы → пиксели)
-  joystickSensitivity: 1.6 // чувствительность виртуального джойстика
+  fatigueMs: 700,
+  edgeBounce: 0.8,
+  feintEveryMs: 2800,
+  sensorYawToPx: 6,
+  sensorPitchToPx: 6,
+  joystickSensitivity: 1.6
 };
