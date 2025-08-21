@@ -12,13 +12,10 @@ if (tg) tg.expand();
 const user = tg?.initDataUnsafe?.user ?? { id: 'guest', first_name: 'Гость', username: 'guest' };
 
 // 🧩 Утилиты
-// (1..100) → assets/ghosts/ghost_###.png
 function getGhostIconByLevel(level) {
   const lvl = Math.max(1, Math.min(100, Math.floor(level || 1)));
   return `assets/ghosts/ghost_${String(lvl).padStart(3, '0')}.png`;
 }
-
-// Leaflet-иконка для карты
 function makeLeafletGhostIcon(level) {
   return L.icon({
     iconUrl: getGhostIconByLevel(level),
@@ -27,11 +24,9 @@ function makeLeafletGhostIcon(level) {
     popupAnchor: [0, -28]
   });
 }
-
 function getTileId(lat, lng) {
   return `${Math.floor(lat * 100)}_${Math.floor(lng * 100)}`;
 }
-
 function getEnergyIcon(type) {
   let url = '';
   switch (type) {
@@ -39,21 +34,15 @@ function getEnergyIcon(type) {
     case 'advanced': url = 'energy_blobs/advanced_blob.png'; break;
     default: url = 'energy_blobs/normal_blob.png';
   }
-  return L.icon({
-    iconUrl: url,
-    iconSize: [60, 100],
-    iconAnchor: [30, 50]
-  });
+  return L.icon({ iconUrl: url, iconSize: [60, 100], iconAnchor: [30, 50] });
 }
-
-// Возвращает расстояние в КИЛОМЕТРАХ
 function getDistanceKm(lat1, lng1, lat2, lng2) {
   const R = 6371;
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLng = (lng2 - lng1) * Math.PI / 180;
-  const a = Math.sin(dLat / 2) ** 2 +
-    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-    Math.sin(dLng / 2) ** 2;
+  const a = Math.sin(dLat/2)**2 +
+    Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180) *
+    Math.sin(dLng/2)**2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
@@ -63,24 +52,20 @@ let lastTileId = null;
 let energyMarkers = [];
 let isLoadingPoints = false;
 
-// ======== AR DEMO ========
-let arMarker = null; // маркер AR-точки
-let arStream = null; // MediaStream камеры
+// ======== AR DEMO (MindAR image-tracking) ========
+let arMarker = null;            // маркер на карте для входа в AR
+let mindarThree = null;         // инстанс MindARThree
+let mindarStarted = false;      // флаг работы
+let arAnchorVisible = false;    // виден ли маркер (target) в камере
 
-// Создаём AR-точку в 15 м от игрока (восточнее)
+// Создаём AR-точку в ~15 м от игрока (восточнее)
 function spawnArDemoPointNear(lat, lng) {
-  // смещение по долготе с поправкой на широту: ~ 1e-5 ≈ 1.11 м * cos(lat)
   const meters = 15;
-  const dLat = 0; // не сдвигаем по широте
-  const dLng = (meters / (111_320 * Math.cos(lat * Math.PI / 180))); // примерно в градусах
-  const sLat = lat + dLat;
+  const dLng = (meters / (111_320 * Math.cos(lat * Math.PI / 180)));
+  const sLat = lat;
   const sLng = lng + dLng;
 
-  // создаём маркер (эмодзи 👾 как заглушка)
-  if (arMarker) {
-    map.removeLayer(arMarker);
-    arMarker = null;
-  }
+  if (arMarker) { map.removeLayer(arMarker); arMarker = null; }
   const icon = L.divIcon({
     html: `<div style="
       width:44px;height:44px;border-radius:50%;
@@ -102,65 +87,110 @@ function spawnArDemoPointNear(lat, lng) {
     if (!playerMarker) return;
     const p = playerMarker.getLatLng();
     const km = getDistanceKm(p.lat, p.lng, sLat, sLng);
-    if (km > 0.02) {
-      alert('Подойдите ближе (до 20 м), чтобы включить AR-режим.');
-      return;
-    }
-    openArModal();
+    if (km > 0.02) { alert('Подойдите ближе (до 20 м), чтобы включить AR.'); return; }
+    openArModalWithMindAR();
   });
 }
 
-// Открыть AR-модалку и запустить камеру
-async function openArModal() {
+// Открыть AR-модалку и запустить MindAR (image tracking)
+async function openArModalWithMindAR() {
   const modal = document.getElementById('ar-modal');
-  const video = document.getElementById('ar-video');
   const closeBtn = document.getElementById('ar-close');
   const catchBtn = document.getElementById('catch-btn');
-  const placeholder = document.getElementById('ar-placeholder');
 
   modal.classList.remove('hidden');
+  catchBtn.disabled = true;
+  catchBtn.style.opacity = 0.6;
+  arAnchorVisible = false;
 
-  try {
-    arStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: 'environment' } },
-      audio: false
-    });
-    video.srcObject = arStream;
-    await video.play();
-  } catch (e) {
-    console.warn('Нет доступа к камере:', e);
-    alert('Не удалось запустить камеру.');
-  }
+  // Создаём сцену MindAR
+  mindarThree = new window.MINDAR.IMAGE.MindARThree({
+    container: document.getElementById('ar-stage'),
+    imageTargetSrc: 'https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.1.4/examples/image-tracking/assets/card-example/card.mind'
+    // uiScanning: true, uiLoading: true — по умолчанию
+  });
 
-  const close = () => {
-    if (arStream) {
-      arStream.getTracks().forEach(t => t.stop());
-      arStream = null;
-    }
-    video.srcObject = null;
-    modal.classList.add('hidden');
+  const { renderer, scene, camera } = mindarThree;
+
+  // Свет
+  const hemi = new THREE.HemisphereLight(0xffffff, 0x222222, 1.0);
+  scene.add(hemi);
+
+  // Точка привязки к первому таргету (index 0 в targets.mind)
+  const anchor = mindarThree.addAnchor(0);
+
+  // Подложка-плоскость (имитация «стоит на поверхности»)
+  const ground = new THREE.Mesh(
+    new THREE.CircleGeometry(0.6, 36),
+    new THREE.MeshBasicMaterial({ color: 0x00ffd0, transparent: true, opacity: 0.15 })
+  );
+  ground.rotation.x = -Math.PI/2; // положили плоскость
+  anchor.group.add(ground);
+
+  // Сам «покемон» — простая 3D-заглушка (можете заменить на GLB)
+  const body = new THREE.Mesh(
+    new THREE.SphereGeometry(0.35, 32, 32),
+    new THREE.MeshStandardMaterial({ color: 0x66ccff, roughness: 0.35, metalness: 0.15 })
+  );
+  body.position.y = 0.4; // над «землёй»
+  anchor.group.add(body);
+
+  // Простая «анимация» покачивания
+  let t = 0;
+  // События видимости маркера
+  anchor.onTargetFound = () => {
+    arAnchorVisible = true;
+    catchBtn.disabled = false;
+    catchBtn.style.opacity = 1.0;
+  };
+  anchor.onTargetLost = () => {
+    arAnchorVisible = false;
+    catchBtn.disabled = true;
+    catchBtn.style.opacity = 0.6;
   };
 
+  // Старт
+  await mindarThree.start();
+  mindarStarted = true;
+
+  renderer.setAnimationLoop(() => {
+    t += 0.02;
+    body.position.y = 0.4 + Math.sin(t) * 0.05;
+    renderer.render(scene, camera);
+  });
+
+  // Закрытие
+  const close = () => {
+    if (mindarThree) {
+      try {
+        mindarThree.stop();
+        mindarThree.renderer.setAnimationLoop(null);
+        mindarThree.renderer.dispose();
+      } catch(_) {}
+    }
+    mindarThree = null;
+    mindarStarted = false;
+    modal.classList.add('hidden');
+    // Чистим контейнер, чтобы не нарастали канвасы
+    const stage = document.getElementById('ar-stage');
+    stage.innerHTML = '';
+  };
   closeBtn.onclick = close;
 
-  // «Поймать» заглушку — просто сообщение
-  const onCatch = () => {
+  // Поймать (только когда таргет видим)
+  catchBtn.onclick = () => {
+    if (!arAnchorVisible) { return; }
     alert('Покемон пойман');
     close();
   };
-
-  catchBtn.onclick = onCatch;
-  placeholder.onclick = onCatch;
 }
 
 // 👤 Инициализация UI игрока
 function updatePlayerHeader({ username, avatar_url, level, energy, energy_max }) {
   document.getElementById("username").textContent = username || "Гость";
-  // В шапке показываем скин призрака текущего уровня
   const headerIcon = getGhostIconByLevel(level ?? 1);
   document.getElementById("avatar").src = headerIcon;
   document.getElementById("level-badge").textContent = level ?? 1;
-
   if (typeof energy === "number" && typeof energy_max === "number") {
     document.getElementById('energy-value').textContent = energy;
     document.getElementById('energy-max').textContent = energy_max;
@@ -169,33 +199,26 @@ function updatePlayerHeader({ username, avatar_url, level, energy, energy_max })
   }
 }
 
-// 🔁 Подготовка тайловых слоёв (Carto Dark по умолчанию + переключатель)
+// 🔁 Базовые слои карты (Carto Dark + переключатель)
 function buildBaseLayers() {
   const cartoDark = L.tileLayer(
     'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-    {
-      attribution: '&copy; OpenStreetMap &copy; CARTO',
-      subdomains: 'abcd',
-      maxZoom: 20
-    }
+    { attribution: '&copy; OpenStreetMap &copy; CARTO', subdomains: 'abcd', maxZoom: 20 }
   );
-
   const osm = L.tileLayer(
     'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
     { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' }
   );
-
   const esriSat = L.tileLayer(
     'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
     { maxZoom: 19, attribution: 'Tiles &copy; Esri' }
   );
-
   return { cartoDark, osm, esriSat };
 }
 
 // 🚀 Основной запуск
 (async () => {
-  // 1) Получаем игрока из БД / создаём при отсутствии
+  // 1) Получаем/создаём игрока
   let level = 1, energy = 0, energy_max = 1000;
   const tid = String(user.id);
 
@@ -223,57 +246,34 @@ function buildBaseLayers() {
       updatePlayerHeader({
         username: data.first_name || data.username,
         avatar_url: data.avatar_url,
-        level,
-        energy,
-        energy_max
+        level, energy, energy_max
       });
     }
   } else {
-    updatePlayerHeader({
-      username: 'Гость',
-      avatar_url: '',
-      level,
-      energy,
-      energy_max
-    });
+    updatePlayerHeader({ username: 'Гость', avatar_url: '', level, energy, energy_max });
   }
 
-  // 2) Иконка призрака по уровню (для карты)
+  // 2) Иконка призрака
   ghostIcon = makeLeafletGhostIcon(level);
 
-  // 3) Инициализация карты и геолокации
+  // 3) Геолокация/карта
   const onPosition = (pos) => {
     const lat = pos.coords.latitude;
     const lng = pos.coords.longitude;
 
     if (!map) {
       const { cartoDark, osm, esriSat } = buildBaseLayers();
-
-      // Карта с Carto Dark по умолчанию
-      map = L.map('map', {
-        center: [lat, lng],
-        zoom: 16,
-        layers: [cartoDark]
-      });
-
-      // Переключатель слоёв
+      map = L.map('map', { center: [lat, lng], zoom: 16, layers: [cartoDark] });
       L.control.layers(
-        {
-          'Carto Dark (рекомендовано)': cartoDark,
-          'OSM': osm,
-          'ESRI Спутник': esriSat
-        },
-        null,
-        { position: 'topright', collapsed: true }
+        { 'Carto Dark (рекомендовано)': cartoDark, 'OSM': osm, 'ESRI Спутник': esriSat },
+        null, { position: 'topright', collapsed: true }
       ).addTo(map);
 
       playerMarker = L.marker([lat, lng], { icon: ghostIcon }).addTo(map).bindPopup("Вы здесь").openPopup();
       lastTileId = getTileId(lat, lng);
 
-      // Загрузка энерго-точек
       loadEnergyPoints(lat, lng);
-      // Создаём рядом AR-точку (демо)
-      spawnArDemoPointNear(lat, lng);
+      spawnArDemoPointNear(lat, lng); // создаём AR-точку
 
     } else {
       playerMarker.setLatLng([lat, lng]);
@@ -281,54 +281,34 @@ function buildBaseLayers() {
       if (tileId !== lastTileId) {
         lastTileId = tileId;
         loadEnergyPoints(lat, lng);
-        // При смене тайла пересоздадим AR-точку поблизости
-        spawnArDemoPointNear(lat, lng);
+        spawnArDemoPointNear(lat, lng); // пересоздаём недалеко от игрока
       }
     }
   };
 
   const onPositionError = (error) => {
     console.warn("Ошибка геолокации:", error?.message || error);
-    // Фолбэк на фиксированные координаты (центр Астаны)
     const lat = 51.128, lng = 71.431;
-
     if (!map) {
       const { cartoDark, osm, esriSat } = buildBaseLayers();
-
-      map = L.map('map', {
-        center: [lat, lng],
-        zoom: 13,
-        layers: [cartoDark]
-      });
-
+      map = L.map('map', { center: [lat, lng], zoom: 13, layers: [cartoDark] });
       L.control.layers(
-        {
-          'Carto Dark (рекомендовано)': cartoDark,
-          'OSM': osm,
-          'ESRI Спутник': esriSat
-        },
-        null,
-        { position: 'topright', collapsed: true }
+        { 'Carto Dark (рекомендовано)': cartoDark, 'OSM': osm, 'ESRI Спутник': esriSat },
+        null, { position: 'topright', collapsed: true }
       ).addTo(map);
     }
-
     playerMarker = L.marker([lat, lng], { icon: ghostIcon }).addTo(map).bindPopup("Вы здесь").openPopup();
     lastTileId = getTileId(lat, lng);
-
     loadEnergyPoints(lat, lng);
     spawnArDemoPointNear(lat, lng);
-
     alert("Геолокация недоступна. Используются примерные координаты.");
   };
 
   if ("geolocation" in navigator) {
     navigator.geolocation.getCurrentPosition(onPosition, onPositionError);
     navigator.geolocation.watchPosition(onPosition, (e) => console.warn('watchPosition error', e), {
-      enableHighAccuracy: true,
-      maximumAge: 1000,
-      timeout: 10000,
+      enableHighAccuracy: true, maximumAge: 1000, timeout: 10000,
     });
-    // Периодический рефреш актуального тайла (дебаунс)
     setInterval(() => {
       if (!map || !playerMarker) return;
       const { lat, lng } = playerMarker.getLatLng();
@@ -339,12 +319,11 @@ function buildBaseLayers() {
   }
 })();
 
-// 📥 Загрузка точек энергии (с защитой от повторных запросов)
+// 📥 Загрузка точек энергии
 async function loadEnergyPoints(centerLat, centerLng) {
   if (isLoadingPoints) return;
   isLoadingPoints = true;
   try {
-    // Очищаем старые маркеры
     energyMarkers.forEach(m => map && map.removeLayer(m.marker));
     energyMarkers = [];
 
@@ -379,24 +358,18 @@ async function loadEnergyPoints(centerLat, centerLng) {
           if (!playerMarker) return;
           const playerPos = playerMarker.getLatLng();
           const distanceKm = getDistanceKm(playerPos.lat, playerPos.lng, point.lat, point.lng);
-          if (distanceKm > 0.02) { // 0.02 км = 20 м
-            alert("🚫 Подойдите ближе (до 20 м), чтобы собрать энергию.");
-            return;
-          }
+          if (distanceKm > 0.02) { alert("🚫 Подойдите ближе (до 20 м), чтобы собрать энергию."); return; }
 
-          // Анимация поглощения
+          // Анимация «всасывания»
           const sound = document.getElementById('energy-sound');
           if (sound) { try { sound.currentTime = 0; await sound.play(); } catch (_) {} }
-
           const animatedCircle = L.circleMarker([point.lat, point.lng], {
             radius: 10, color: "#00ff00", fillColor: "#00ff00", fillOpacity: 0.8
           }).addTo(map);
-
           const start = L.latLng(point.lat, point.lng);
           const end = playerPos;
           const duration = 500;
           const startTime = performance.now();
-
           function animate(ts) {
             const progress = Math.min(1, (ts - startTime) / duration);
             const lat = start.lat + (end.lat - start.lat) * progress;
@@ -412,7 +385,7 @@ async function loadEnergyPoints(centerLat, centerLng) {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0a3pzcmxpY2ZodWZkbmVнд2psIiwicм9сЗSI6Иmbнbn", "i":1752470760,"e":2068046760}'
+              'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0a3pzcmxpY2ZodWZkbmVnd2psIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI0NzA3NjAsImV4cCI6MjA2ODA0Njc2MH0.eI0eF_imdgGWPLiUULTprh52Jo9P69WGpe3RbCg3Afo'
             },
             body: JSON.stringify({
               action: "collect",
@@ -427,22 +400,16 @@ async function loadEnergyPoints(centerLat, centerLng) {
             return;
           }
 
-          // Удаляем маркер и из массива
+          // Удаляем маркер
           const idx = energyMarkers.findIndex(x => x.id === point.id);
           if (idx >= 0) {
             map.removeLayer(energyMarkers[idx].marker);
             energyMarkers.splice(idx, 1);
           }
 
-          // ⬇️ Берём актуальные данные игрока ПРЯМО из ответа сервера
           const p = collectResult.player;
-          if (!p) {
-            // Фолбэк: если по какой-то причине сервер не вернул player
-            alert("ℹ️ Энергия собрана, но не удалось получить данные игрока.");
-            return;
-          }
+          if (!p) { alert("ℹ️ Энергия собрана, но нет данных игрока."); return; }
 
-          // UI обновление (в шапку кладём скин по уровню)
           updatePlayerHeader({
             username: p.first_name || p.username,
             avatar_url: getGhostIconByLevel(p.level),
@@ -451,17 +418,9 @@ async function loadEnergyPoints(centerLat, centerLng) {
             energy_max: p.energy_max
           });
 
-          // Обновляем иконку призрака на карте
-          if (playerMarker) {
-            playerMarker.setIcon(makeLeafletGhostIcon(p.level));
-          }
-
-          // Небольшой визуальный фидбек
+          if (playerMarker) playerMarker.setIcon(makeLeafletGhostIcon(p.level));
           const playerEl = playerMarker?.getElement?.();
-          if (playerEl) {
-            playerEl.classList.add('flash');
-            setTimeout(() => playerEl.classList.remove('flash'), 300);
-          }
+          if (playerEl) { playerEl.classList.add('flash'); setTimeout(() => playerEl.classList.remove('flash'), 300); }
 
           alert(`⚡ Собрано: ${collectResult.point_energy_value} энергии. Уровень: ${p.level}`);
         });

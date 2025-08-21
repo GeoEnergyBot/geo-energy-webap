@@ -12,7 +12,7 @@
   <!-- Telegram WebApp -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
-  <!-- Мини-стили для AR-модалки (локально, чтобы не трогать style.css) -->
+  <!-- Мини-стили для AR-модалки -->
   <style>
     /* AR Overlay */
     #ar-modal.hidden { display: none; }
@@ -24,15 +24,17 @@
       grid-template-rows: auto 1fr auto;
     }
     #ar-header {
-      display: flex; justify-content: flex-end; align-items: center;
-      padding: 10px;
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 10px 12px; color: #fff;
+      background: linear-gradient(180deg, rgba(0,0,0,.65), rgba(0,0,0,.15));
     }
+    #ar-title { font-weight: 700; letter-spacing: .2px; }
     #ar-close {
       color: #fff; background: rgba(0,0,0,.35);
       border: 1px solid rgba(255,255,255,.2);
       border-radius: 10px;
       padding: 8px 12px;
-      font-size: 16px;
+      font-size: 15px;
       cursor: pointer;
       user-select: none;
     }
@@ -40,42 +42,12 @@
       position: relative;
       overflow: hidden;
     }
-    #ar-video {
-      position: absolute; inset: 0;
-      width: 100%; height: 100%;
-      object-fit: cover;
-      transform: scaleX(-1); /* фронталка может быть зеркальной: оставим так для универсальности */
-    }
-    #ar-placeholder {
-      position: absolute; left: 50%; top: 50%;
-      transform: translate(-50%, -50%);
-      width: min(45vw, 280px);
-      aspect-ratio: 1/1;
-      border-radius: 18%;
-      background:
-        radial-gradient(60% 60% at 30% 30%, rgba(255,255,255,.9), rgba(255,255,255,.2)),
-        radial-gradient(55% 55% at 70% 70%, rgba(0,200,255,.5), rgba(0,0,0,.0));
-      border: 2px solid rgba(255,255,255,.4);
-      box-shadow: 0 12px 40px rgba(0,0,0,.55), inset 0 0 18px rgba(0,200,255,.35);
-      display: grid; place-items: center;
-      animation: floaty 2.4s ease-in-out infinite;
-    }
-    #ar-placeholder::after {
-      content: "👾";
-      font-size: clamp(56px, 12vw, 100px);
-      filter: drop-shadow(0 6px 14px rgba(0,0,0,.45));
-    }
-    @keyframes floaty {
-      0% { transform: translate(-50%, -50%) translateY(0); }
-      50% { transform: translate(-50%, -50%) translateY(-10px); }
-      100% { transform: translate(-50%, -50%) translateY(0); }
-    }
-
+    /* MindAR сам подставит <video> и <canvas> внутрь контейнера */
     #ar-actions {
       display: grid; place-items: center;
-      padding: 14px;
-      gap: 10px;
-      background: linear-gradient(180deg, rgba(0,0,0,.0), rgba(0,0,0,.35));
+      padding: 12px;
+      gap: 8px;
+      background: linear-gradient(180deg, rgba(0,0,0,0), rgba(0,0,0,.35));
       border-top: 1px solid rgba(255,255,255,.08);
     }
     #catch-btn {
@@ -85,15 +57,18 @@
       padding: 12px 18px; border-radius: 999px; cursor: pointer;
       box-shadow: 0 6px 24px rgba(0, 153, 255, .35);
       font-size: 16px;
+      opacity: 0.6; /* станет 1.0 когда маркер видим */
+      transition: opacity .2s ease;
     }
     #catch-hint {
-      color: #cfefff; font-size: 12px; opacity: .8;
+      color: #cfefff; font-size: 12px; opacity: .85; text-align: center;
+      padding: 0 10px;
     }
   </style>
 </head>
 <body>
 
-  <!-- Современная верхняя панель -->
+  <!-- Верхняя панель -->
   <div id="top-bar">
     <div id="player-icon">
       <img id="avatar" src="https://via.placeholder.com/48" alt="avatar">
@@ -111,24 +86,30 @@
   <!-- Карта -->
   <div id="map"></div>
 
-  <!-- AR-модалка -->
+  <!-- AR-модалка (MindAR отрисует видео/канвас в #ar-stage) -->
   <div id="ar-modal" class="hidden" role="dialog" aria-label="AR режим">
     <div id="ar-header">
+      <div id="ar-title">Наведите камеру на маркер</div>
       <div id="ar-close" title="Закрыть">Закрыть ✕</div>
     </div>
-    <div id="ar-stage">
-      <video id="ar-video" autoplay playsinline muted></video>
-      <!-- Заглушка «существо» -->
-      <div id="ar-placeholder" title="Нажми, чтобы поймать"></div>
-    </div>
+    <div id="ar-stage"></div>
     <div id="ar-actions">
-      <button id="catch-btn">Поймать</button>
-      <div id="catch-hint">Наведите камеру и нажмите «Поймать»</div>
+      <button id="catch-btn" disabled>Поймать</button>
+      <div id="catch-hint">
+        Поднесите камеру к заранее подготовленному изображению-маркеру.<br/>
+        Когда существо появится на маркере, нажмите «Поймать».
+      </div>
     </div>
   </div>
 
-  <!-- Leaflet + ваш модуль -->
+  <!-- Leaflet -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- Three.js + MindAR (image tracking) -->
+  <script src="https://unpkg.com/three@0.155.0/build/three.min.js"></script>
+  <script src="https://unpkg.com/mind-ar/dist/mindar-image-three.prod.js"></script>
+
+  <!-- Ваш код -->
   <script type="module" src="main.js"></script>
 
   <!-- Звук сбора -->
