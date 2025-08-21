@@ -63,6 +63,96 @@ let lastTileId = null;
 let energyMarkers = [];
 let isLoadingPoints = false;
 
+// ======== AR DEMO ========
+let arMarker = null; // маркер AR-точки
+let arStream = null; // MediaStream камеры
+
+// Создаём AR-точку в 15 м от игрока (восточнее)
+function spawnArDemoPointNear(lat, lng) {
+  // смещение по долготе с поправкой на широту: ~ 1e-5 ≈ 1.11 м * cos(lat)
+  const meters = 15;
+  const dLat = 0; // не сдвигаем по широте
+  const dLng = (meters / (111_320 * Math.cos(lat * Math.PI / 180))); // примерно в градусах
+  const sLat = lat + dLat;
+  const sLng = lng + dLng;
+
+  // создаём маркер (эмодзи 👾 как заглушка)
+  if (arMarker) {
+    map.removeLayer(arMarker);
+    arMarker = null;
+  }
+  const icon = L.divIcon({
+    html: `<div style="
+      width:44px;height:44px;border-radius:50%;
+      display:grid;place-items:center;
+      background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.9), rgba(0,200,255,.35));
+      border:2px solid rgba(255,255,255,.6);
+      box-shadow:0 8px 22px rgba(0,0,0,.45);
+      font-size:26px;">👾</div>`,
+    className: '',
+    iconSize: [44, 44],
+    iconAnchor: [22, 22]
+  });
+
+  arMarker = L.marker([sLat, sLng], { icon })
+    .addTo(map)
+    .bindPopup('AR-существо: подойдите ближе и нажмите');
+
+  arMarker.on('click', () => {
+    if (!playerMarker) return;
+    const p = playerMarker.getLatLng();
+    const km = getDistanceKm(p.lat, p.lng, sLat, sLng);
+    if (km > 0.02) {
+      alert('Подойдите ближе (до 20 м), чтобы включить AR-режим.');
+      return;
+    }
+    openArModal();
+  });
+}
+
+// Открыть AR-модалку и запустить камеру
+async function openArModal() {
+  const modal = document.getElementById('ar-modal');
+  const video = document.getElementById('ar-video');
+  const closeBtn = document.getElementById('ar-close');
+  const catchBtn = document.getElementById('catch-btn');
+  const placeholder = document.getElementById('ar-placeholder');
+
+  modal.classList.remove('hidden');
+
+  try {
+    arStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' } },
+      audio: false
+    });
+    video.srcObject = arStream;
+    await video.play();
+  } catch (e) {
+    console.warn('Нет доступа к камере:', e);
+    alert('Не удалось запустить камеру.');
+  }
+
+  const close = () => {
+    if (arStream) {
+      arStream.getTracks().forEach(t => t.stop());
+      arStream = null;
+    }
+    video.srcObject = null;
+    modal.classList.add('hidden');
+  };
+
+  closeBtn.onclick = close;
+
+  // «Поймать» заглушку — просто сообщение
+  const onCatch = () => {
+    alert('Покемон пойман');
+    close();
+  };
+
+  catchBtn.onclick = onCatch;
+  placeholder.onclick = onCatch;
+}
+
 // 👤 Инициализация UI игрока
 function updatePlayerHeader({ username, avatar_url, level, energy, energy_max }) {
   document.getElementById("username").textContent = username || "Гость";
@@ -179,13 +269,20 @@ function buildBaseLayers() {
 
       playerMarker = L.marker([lat, lng], { icon: ghostIcon }).addTo(map).bindPopup("Вы здесь").openPopup();
       lastTileId = getTileId(lat, lng);
+
+      // Загрузка энерго-точек
       loadEnergyPoints(lat, lng);
+      // Создаём рядом AR-точку (демо)
+      spawnArDemoPointNear(lat, lng);
+
     } else {
       playerMarker.setLatLng([lat, lng]);
       const tileId = getTileId(lat, lng);
       if (tileId !== lastTileId) {
         lastTileId = tileId;
         loadEnergyPoints(lat, lng);
+        // При смене тайла пересоздадим AR-точку поблизости
+        spawnArDemoPointNear(lat, lng);
       }
     }
   };
@@ -217,7 +314,10 @@ function buildBaseLayers() {
 
     playerMarker = L.marker([lat, lng], { icon: ghostIcon }).addTo(map).bindPopup("Вы здесь").openPopup();
     lastTileId = getTileId(lat, lng);
+
     loadEnergyPoints(lat, lng);
+    spawnArDemoPointNear(lat, lng);
+
     alert("Геолокация недоступна. Используются примерные координаты.");
   };
 
@@ -312,7 +412,7 @@ async function loadEnergyPoints(centerLat, centerLng) {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0a3pzcmxpY2ZodWZkbmVnd2psIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI0NzA3NjAsImV4cCI6MjA2ODA0Njc2MH0.eI0eF_imdgGWPLiUULTprh52Jo9P69WGpe3RbCg3Afo'
+              'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0a3pzcmxpY2ZodWZkbmVнд2psIiwicм9сЗSI6Иmbнbn", "i":1752470760,"e":2068046760}'
             },
             body: JSON.stringify({
               action: "collect",
