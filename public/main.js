@@ -1,15 +1,20 @@
 // 🔌 Supabase-клиент
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js/+esm';
 
-const supabase = createClient(
-  'https://ptkzsrlicfhufdnegwjl.supabase.co',
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0a3pzcmxpY2ZodWZkbmVnd2psIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI0NzA3NjAsImV4cCI6MjA2ODA0Njc2MH0.eI0eF_imdgGWPLiUULTprh52Jo9P69WGpe3RbCg3Afo'
-);
+const SUPABASE_URL = 'https://ptkzsrlicfhufdnegwjl.supabase.co';
+const SUPABASE_ANON =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0a3pzcmxpY2ZodWZkbmVnd2psIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI0NzA3NjAsImV4cCI6MjA2ODA0Njc2MH0.eI0eF_imdgGWPLiUULTprh52Jo9P69WGpe3RbCg3Afo';
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON);
 
 // 📦 Telegram WebApp (фолбэк для локального запуска)
 const tg = window.Telegram?.WebApp;
 if (tg) tg.expand();
 const user = tg?.initDataUnsafe?.user ?? { id: 'guest', first_name: 'Гость', username: 'guest' };
+
+// ===== Константы AR =====
+const TARGETS_MIND_URL =
+  'https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.1.4/examples/image-tracking/assets/card-example/card.mind';
 
 // 🧩 Утилиты
 function getGhostIconByLevel(level) {
@@ -52,13 +57,11 @@ let lastTileId = null;
 let energyMarkers = [];
 let isLoadingPoints = false;
 
-// ======== AR DEMO (MindAR image-tracking) ========
-let arMarker = null;            // маркер на карте для входа в AR
-let mindarThree = null;         // инстанс MindARThree
-let mindarStarted = false;      // флаг работы
-let arAnchorVisible = false;    // виден ли маркер (target) в камере
+// ======== AR (MindAR image-tracking + фолбэк) ========
+let arMarker = null;      // маркер на карте для входа в AR
+let mindarThree = null;   // инстанс MindARThree
 
-// Создаём AR-точку в ~15 м от игрока (восточнее)
+// Создать AR-точку примерно в 15 м восточнее игрока
 function spawnArDemoPointNear(lat, lng) {
   const meters = 15;
   const dLng = (meters / (111_320 * Math.cos(lat * Math.PI / 180)));
@@ -92,100 +95,127 @@ function spawnArDemoPointNear(lat, lng) {
   });
 }
 
-// Открыть AR-модалку и запустить MindAR (image tracking)
+// Открыть AR-модалку и запустить MindAR (с фолбэком на обычную камеру)
 async function openArModalWithMindAR() {
   const modal = document.getElementById('ar-modal');
   const closeBtn = document.getElementById('ar-close');
   const catchBtn = document.getElementById('catch-btn');
+  const stage = document.getElementById('ar-stage');
 
   modal.classList.remove('hidden');
   catchBtn.disabled = true;
   catchBtn.style.opacity = 0.6;
-  arAnchorVisible = false;
 
-  // Создаём сцену MindAR
-  mindarThree = new window.MINDAR.IMAGE.MindARThree({
-    container: document.getElementById('ar-stage'),
-    imageTargetSrc: 'https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.1.4/examples/image-tracking/assets/card-example/card.mind'
-    // uiScanning: true, uiLoading: true — по умолчанию
-  });
+  let cleanup = () => {};
 
-  const { renderer, scene, camera } = mindarThree;
-
-  // Свет
-  const hemi = new THREE.HemisphereLight(0xffffff, 0x222222, 1.0);
-  scene.add(hemi);
-
-  // Точка привязки к первому таргету (index 0 в targets.mind)
-  const anchor = mindarThree.addAnchor(0);
-
-  // Подложка-плоскость (имитация «стоит на поверхности»)
-  const ground = new THREE.Mesh(
-    new THREE.CircleGeometry(0.6, 36),
-    new THREE.MeshBasicMaterial({ color: 0x00ffd0, transparent: true, opacity: 0.15 })
-  );
-  ground.rotation.x = -Math.PI/2; // положили плоскость
-  anchor.group.add(ground);
-
-  // Сам «покемон» — простая 3D-заглушка (можете заменить на GLB)
-  const body = new THREE.Mesh(
-    new THREE.SphereGeometry(0.35, 32, 32),
-    new THREE.MeshStandardMaterial({ color: 0x66ccff, roughness: 0.35, metalness: 0.15 })
-  );
-  body.position.y = 0.4; // над «землёй»
-  anchor.group.add(body);
-
-  // Простая «анимация» покачивания
-  let t = 0;
-  // События видимости маркера
-  anchor.onTargetFound = () => {
-    arAnchorVisible = true;
-    catchBtn.disabled = false;
-    catchBtn.style.opacity = 1.0;
-  };
-  anchor.onTargetLost = () => {
-    arAnchorVisible = false;
-    catchBtn.disabled = true;
-    catchBtn.style.opacity = 0.6;
-  };
-
-  // Старт
-  await mindarThree.start();
-  mindarStarted = true;
-
-  renderer.setAnimationLoop(() => {
-    t += 0.02;
-    body.position.y = 0.4 + Math.sin(t) * 0.05;
-    renderer.render(scene, camera);
-  });
-
-  // Закрытие
   const close = () => {
-    if (mindarThree) {
+    try { cleanup(); } catch (_) {}
+    modal.classList.add('hidden');
+    stage.innerHTML = ''; // убрать видео/канвасы MindAR или фолбэка
+  };
+  closeBtn.onclick = close;
+
+  // Попытка MindAR
+  try {
+    mindarThree = new window.MINDAR.IMAGE.MindARThree({
+      container: stage,
+      imageTargetSrc: TARGETS_MIND_URL,
+      videoSettings: { facingMode: { ideal: 'environment' } },
+      uiScanning: true,
+      uiLoading: true,
+    });
+
+    const { renderer, scene, camera } = mindarThree;
+
+    const hemi = new THREE.HemisphereLight(0xffffff, 0x222222, 1.0);
+    scene.add(hemi);
+
+    const anchor = mindarThree.addAnchor(0);
+
+    // «Основание» на маркере (как тень)
+    const ground = new THREE.Mesh(
+      new THREE.CircleGeometry(0.6, 36),
+      new THREE.MeshBasicMaterial({ color: 0x00ffd0, transparent: true, opacity: 0.15 })
+    );
+    ground.rotation.x = -Math.PI/2;
+    anchor.group.add(ground);
+
+    // «Покемон» — шарик; можно заменить GLB через GLTFLoader
+    const body = new THREE.Mesh(
+      new THREE.SphereGeometry(0.35, 32, 32),
+      new THREE.MeshStandardMaterial({ color: 0x66ccff, roughness: 0.35, metalness: 0.15 })
+    );
+    body.position.y = 0.4;
+    anchor.group.add(body);
+
+    let t = 0;
+    let anchorVisible = false;
+    anchor.onTargetFound = () => { anchorVisible = true; catchBtn.disabled = false; catchBtn.style.opacity = 1; };
+    anchor.onTargetLost  = () => { anchorVisible = false; catchBtn.disabled = true;  catchBtn.style.opacity = .6; };
+
+    await mindarThree.start(); // если бросит исключение — фолбэк ниже
+
+    renderer.setAnimationLoop(() => {
+      t += 0.02;
+      body.position.y = 0.4 + Math.sin(t) * 0.05;
+      renderer.render(scene, camera);
+    });
+
+    cleanup = () => {
       try {
         mindarThree.stop();
         mindarThree.renderer.setAnimationLoop(null);
         mindarThree.renderer.dispose();
       } catch(_) {}
-    }
-    mindarThree = null;
-    mindarStarted = false;
-    modal.classList.add('hidden');
-    // Чистим контейнер, чтобы не нарастали канвасы
-    const stage = document.getElementById('ar-stage');
-    stage.innerHTML = '';
-  };
-  closeBtn.onclick = close;
+      mindarThree = null;
+    };
 
-  // Поймать (только когда таргет видим)
-  catchBtn.onclick = () => {
-    if (!arAnchorVisible) { return; }
-    alert('Покемон пойман');
+    catchBtn.onclick = () => {
+      if (!anchorVisible) return;
+      alert('Покемон пойман');
+      close();
+    };
+
+    return; // MindAR успешно запущен
+  } catch (err) {
+    console.warn('MindAR не стартовал, включаю фолбэк камеры:', err);
+  }
+
+  // Фолбэк: обычная камера через getUserMedia (без трекинга)
+  try {
+    const video = document.createElement('video');
+    video.setAttribute('autoplay', '');
+    video.setAttribute('playsinline', '');
+    video.muted = true;
+    Object.assign(video.style, {
+      position: 'absolute', inset: '0', width: '100%', height: '100%', objectFit: 'cover'
+    });
+    stage.appendChild(video);
+
+    // Сначала просим заднюю камеру, при отказе — фронталку
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
+    } catch {
+      stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+    }
+    video.srcObject = stream;
+    await video.play();
+
+    cleanup = () => { try { stream.getTracks().forEach(t => t.stop()); } catch(_) {} };
+
+    catchBtn.disabled = false;
+    catchBtn.style.opacity = 1;
+    catchBtn.onclick = () => { alert('Покемон пойман'); close(); };
+
+  } catch (err2) {
+    console.error('Камера не запустилась даже в фолбэке:', err2);
+    alert('Не удалось получить доступ к камере. Проверьте разрешения Telegram на камеру и HTTPS.');
     close();
-  };
+  }
 }
 
-// 👤 Инициализация UI игрока
+// 👤 Шапка игрока
 function updatePlayerHeader({ username, avatar_url, level, energy, energy_max }) {
   document.getElementById("username").textContent = username || "Гость";
   const headerIcon = getGhostIconByLevel(level ?? 1);
@@ -232,19 +262,29 @@ function buildBaseLayers() {
     if (error) console.warn('Ошибка загрузки игрока:', error);
 
     if (!data) {
-      const { error: insertErr } = await supabase.from('players').insert([{
+      const { data: ins, error: insertErr } = await supabase.from('players').insert([{
         telegram_id: tid,
         username: user.username,
         first_name: user.first_name,
         avatar_url: user.photo_url
-      }]);
+      }]).select().maybeSingle();
       if (insertErr) console.warn('Ошибка создания игрока:', insertErr);
+      if (ins) {
+        level = ins.level ?? 1;
+        energy = ins.energy ?? 0;
+        energy_max = ins.energy_max ?? 1000;
+      }
+      updatePlayerHeader({
+        username: user.first_name || user.username || 'Игрок',
+        avatar_url: '',
+        level, energy, energy_max
+      });
     } else {
       level = data.level ?? 1;
       energy = data.energy ?? 0;
       energy_max = data.energy_max ?? 1000;
       updatePlayerHeader({
-        username: data.first_name || data.username,
+        username: data.first_name || data.username || 'Игрок',
         avatar_url: data.avatar_url,
         level, energy, energy_max
       });
@@ -273,7 +313,7 @@ function buildBaseLayers() {
       lastTileId = getTileId(lat, lng);
 
       loadEnergyPoints(lat, lng);
-      spawnArDemoPointNear(lat, lng); // создаём AR-точку
+      spawnArDemoPointNear(lat, lng); // AR-точка рядом
 
     } else {
       playerMarker.setLatLng([lat, lng]);
@@ -281,7 +321,7 @@ function buildBaseLayers() {
       if (tileId !== lastTileId) {
         lastTileId = tileId;
         loadEnergyPoints(lat, lng);
-        spawnArDemoPointNear(lat, lng); // пересоздаём недалеко от игрока
+        spawnArDemoPointNear(lat, lng);
       }
     }
   };
@@ -327,11 +367,11 @@ async function loadEnergyPoints(centerLat, centerLng) {
     energyMarkers.forEach(m => map && map.removeLayer(m.marker));
     energyMarkers = [];
 
-    const response = await fetch('https://ptkzsrlicfhufdnegwjl.functions.supabase.co/generate-points', {
+    const response = await fetch(`${SUPABASE_URL.replace('.supabase.co','')}.functions.supabase.co/generate-points`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0a3pzcmxpY2ZodWZkbmVnd2psIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI0NzA3NjAsImV4cCI6MjA2ODA0Njc2MH0.eI0eF_imdgGWPLiUULTprh52Jo9P69WGpe3RbCg3Afo'
+        'Authorization': `Bearer ${SUPABASE_ANON}`
       },
       body: JSON.stringify({
         action: "generate",
@@ -381,11 +421,11 @@ async function loadEnergyPoints(centerLat, centerLng) {
           requestAnimationFrame(animate);
 
           // Запрос на сбор
-          const res = await fetch('https://ptkzsrlicfhufdnegwjl.functions.supabase.co/generate-points', {
+          const res = await fetch(`${SUPABASE_URL.replace('.supabase.co','')}.functions.supabase.co/generate-points`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB0a3pzcmxpY2ZodWZkbmVnd2psIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTI0NzA3NjAsImV4cCI6MjA2ODA0Njc2MH0.eI0eF_imdgGWPLiUULTprh52Jo9P69WGpe3RbCg3Afo'
+              'Authorization': `Bearer ${SUPABASE_ANON}`
             },
             body: JSON.stringify({
               action: "collect",
@@ -395,8 +435,8 @@ async function loadEnergyPoints(centerLat, centerLng) {
           });
 
           const collectResult = await res.json();
-          if (!collectResult.success) {
-            alert("🚫 Ошибка сбора энергии: " + (collectResult.error || "Неизвестно"));
+          if (!res.ok || !collectResult.success) {
+            alert("🚫 Ошибка сбора энергии: " + (collectResult.error || res.status));
             return;
           }
 
