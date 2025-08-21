@@ -79,6 +79,30 @@ function updatePlayerHeader({ username, avatar_url, level, energy, energy_max })
   }
 }
 
+// 🔁 Подготовка тайловых слоёв (Carto Dark по умолчанию + переключатель)
+function buildBaseLayers() {
+  const cartoDark = L.tileLayer(
+    'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+    {
+      attribution: '&copy; OpenStreetMap &copy; CARTO',
+      subdomains: 'abcd',
+      maxZoom: 20
+    }
+  );
+
+  const osm = L.tileLayer(
+    'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    { maxZoom: 19, attribution: '&copy; OpenStreetMap contributors' }
+  );
+
+  const esriSat = L.tileLayer(
+    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    { maxZoom: 19, attribution: 'Tiles &copy; Esri' }
+  );
+
+  return { cartoDark, osm, esriSat };
+}
+
 // 🚀 Основной запуск
 (async () => {
   // 1) Получаем игрока из БД / создаём при отсутствии
@@ -133,8 +157,26 @@ function updatePlayerHeader({ username, avatar_url, level, energy, energy_max })
     const lng = pos.coords.longitude;
 
     if (!map) {
-      map = L.map('map').setView([lat, lng], 16);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+      const { cartoDark, osm, esriSat } = buildBaseLayers();
+
+      // Карта с Carto Dark по умолчанию
+      map = L.map('map', {
+        center: [lat, lng],
+        zoom: 16,
+        layers: [cartoDark]
+      });
+
+      // Переключатель слоёв
+      L.control.layers(
+        {
+          'Carto Dark (рекомендовано)': cartoDark,
+          'OSM': osm,
+          'ESRI Спутник': esriSat
+        },
+        null,
+        { position: 'topright', collapsed: true }
+      ).addTo(map);
+
       playerMarker = L.marker([lat, lng], { icon: ghostIcon }).addTo(map).bindPopup("Вы здесь").openPopup();
       lastTileId = getTileId(lat, lng);
       loadEnergyPoints(lat, lng);
@@ -152,8 +194,27 @@ function updatePlayerHeader({ username, avatar_url, level, energy, energy_max })
     console.warn("Ошибка геолокации:", error?.message || error);
     // Фолбэк на фиксированные координаты (центр Астаны)
     const lat = 51.128, lng = 71.431;
-    map = L.map('map').setView([lat, lng], 13);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+
+    if (!map) {
+      const { cartoDark, osm, esriSat } = buildBaseLayers();
+
+      map = L.map('map', {
+        center: [lat, lng],
+        zoom: 13,
+        layers: [cartoDark]
+      });
+
+      L.control.layers(
+        {
+          'Carto Dark (рекомендовано)': cartoDark,
+          'OSM': osm,
+          'ESRI Спутник': esriSat
+        },
+        null,
+        { position: 'topright', collapsed: true }
+      ).addTo(map);
+    }
+
     playerMarker = L.marker([lat, lng], { icon: ghostIcon }).addTo(map).bindPopup("Вы здесь").openPopup();
     lastTileId = getTileId(lat, lng);
     loadEnergyPoints(lat, lng);
