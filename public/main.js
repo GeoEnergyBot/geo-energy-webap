@@ -12,10 +12,6 @@ const tg = window.Telegram?.WebApp;
 if (tg) tg.expand();
 const user = tg?.initDataUnsafe?.user ?? { id: 'guest', first_name: 'Гость', username: 'guest' };
 
-// ===== Константы AR =====
-const TARGETS_MIND_URL =
-  'https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.1.4/examples/image-tracking/assets/card-example/card.mind';
-
 // 🧩 Утилиты
 function getGhostIconByLevel(level) {
   const lvl = Math.max(1, Math.min(100, Math.floor(level || 1)));
@@ -57,9 +53,8 @@ let lastTileId = null;
 let energyMarkers = [];
 let isLoadingPoints = false;
 
-// ======== AR (MindAR image-tracking + фолбэк) ========
-let arMarker = null;      // маркер на карте для входа в AR
-let mindarThree = null;   // инстанс MindARThree
+// ======== AR: «Гироскопная погоня» (псевдо-AR) ========
+let arMarker = null; // маркер на карте для входа в AR
 
 // Создать AR-точку примерно в 15 м восточнее игрока
 function spawnArDemoPointNear(lat, lng) {
@@ -91,128 +86,397 @@ function spawnArDemoPointNear(lat, lng) {
     const p = playerMarker.getLatLng();
     const km = getDistanceKm(p.lat, p.lng, sLat, sLng);
     if (km > 0.02) { alert('Подойдите ближе (до 20 м), чтобы включить AR.'); return; }
-    openArModalWithMindAR();
+    openGyroChase(); // запуск мини-игры
   });
 }
 
-// Открыть AR-модалку и запустить MindAR (с фолбэком на обычную камеру)
-async function openArModalWithMindAR() {
+/**
+ * Открывает модалку AR и запускает мини-игру «Гироскопная погоня».
+ * Требует наличие в index.html:
+ *  - #ar-modal, #ar-close, #ar-stage
+ */
+async function openGyroChase() {
   const modal = document.getElementById('ar-modal');
   const closeBtn = document.getElementById('ar-close');
-  const catchBtn = document.getElementById('catch-btn');
   const stage = document.getElementById('ar-stage');
 
+  // Очистим сцену
+  stage.innerHTML = '';
   modal.classList.remove('hidden');
-  catchBtn.disabled = true;
-  catchBtn.style.opacity = 0.6;
 
-  let cleanup = () => {};
+  // ---------- Создаём видео с камерой ----------
+  const video = document.createElement('video');
+  video.setAttribute('autoplay', '');
+  video.setAttribute('playsinline', '');
+  video.muted = true;
+  Object.assign(video.style, {
+    position: 'absolute', inset: '0', width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' // зеркалим под фронталку, но запрашиваем бэк-камеру
+  });
+  stage.appendChild(video);
 
+  // ---------- Оверлей-слой для UI (прицел, призрак, стрелки, прогресс, подсказки) ----------
+  const overlay = document.createElement('div');
+  Object.assign(overlay.style, {
+    position: 'absolute', inset: '0', overflow: 'hidden', pointerEvents: 'auto'
+  });
+  stage.appendChild(overlay);
+
+  // Прицел в центре
+  const reticle = document.createElement('div');
+  const reticleSize = 140; // px (изменяемо по сложности)
+  Object.assign(reticle.style, {
+    position: 'absolute',
+    left: '50%', top: '50%',
+    width: `${reticleSize}px`, height: `${reticleSize}px`,
+    marginLeft: `-${reticleSize/2}px`, marginTop: `-${reticleSize/2}px`,
+    borderRadius: '50%',
+    border: '2px solid rgba(255,255,255,.75)',
+    boxShadow: '0 0 0 3px rgba(0,0,0,.25), inset 0 0 30px rgba(0,255,220,.15)',
+    backdropFilter: 'blur(1px)',
+  });
+  overlay.appendChild(reticle);
+
+  // Прогресс-кольцо вокруг прицела (конусный градиент)
+  const ring = document.createElement('div');
+  Object.assign(ring.style, {
+    position: 'absolute',
+    left: '50%', top: '50%',
+    width: `${reticleSize + 16}px`, height: `${reticleSize + 16}px`,
+    marginLeft: `-${(reticleSize+16)/2}px`, marginTop: `-${(reticleSize+16)/2}px`,
+    borderRadius: '50%',
+    background: 'conic-gradient(#00ffd0 0%, rgba(255,255,255,.15) 0%)',
+    boxShadow: '0 0 14px rgba(0,255,220,.35)',
+    pointerEvents: 'none',
+  });
+  overlay.appendChild(ring);
+
+  // Призрак (DOM-элемент)
+  const ghost = document.createElement('div');
+  Object.assign(ghost.style, {
+    position: 'absolute',
+    width: '96px', height: '96px',
+    left: '50%', top: '50%',
+    marginLeft: '-48px', marginTop: '-48px',
+    borderRadius: '26%',
+    background:
+      'radial-gradient(60% 60% at 30% 30%, rgba(255,255,255,.95), rgba(255,255,255,.2)), ' +
+      'radial-gradient(55% 55% at 70% 70%, rgba(0,200,255,.5), rgba(0,0,0,0))',
+    border: '2px solid rgba(255,255,255,.4)',
+    boxShadow: '0 12px 30px rgba(0,0,0,.45), inset 0 0 18px rgba(0,200,255,.35)',
+    display: 'grid', placeItems: 'center',
+    transition: 'transform .08s linear',
+  });
+  ghost.textContent = '👻';
+  ghost.style.fontSize = '64px';
+  ghost.style.filter = 'drop-shadow(0 6px 14px rgba(0,0,0,.45))';
+  overlay.appendChild(ghost);
+
+  // Стрелки-подсказки по краям
+  const arrowL = document.createElement('div');
+  const arrowR = document.createElement('div');
+  const arrowT = document.createElement('div');
+  const arrowB = document.createElement('div');
+  [arrowL, arrowR, arrowT, arrowB].forEach(a => {
+    Object.assign(a.style, {
+      position: 'absolute', color: '#fff', fontSize: '28px',
+      textShadow: '0 2px 8px rgba(0,0,0,.5)', opacity: '0', transition: 'opacity .2s'
+    });
+    overlay.appendChild(a);
+  });
+  arrowL.textContent = '⬅'; arrowR.textContent = '➡';
+  arrowT.textContent = '⬆'; arrowB.textContent = '⬇';
+  arrowL.style.left = '8px'; arrowL.style.top = '50%'; arrowL.style.transform = 'translateY(-50%)';
+  arrowR.style.right = '8px'; arrowR.style.top = '50%'; arrowR.style.transform = 'translateY(-50%)';
+  arrowT.style.top = '8px'; arrowT.style.left = '50%'; arrowT.style.transform = 'translateX(-50%)';
+  arrowB.style.bottom = '8px'; arrowB.style.left = '50%'; arrowB.style.transform = 'translateX(-50%)';
+
+  // Подсказка/кнопка разрешения сенсоров (iOS)
+  const permWrap = document.createElement('div');
+  Object.assign(permWrap.style, {
+    position: 'absolute', left: '50%', bottom: '16px', transform: 'translateX(-50%)',
+    background: 'rgba(0,0,0,.35)', color: '#fff', padding: '10px 12px',
+    borderRadius: '12px', fontSize: '14px', display: 'flex', gap: '10px', alignItems: 'center'
+  });
+  const permBtn = document.createElement('button');
+  permBtn.textContent = 'Включить управление';
+  Object.assign(permBtn.style, {
+    appearance: 'none', border: 'none', borderRadius: '999px',
+    padding: '8px 12px', fontWeight: '800', cursor: 'pointer',
+    background: 'linear-gradient(90deg, #00ffcc, #00bfff, #0077ff)', color: '#00131a'
+  });
+  const permMsg = document.createElement('span');
+  permMsg.textContent = 'Чтобы управлять поворотом, разрешите доступ к гиродатчикам.';
+  permWrap.appendChild(permMsg); permWrap.appendChild(permBtn);
+  overlay.appendChild(permWrap);
+
+  // Джойстик-эмулятор (если сенсоров нет)
+  const joystick = document.createElement('div');
+  Object.assign(joystick.style, {
+    position: 'absolute', left: '16px', bottom: '16px',
+    width: '96px', height: '96px', borderRadius: '50%',
+    background: 'rgba(255,255,255,.1)', border: '1px solid rgba(255,255,255,.25)',
+    touchAction: 'none', display: 'none'
+  });
+  overlay.appendChild(joystick);
+
+  // Кнопка закрытия
+  const cleanupFns = [];
   const close = () => {
-    try { cleanup(); } catch (_) {}
+    try {
+      cleanupFns.forEach(fn => fn && fn());
+    } catch {}
     modal.classList.add('hidden');
-    stage.innerHTML = ''; // убрать видео/канвасы MindAR или фолбэка
+    stage.innerHTML = '';
   };
   closeBtn.onclick = close;
 
-  // Попытка MindAR
+  // ---------- Камера ----------
+  let stream = null;
   try {
-    mindarThree = new window.MINDAR.IMAGE.MindARThree({
-      container: stage,
-      imageTargetSrc: TARGETS_MIND_URL,
-      videoSettings: { facingMode: { ideal: 'environment' } },
-      uiScanning: true,
-      uiLoading: true,
-    });
-
-    const { renderer, scene, camera } = mindarThree;
-
-    const hemi = new THREE.HemisphereLight(0xffffff, 0x222222, 1.0);
-    scene.add(hemi);
-
-    const anchor = mindarThree.addAnchor(0);
-
-    // «Основание» на маркере (как тень)
-    const ground = new THREE.Mesh(
-      new THREE.CircleGeometry(0.6, 36),
-      new THREE.MeshBasicMaterial({ color: 0x00ffd0, transparent: true, opacity: 0.15 })
-    );
-    ground.rotation.x = -Math.PI/2;
-    anchor.group.add(ground);
-
-    // «Покемон» — шарик; можно заменить GLB через GLTFLoader
-    const body = new THREE.Mesh(
-      new THREE.SphereGeometry(0.35, 32, 32),
-      new THREE.MeshStandardMaterial({ color: 0x66ccff, roughness: 0.35, metalness: 0.15 })
-    );
-    body.position.y = 0.4;
-    anchor.group.add(body);
-
-    let t = 0;
-    let anchorVisible = false;
-    anchor.onTargetFound = () => { anchorVisible = true; catchBtn.disabled = false; catchBtn.style.opacity = 1; };
-    anchor.onTargetLost  = () => { anchorVisible = false; catchBtn.disabled = true;  catchBtn.style.opacity = .6; };
-
-    await mindarThree.start(); // если бросит исключение — фолбэк ниже
-
-    renderer.setAnimationLoop(() => {
-      t += 0.02;
-      body.position.y = 0.4 + Math.sin(t) * 0.05;
-      renderer.render(scene, camera);
-    });
-
-    cleanup = () => {
-      try {
-        mindarThree.stop();
-        mindarThree.renderer.setAnimationLoop(null);
-        mindarThree.renderer.dispose();
-      } catch(_) {}
-      mindarThree = null;
-    };
-
-    catchBtn.onclick = () => {
-      if (!anchorVisible) return;
-      alert('Покемон пойман');
-      close();
-    };
-
-    return; // MindAR успешно запущен
-  } catch (err) {
-    console.warn('MindAR не стартовал, включаю фолбэк камеры:', err);
-  }
-
-  // Фолбэк: обычная камера через getUserMedia (без трекинга)
-  try {
-    const video = document.createElement('video');
-    video.setAttribute('autoplay', '');
-    video.setAttribute('playsinline', '');
-    video.muted = true;
-    Object.assign(video.style, {
-      position: 'absolute', inset: '0', width: '100%', height: '100%', objectFit: 'cover'
-    });
-    stage.appendChild(video);
-
-    // Сначала просим заднюю камеру, при отказе — фронталку
-    let stream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
     } catch {
       stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
     }
-    video.srcObject = stream;
-    await video.play();
-
-    cleanup = () => { try { stream.getTracks().forEach(t => t.stop()); } catch(_) {} };
-
-    catchBtn.disabled = false;
-    catchBtn.style.opacity = 1;
-    catchBtn.onclick = () => { alert('Покемон пойман'); close(); };
-
-  } catch (err2) {
-    console.error('Камера не запустилась даже в фолбэке:', err2);
-    alert('Не удалось получить доступ к камере. Проверьте разрешения Telegram на камеру и HTTPS.');
+    video.srcObject = stream; await video.play();
+    cleanupFns.push(() => { try { stream.getTracks().forEach(t => t.stop()); } catch {} });
+  } catch (err) {
+    console.error('Камера не запустилась:', err);
+    alert('Не удалось запустить камеру. Проверьте разрешения Telegram на камеру.');
     close();
+    return;
   }
+
+  // ---------- Игровая логика ----------
+  const W = () => overlay.clientWidth;
+  const H = () => overlay.clientHeight;
+  const HW = () => W()/2, HH = () => H()/2;
+
+  // Параметры сложности (можно связать с редкостью)
+  const Rcatch = reticleSize/2;          // радиус попадания (px)
+  const holdMsTarget = 1400;             // нужно удержать в прицеле (мс)
+  const baseSpeed = 220;                 // базовая скорость призрака (px/с)
+  const nearBoost = 120;                 // бонус скорости, когда близко (px/с)
+  const fatigueMs = 700;                 // «усталость» после почти-поимки (замедление)
+  const edgeBounce = 0.8;                // «скольжение» по краю
+  const feintEveryMs = 2800;             // финт/рывок раз в N мс
+  const maxOffscreenArrowsDist = 40;     // порог появления стрелок
+
+  // Состояния
+  let calib = { alpha0: null, beta0: null }; // ноль гироскопа
+  let useSensors = false;
+  let camX = 0, camY = 0;                 // «центр камеры» в мире (px), 0,0 — центр экрана
+  const sensorToPxYaw = 6;                // чувствительность (градусы → px)
+  const sensorToPxPitch = 6;
+
+  // Джойстик-эмуляция
+  let joyActive = false, joyBase = {x:0,y:0};
+
+  // Призрак: мировые координаты относительно центра экрана (px)
+  let gx = (Math.random() * 2 - 1) * HW() * 0.7;
+  let gy = (Math.random() * 2 - 1) * HH() * 0.7;
+  let vx = 0, vy = 0;
+  let lastT = performance.now();
+  let holdMs = 0;
+  let lastNearTs = 0;
+  let lastFeintTs = 0;
+
+  // Вибро
+  const vib = p => { try { navigator.vibrate && navigator.vibrate(p); } catch {} };
+
+  // Прогресс-кольцо обновление
+  function setRingProgress(p) {
+    const clamped = Math.max(0, Math.min(1, p));
+    const deg = Math.floor(360 * clamped);
+    ring.style.background = `conic-gradient(#00ffd0 ${deg}deg, rgba(255,255,255,.15) ${deg}deg)`;
+  }
+  setRingProgress(0);
+
+  // Показ/скрытие стрелок
+  function updateArrows(screenX, screenY) {
+    const w = W(), h = H();
+    const left = screenX < -maxOffscreenArrowsDist;
+    const right = screenX > w + maxOffscreenArrowsDist;
+    const top = screenY < -maxOffscreenArrowsDist;
+    const bottom = screenY > h + maxOffscreenArrowsDist;
+
+    arrowL.style.opacity = left ? '1' : '0';
+    arrowR.style.opacity = right ? '1' : '0';
+    arrowT.style.opacity = top ? '1' : '0';
+    arrowB.style.opacity = bottom ? '1' : '0';
+  }
+
+  // Гиро-обработчик → обновляет camX, camY
+  function handleOrientation(e) {
+    // alpha: 0..360 (компас/yaw), beta: -180..180 (наклон вперёд-назад/pitch)
+    const alpha = e.alpha, beta = e.beta;
+    if (alpha == null || beta == null) return;
+
+    if (calib.alpha0 == null) { calib.alpha0 = alpha; }
+    if (calib.beta0 == null) { calib.beta0 = beta; }
+
+    const dyaw = shortestAngle(alpha - calib.alpha0); // [-180..180]
+    const dpitch = beta - calib.beta0;
+
+    // Простая линейная проекция → пиксели
+    camX = dyaw * sensorToPxYaw;
+    camY = -dpitch * sensorToPxPitch; // инверсия, чтобы наклон вниз = движение вниз
+  }
+
+  function shortestAngle(a) {
+    let x = ((a + 180) % 360 + 360) % 360 - 180;
+    return x;
+  }
+
+  // Разрешение сенсоров (iOS)
+  async function tryEnableSensors() {
+    try {
+      if (typeof DeviceOrientationEvent !== 'undefined' &&
+          typeof DeviceOrientationEvent.requestPermission === 'function') {
+        const resp = await DeviceOrientationEvent.requestPermission();
+        if (resp === 'granted') {
+          window.addEventListener('deviceorientation', handleOrientation, true);
+          cleanupFns.push(() => window.removeEventListener('deviceorientation', handleOrientation, true));
+          useSensors = true;
+          permWrap.style.display = 'none';
+          joystick.style.display = 'none';
+          return true;
+        }
+      } else if ('ondeviceorientation' in window) {
+        window.addEventListener('deviceorientation', handleOrientation, true);
+        cleanupFns.push(() => window.removeEventListener('deviceorientation', handleOrientation, true));
+        useSensors = true;
+        permWrap.style.display = 'none';
+        joystick.style.display = 'none';
+        return true;
+      }
+    } catch (err) {
+      console.warn('DeviceOrientation permission error:', err);
+    }
+    // не удалось — включаем джойстик
+    useSensors = false;
+    permMsg.textContent = 'Сенсоры недоступны. Используйте виртуальный джойстик слева.';
+    joystick.style.display = 'block';
+    return false;
+  }
+
+  permBtn.onclick = () => { tryEnableSensors(); };
+  // авто-попытка без кнопки на Android
+  tryEnableSensors();
+
+  // Джойстик-управление (тач)
+  joystick.addEventListener('pointerdown', (e) => {
+    joyActive = true;
+    joyBase = { x: e.clientX, y: e.clientY };
+    joystick.setPointerCapture(e.pointerId);
+  });
+  joystick.addEventListener('pointermove', (e) => {
+    if (!joyActive) return;
+    const dx = e.clientX - joyBase.x;
+    const dy = e.clientY - joyBase.y;
+    camX = dx * 1.6;  // чувствительность
+    camY = dy * 1.6;
+  });
+  const endJoy = (e) => { joyActive = false; camX *= 0.5; camY *= 0.5; };
+  joystick.addEventListener('pointerup', endJoy);
+  joystick.addEventListener('pointercancel', endJoy);
+  cleanupFns.push(() => { joyActive = false; });
+
+  // Игровой цикл
+  function tick() {
+    const now = performance.now();
+    const dt = Math.min(50, now - lastT) / 1000; // сек
+    lastT = now;
+
+    const hw = HW(), hh = HH();
+    const centerX = hw, centerY = hh;
+
+    // Где на экране должен быть призрак, исходя из «мира» (gx, gy) и текущего «взгляда» (camX, camY)
+    let screenX = (gx - camX) + centerX;
+    let screenY = (gy - camY) + centerY;
+
+    // Вектор от центра прицела к призраку (в экранных координатах)
+    const dx = screenX - centerX;
+    const dy = screenY - centerY;
+    const dist = Math.hypot(dx, dy);
+
+    // Скорость ускользания
+    const dirX = dx === 0 ? 0 : dx / (dist || 1);
+    const dirY = dy === 0 ? 0 : dy / (dist || 1);
+
+    // Близко → поддать газу, но с усталостью
+    let speed = baseSpeed + (dist < Rcatch * 1.7 ? nearBoost : 0);
+
+    if (now - lastNearTs < fatigueMs) {
+      speed *= 0.35; // усталость — замедление
+    }
+
+    // Финт раз в N мс
+    if (now - lastFeintTs > feintEveryMs) {
+      lastFeintTs = now;
+      // мгновенная смена направления на 90° + небольшой рывок
+      const perp = Math.random() < 0.5 ? [ -dirY, dirX ] : [ dirY, -dirX ];
+      vx += perp[0] * 180;
+      vy += perp[1] * 180;
+    }
+
+    // Основная динамика: стремится УБЕЖАТЬ от центра прицела
+    vx += dirX * speed * dt;
+    vy += dirY * speed * dt;
+
+    // Немного трения, чтобы не разгонялся бесконечно
+    const friction = 0.92;
+    vx *= friction; vy *= friction;
+
+    // Обновляем мировую позицию призрака
+    gx += vx * dt;
+    gy += vy * dt;
+
+    // Столкновения с «миром»: чуть больше экрана (запас 10%)
+    const limitX = hw * 1.1, limitY = hh * 1.1;
+    if (gx > limitX) { gx = limitX; vx *= -edgeBounce; }
+    if (gx < -limitX) { gx = -limitX; vx *= -edgeBounce; }
+    if (gy > limitY) { gy = limitY; vy *= -edgeBounce; }
+    if (gy < -limitY) { gy = -limitY; vy *= -edgeBounce; }
+
+    // Пересчёт в экранные координаты после коррекции
+    screenX = (gx - camX) + centerX;
+    screenY = (gy - camY) + centerY;
+
+    // Позиция и лёгкая пульсация
+    const pulse = 1 + Math.sin(now / 220) * 0.03;
+    ghost.style.transform = `translate(${Math.round(screenX - 48)}px, ${Math.round(screenY - 48)}px) scale(${pulse})`;
+
+    // Стрелки-подсказки, если вышел далеко
+    updateArrows(screenX, screenY);
+
+    // Проверка поимки: в круге?
+    if (dist <= Rcatch) {
+      holdMs += dt * 1000;
+      if (Math.abs(dist - Rcatch) < 6) lastNearTs = now; // почти-поимка → устаёт
+      if (holdMs >= holdMsTarget) {
+        vib([60, 40, 60]);
+        const sound = document.getElementById('energy-sound');
+        if (sound) { try { sound.currentTime = 0; sound.play(); } catch {} }
+        alert('Покемон пойман');
+        close();
+        return; // завершаем цикл
+      }
+    } else {
+      // медленный спад прогресса, если вышел
+      holdMs = Math.max(0, holdMs - dt * 1000 * 0.55);
+    }
+
+    setRingProgress(holdMs / holdMsTarget);
+    rafId = requestAnimationFrame(tick);
+  }
+
+  // Старт цикла
+  let rafId = requestAnimationFrame(tick);
+  cleanupFns.push(() => { cancelAnimationFrame(rafId); });
+
+  // Очистить всё при закрытии
+  cleanupFns.push(() => { try { stream.getTracks().forEach(t => t.stop()); } catch {} });
 }
 
 // 👤 Шапка игрока
@@ -359,15 +623,16 @@ function buildBaseLayers() {
   }
 })();
 
-// 📥 Загрузка точек энергии
+// 📥 Загрузка точек энергии (как было)
 async function loadEnergyPoints(centerLat, centerLng) {
   if (isLoadingPoints) return;
   isLoadingPoints = true;
   try {
+    // Очищаем старые маркеры
     energyMarkers.forEach(m => map && map.removeLayer(m.marker));
     energyMarkers = [];
 
-    const response = await fetch(`${SUPABASE_URL.replace('.supabase.co','')}.functions.supabase.co/generate-points`, {
+    const response = await fetch('https://ptkzsrlicfhufdnegwjl.functions.supabase.co/generate-points', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -421,7 +686,7 @@ async function loadEnergyPoints(centerLat, centerLng) {
           requestAnimationFrame(animate);
 
           // Запрос на сбор
-          const res = await fetch(`${SUPABASE_URL.replace('.supabase.co','')}.functions.supabase.co/generate-points`, {
+          const res = await fetch('https://ptkzsrlicfhufdnegwjl.functions.supabase.co/generate-points', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
