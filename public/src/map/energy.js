@@ -125,6 +125,9 @@ export async function loadEnergyPoints(map, playerMarker, user){
               flashPlayerMarker(playerMarker);
             }catch{}
 
+            // ask for a fresh generate so new points appear if TTL allows
+            try{ window.dispatchEvent(new Event('points:refresh')); }catch{}
+
           } finally {
             __pending.delete(p.id);
           }

@@ -1,5 +1,5 @@
 import { loadOrCreatePlayer } from './src/api/supabase.js';
-import { makeLeafletGhostIconAsync } from './src/utils.js';
+import { makeLeafletGhostIconAsync, getTileId } from './src/utils.js';
 import { updatePlayerHeader } from './src/ui.js';
 import { buildBaseLayers, spawnArEntryNear, setArEntryHandler } from './src/map/tiles.js';
 import { loadEnergyPoints } from './src/map/energy.js';
@@ -22,6 +22,7 @@ if (tg) tg.expand();
 
   let map = null;
   let playerMarker = null;
+  let lastTileId = null;
 
   function initMap(lat, lng){
     const { cartoDark, osm, esriSat } = buildBaseLayers();
@@ -55,6 +56,8 @@ if (tg) tg.expand();
 
       const profile = await loadOrCreatePlayer(user);
       await updatePlayerHeader({ username: user.first_name || user.username || 'Игрок', ...profile });
+
+      lastTileId = getTileId(lat, lng);
       await loadEnergyPoints(map, playerMarker, user);
     } catch (e){
       console.error(e);
@@ -69,13 +72,21 @@ if (tg) tg.expand();
     await setPlayer(lat,lng,1);
     const profile = await loadOrCreatePlayer(user);
     await updatePlayerHeader({ username: user.first_name || user.username || 'Игрок', ...profile });
+    lastTileId = getTileId(lat, lng);
     await loadEnergyPoints(map, playerMarker, user);
   };
 
   if ('geolocation' in navigator){
     navigator.geolocation.getCurrentPosition(onPos, onPosErr);
-    navigator.geolocation.watchPosition((p)=>{
-      try{ if (playerMarker){ playerMarker.setLatLng([p.coords.latitude,p.coords.longitude]); } }catch{}
+    navigator.geolocation.watchPosition(async (p)=>{
+      try{
+        if (playerMarker){ playerMarker.setLatLng([p.coords.latitude,p.coords.longitude]); }
+        const tile = getTileId(p.coords.latitude, p.coords.longitude);
+        if (tile !== lastTileId){
+          lastTileId = tile;
+          if (map && playerMarker) await loadEnergyPoints(map, playerMarker, user);
+        }
+      }catch{}
     }, (e)=>console.warn('watchPosition error', e), { enableHighAccuracy:true, maximumAge:1000, timeout:10000 });
   } else {
     onPosErr(new Error('Геолокация недоступна'));
@@ -85,6 +96,11 @@ if (tg) tg.expand();
   setInterval(async ()=>{
     try{ if (map && playerMarker) await loadEnergyPoints(map, playerMarker, user); }catch(e){}
   }, 60000);
+
+  // immediate refresh when a collect succeeds
+  window.addEventListener('points:refresh', async ()=>{
+    try{ if (map && playerMarker) await loadEnergyPoints(map, playerMarker, user); }catch(e){}
+  });
 })();
 
 window.addEventListener('ar:open', ()=>{ try{ document.body.classList.add('ar-open'); }catch{} });
