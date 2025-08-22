@@ -18,7 +18,7 @@
       modal.classList.remove('hidden'); try{ window.dispatchEvent(new Event('ar:open')); }catch(_){}
       stage.innerHTML='';
       const wrap=document.createElement('div'); Object.assign(wrap.style,{position:'relative',width:'100%',height:'100%'}); stage.appendChild(wrap);
-      const W=Math.floor(stage.clientWidth||360), H=Math.floor(stage.clientHeight||540);
+      const rect = stage.getBoundingClientRect(); const W=Math.floor(rect.width||window.innerWidth*0.9||360), H=Math.floor(rect.height||window.innerHeight*0.75||540);
       const canvas=document.createElement('canvas'); canvas.width=W; canvas.height=H; Object.assign(canvas.style,{display:'block',width:'100%',height:'100%',borderRadius:'16px',background:'radial-gradient(circle at 50% 40%, rgba(0,255,153,.18), transparent 60%), #0a0e11'}); wrap.appendChild(canvas);
       const ctx=canvas.getContext('2d');
       const prog=document.createElement('div'); const progIn=document.createElement('div');

@@ -198,7 +198,7 @@ function renderInventory(){
   body.appendChild(eff);
 }
 
-function mountButtons(){
+function mountButtonsDisabled(){
   // Store button
   if (!document.getElementById('btn-store')){
     const btn = document.createElement('button');
@@ -230,7 +230,7 @@ export const store = {
     // grant some starter Dust/items for demo if empty
     const w = getWallet(); if (w.dust===0) { w.dust = 200; setWallet(w); }
     const inv = getInv(); if (!inv['boost_xp_30']) { inv['boost_xp_30'] = 1; } if (!inv['lure_10']) { inv['lure_10'] = 1; } setInv(inv);
-    mountButtons();
+    /* mountButtons disabled: using bottom bar */
     bindMap(map, playerMarker);
     refreshWalletBadge();
   },
