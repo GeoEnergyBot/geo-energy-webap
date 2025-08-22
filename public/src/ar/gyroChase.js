@@ -30,12 +30,12 @@ export function openGyroChase(rarity='common') {
   const video = document.createElement('video');
   video.setAttribute('autoplay',''); video.setAttribute('playsinline','');
   video.muted = true;
-  Object.assign(video.style, { position:'absolute', inset:'0', width:'100%', height:'100%', objectFit:'cover' });
+  Object.assign(video.style, { position:'absolute', inset:'0', width:'100%', height:'100%', objectFit:'cover', zIndex:'0' });
   stage.appendChild(video);
 
   // Overlay
   const overlay = document.createElement('div');
-  Object.assign(overlay.style, { position:'absolute', inset:'0', overflow:'hidden', pointerEvents:'auto' });
+  Object.assign(overlay.style, { position:'absolute', inset:'0', overflow:'hidden', pointerEvents:'auto', zIndex:'2' });
   stage.appendChild(overlay);
   // Клик по экрану — ре-калибровка базового угла
   overlay.addEventListener('click', ()=>{ try{ calib.alpha0=null; calib.beta0=null; }catch{} });
@@ -77,8 +77,7 @@ export function openGyroChase(rarity='common') {
     background:'radial-gradient(60% 60% at 30% 30%, rgba(255,255,255,.95), rgba(255,255,255,.2)), radial-gradient(55% 55% at 70% 70%, rgba(0,200,255,.5), rgba(0,0,0,0))',
     border:'2px solid rgba(255,255,255,.4)',
     boxShadow:'0 12px 30px rgba(0,0,0,.45), inset 0 0 18px rgba(0,200,255,.35)',
-    display:'grid', placeItems:'center', transition:'transform .08s linear'
-  });
+    display:'grid', placeItems:'center', transition:'transform .08s linear', zIndex:'3' });
   ghost.textContent = '👻'; ghost.style.fontSize = '64px';
   ghost.style.filter = 'drop-shadow(0 6px 14px rgba(0,0,0,.45))';
   overlay.appendChild(ghost);
@@ -290,7 +289,7 @@ export function openGyroChase(rarity='common') {
       holdMs += dt*1000;
       if (Math.abs(dist - Rcatch) < 6) lastNearTs = now;
       if (holdMs >= holdTarget){
-        vib([60,40,60]);
+        navigator.vibrate?.([60,40,60]);
         const sound = document.getElementById('energy-sound');
         if (sound){ try{ sound.currentTime=0; sound.play(); } catch{} }
         alert('Покемон пойман'); close(); return;
@@ -308,8 +307,6 @@ export function openGyroChase(rarity='common') {
   }
   rafId = requestAnimationFrame(tick);
   cleanupFns.push(()=>cancelAnimationFrame(rafId));
-  // Возвращаем промис результата
-  return __promise;
   const onVis = ()=>{
     try{
       if (document.hidden){ cancelAnimationFrame(rafId); video.pause(); }
@@ -318,4 +315,6 @@ export function openGyroChase(rarity='common') {
   };
   document.addEventListener('visibilitychange', onVis);
   cleanupFns.push(()=>document.removeEventListener('visibilitychange', onVis));
+  // Возвращаем промис результата
+  return __promise;
 }
