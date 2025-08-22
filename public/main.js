@@ -4,6 +4,7 @@ import { makeLeafletGhostIconAsync, makeLeafletGhostIcon, getTileId } from './sr
 import { updatePlayerHeader } from './src/ui.js';
 import { buildBaseLayers, spawnArEntryNear, setArEntryHandler } from './src/map/tiles.js';
 import { loadEnergyPoints } from './src/map/energy.js';
+import { anti } from './src/anti.js';
 
 const tg = window.Telegram?.WebApp;
 if (tg) tg.expand();
@@ -27,6 +28,7 @@ initSupabase();
   const onPosition = async (pos) => {
     const lat = pos.coords.latitude;
     const lng = pos.coords.longitude;
+    try{ anti.updatePosition(lat, lng, Date.now()); }catch(e){}
 
     if (!map) {
       const base = buildBaseLayers();
