@@ -1,8 +1,7 @@
 /* UMD-style AR mini-game: no imports, safe to include or import.
-   Exposes:
-     - window.openGhostCatch
-     - window.openGyroChase (alias)
-     - CommonJS: module.exports = { openGhostCatch, openGyroChase }
+   Exposes on window:
+     - openGhostCatch(rarity?, opts?)
+     - openGyroChase(rarity?, opts?) // alias
 */
 
 const DEFAULT_DIFF = {
@@ -13,7 +12,6 @@ const DEFAULT_DIFF = {
 
 function getGlobalDiff(){
   const w = typeof window !== 'undefined' ? window : {};
-  // allow override via globals
   return w.GEO_AR_DIFFICULTY || w.DIFFICULTY || DEFAULT_DIFF;
 }
 
@@ -28,7 +26,7 @@ function resolvedDifficulty(rarity='common', opts={}){
   let baseSpeed = d.baseSpeed;
   if (Number.isFinite(opts.playerLevel)){
     const lv = Math.max(1, Math.floor(opts.playerLevel));
-    const inc = Math.min(0.20, Math.floor((lv-1)/10) * 0.04); // +4% каждые 10 уровней, до +20%
+    const inc = Math.min(0.20, Math.floor((lv-1)/10) * 0.04); // +4% / 10 уровней, до +20%
     baseSpeed = Math.round(baseSpeed * (1 + inc));
   }
   if (opts.easyMode){
@@ -63,7 +61,6 @@ async function openGhostCatch(rarity='common', opts={}){
   if (_busy) return { success:false };
   _busy = true;
 
-  let cleanup = ()=>{};
   const tStart = performance.now();
 
   try{
@@ -71,11 +68,11 @@ async function openGhostCatch(rarity='common', opts={}){
     const stage = document.getElementById('ar-stage');
     const title = document.getElementById('ar-title');
     const close = document.getElementById('ar-close');
-    if (!modal || !stage) { _busy=false; return { success:false }; }
+    if (!modal || !stage) { _busy=false; return { success:false, error:'no-stage' }; }
 
     title && (title.textContent = 'Поймайте призрака в круг');
     modal.classList.remove('hidden');
-    window.dispatchEvent(new Event('ar:open'));
+    console.log('[AR] open');
 
     // Scene
     stage.innerHTML = '';
@@ -100,7 +97,7 @@ async function openGhostCatch(rarity='common', opts={}){
     Object.assign(barIn.style,{ height:'10px', width:'0%', borderRadius:'8px', background:'linear-gradient(90deg,#22d3ee,#818cf8,#e879f9)' });
     bar.appendChild(barIn); wrap.appendChild(bar);
 
-    // Permission UI (iOS/Android)
+    // Permission UI
     const conf = resolvedDifficulty(rarity, opts);
     const perm = document.createElement('div');
     Object.assign(perm.style, {
@@ -118,10 +115,11 @@ async function openGhostCatch(rarity='common', opts={}){
 
     // Controls
     let camX=0, camY=0, camXS=0, camYS=0;
-    let baseAlpha=null, baseBeta=null, sensorsOn=false;
+    let baseAlpha=null, baseBeta=null, sensorsOn=false, eventsCount=0;
 
     function onOrient(e){
       if (e.alpha==null || e.beta==null) return;
+      eventsCount++;
       if (baseAlpha==null) baseAlpha=e.alpha;
       if (baseBeta==null) baseBeta=e.beta;
       const dyaw = shortestDeg(e.alpha - baseAlpha);
@@ -137,18 +135,30 @@ async function openGhostCatch(rarity='common', opts={}){
           if (r!=='granted') throw new Error('denied');
         }
         window.addEventListener('deviceorientation', onOrient, true);
+        // fallback-слушатель для некоторых Android
+        try{ window.addEventListener('deviceorientationabsolute', onOrient, true); }catch{}
         sensorsOn = true; perm.style.display='none';
-        window.dispatchEvent(new Event('ar:perm_granted'));
+        console.log('[AR] sensors granted');
       }catch(_){
         sensorsOn = false;
         permMsg.textContent = 'Сенсоры недоступны. Используйте джойстик.';
-        window.dispatchEvent(new Event('ar:perm_denied'));
+        console.log('[AR] sensors denied → joystick');
       }
     }
     permBtn.onclick = enableSensorsByGesture;
+
+    // Попытка автоподключения (Android Chrome)
     if (!('DeviceOrientationEvent' in window && typeof DeviceOrientationEvent.requestPermission==='function')){
-      try { window.addEventListener('deviceorientation', onOrient, true); sensorsOn=true; perm.style.display='none'; } catch {}
+      try {
+        window.addEventListener('deviceorientation', onOrient, true);
+        try{ window.addEventListener('deviceorientationabsolute', onOrient, true); }catch{}
+        sensorsOn=true; perm.style.display='none';
+        console.log('[AR] sensors auto-on');
+      } catch {}
     }
+
+    // Если в течение 1 сек не пришло ни одного события — показываем джойстик-подсказку
+    setTimeout(()=>{ if (eventsCount===0) { sensorsOn=false; permMsg.textContent='Сенсоры недоступны. Используйте джойстик.'; }}, 1000);
 
     // Joystick fallback
     let joy=false, jx=0, jy=0;
@@ -156,7 +166,6 @@ async function openGhostCatch(rarity='common', opts={}){
     const endJoy = ()=>{ joy=false; };
     canvas.addEventListener('pointerup', endJoy); canvas.addEventListener('pointercancel', endJoy);
     canvas.addEventListener('pointermove', ev=>{ if(joy){ camX = (ev.clientX-jx)*1.2; camY = (ev.clientY-jy)*1.2; }});
-    if (!sensorsOn) window.dispatchEvent(new Event('ar:joystick_fallback'));
 
     // World / ghost
     let gx = (Math.random()*2-1)*(W*0.25);
@@ -222,7 +231,7 @@ async function openGhostCatch(rarity='common', opts={}){
           const durationMs = Math.round(performance.now() - tStart);
           const inCirclePercent = samples>0 ? Math.round(100*insideSamples/samples) : 0;
           const result = { success:true, durationMs, inCirclePercent, samples };
-          window.dispatchEvent(new CustomEvent('ar:success', { detail: { rarity, ...result } }));
+          console.log('[AR] success', result);
           resolve(result);
         });
         return;
@@ -254,21 +263,20 @@ async function openGhostCatch(rarity='common', opts={}){
 
     let resolve = ()=>{};
     const promise = new Promise(res=> resolve=res);
-
     let raf = requestAnimationFrame(tick);
 
     function cleanup(){
       try{ cancelAnimationFrame(raf); }catch{}
       try{ window.removeEventListener('deviceorientation', onOrient, true); }catch{}
+      try{ window.removeEventListener('deviceorientationabsolute', onOrient, true); }catch{}
       try{ stage && (stage.innerHTML=''); }catch{}
       try{ modal.classList.add('hidden'); }catch{}
-      window.dispatchEvent(new Event('ar:close'));
       _busy=false;
+      console.log('[AR] close');
     }
 
     const onClose = ()=>{
       const result = { success:false };
-      window.dispatchEvent(new CustomEvent('ar:fail', { detail: { rarity, reason:'closed' } }));
       resolve(result);
     };
     if (close) close.onclick = onClose;
@@ -278,21 +286,15 @@ async function openGhostCatch(rarity='common', opts={}){
     return result;
 
   } catch (err){
-    console.error('AR error:', err);
+    console.error('[AR] error:', err);
     _busy=false;
-    return { success:false };
+    return { success:false, error:String(err) };
   }
 }
 
 function openGyroChase(rarity='common', opts={}){ return openGhostCatch(rarity, opts); }
 
-// expose to window
 if (typeof window !== 'undefined'){
   window.openGhostCatch = openGhostCatch;
   window.openGyroChase = openGyroChase;
-}
-
-// CommonJS (optional)
-if (typeof module !== 'undefined' && module.exports){
-  module.exports = { openGhostCatch, openGyroChase };
 }
