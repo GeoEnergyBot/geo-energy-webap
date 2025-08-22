@@ -38,8 +38,7 @@ export function openGyroChase(rarity='common') {
   Object.assign(overlay.style, { position:'absolute', inset:'0', overflow:'hidden', pointerEvents:'auto', zIndex:'2' });
   stage.appendChild(overlay);
   // Клик по экрану — ре-калибровка базового угла
-  let calib = { alpha0:null, beta0:null };
-  overlay.addEventListener('click', ()=>{ try{ calib.alpha0=null; calib.beta0=null; }catch(e) {} });
+  overlay.addEventListener('click', ()=>{ try{ calib.alpha0=null; calib.beta0=null; }catch{} });
 
   // Прицел/прогресс
   const reticleSize = diff.reticleRadiusPx * 2;
@@ -48,8 +47,8 @@ export function openGyroChase(rarity='common') {
     position:'absolute', left:'50%', top:'50%',
     width:`${reticleSize}px`, height:`${reticleSize}px`,
     marginLeft:`-${reticleSize/2}px`, marginTop:`-${reticleSize/2}px`,
-    borderRadius:'50%', border:'2px solid rgba(255,255,255,.75)`,
-    boxShadow:'0 0 0 3px rgba(0,0,0,.25), inset 0 0 30px rgba(0,255,220,.15)`,
+    borderRadius:'50%', border:'2px solid rgba(255,255,255,.75)',
+    boxShadow:'0 0 0 3px rgba(0,0,0,.25), inset 0 0 30px rgba(0,255,220,.15)',
     backdropFilter:'blur(1px)'
   });
   const ring = document.createElement('div');
@@ -57,7 +56,7 @@ export function openGyroChase(rarity='common') {
     position:'absolute', left:'50%', top:'50%',
     width:`${reticleSize+16}px`, height:`${reticleSize+16}px`,
     marginLeft:`-${(reticleSize+16)/2}px`, marginTop:`-${(reticleSize+16)/2}px`,
-    borderRadius:'50%', background:'conic-gradient(#00ffd0 0deg, rgba(255,255,255,.15) 0deg)`,
+    borderRadius:'50%', background:'conic-gradient(#00ffd0 0deg, rgba(255,255,255,.15) 0deg)',
     boxShadow:'0 0 14px rgba(0,255,220,.35)', pointerEvents:'none'
   });
   overlay.appendChild(ring); overlay.appendChild(reticle);
@@ -132,9 +131,9 @@ export function openGyroChase(rarity='common') {
 
   // Закрытие
   const cleanupFns = [];
-  const resolveIf = (val)=>{ if(!__resolved){ __resolved=true; try{ __resolve(val); }catch(e) {} } };
+  const resolveIf = (val)=>{ if(!__resolved){ __resolved=true; try{ __resolve(val); }catch{} } };
   const close = () => {
-    try { cleanupFns.forEach(fn => fn && fn()); } catch(e) {}
+    try { cleanupFns.forEach(fn => fn && fn()); } catch {}
     modal.classList.add('hidden'); stage.innerHTML='';
     resolveIf(false);
     __arActive = false;
@@ -148,11 +147,11 @@ export function openGyroChase(rarity='common') {
     try {
       try {
         stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal:'environment' } }, audio:false });
-      } catch(e) {
+      } catch {
         stream = await navigator.mediaDevices.getUserMedia({ video: true, audio:false });
       }
       video.srcObject = stream; await video.play();
-      cleanupFns.push(() => { try { stream.getTracks().forEach(t => t.stop()); } catch(e) {} });
+      cleanupFns.push(() => { try { stream.getTracks().forEach(t => t.stop()); } catch {} });
     } catch (err) {
       console.error('Camera error', err);
       alert('Не удалось запустить камеру. Проверьте разрешения Telegram на камеру.');
@@ -175,8 +174,12 @@ export function openGyroChase(rarity='common') {
     arrowT.style.opacity = y < -m ? '1':'0';
     arrowB.style.opacity = y > h+m ? '1':'0';
   };
+  const vib = p => { try { navigator.vibrate && navigator.vibrate(p); } catch {} };
+
+  const haptic = (pattern)=>{ try{ if (window.Telegram?.WebApp?.HapticFeedback) { window.Telegram.WebApp.HapticFeedback.impactOccurred('light'); } else if (navigator.vibrate) { navigator.vibrate(pattern || 15); } }catch{} };
 
   // Состояние гироскопа/эмуляции
+  let calib = { alpha0:null, beta0:null };
   let useSensors = false;
   let camX=0, camY=0;
 
@@ -238,9 +241,6 @@ export function openGyroChase(rarity='common') {
   let gx=(Math.random()*2-1)*HW()*0.7, gy=(Math.random()*2-1)*HH()*0.7;
   let vx=0, vy=0, lastT=performance.now(), holdMs=0, lastNearTs=0, lastFeintTs=0;
 
-  // Флаг между кадрами (исправляет ReferenceError)
-  let wasInside = false;
-
   let rafId=0;
   function tick(){
     const now = performance.now();
@@ -276,38 +276,23 @@ export function openGyroChase(rarity='common') {
     screenX = (gx - camX) + cx;
     screenY = (gy - camY) + cy;
 
-    // Recompute distance AFTER physics/limits to match the actual drawn position
-    const dx2 = screenX - cx, dy2 = screenY - cy;
-    const dist2 = Math.hypot(dx2, dy2);
-
     const pulse = 1 + Math.sin(now/220)*0.03;
     ghost.style.transform = `translate(${Math.round(screenX-48)}px, ${Math.round(screenY-48)}px) scale(${pulse})`;
 
     updateArrows(screenX, screenY);
 
-    const nowInside = dist2 <= Rcatch;
-    if (nowInside && !wasInside) {
-      try{ if (navigator.vibrate) navigator.vibrate(15); }catch(e) {}
-    }
-    wasInside = nowInside;
-
-    if (nowInside){
+    let __wasInside = __wasInside ?? false;
+    const __nowInside = dist <= Rcatch;
+    if (__nowInside && !__wasInside) { try{ navigator.vibrate?.(15); }catch{} }
+    __wasInside = __nowInside;
+    if (__nowInside){
       holdMs += dt*1000;
-      if (Math.abs(dist2 - Rcatch) < 6) lastNearTs = now;
+      if (Math.abs(dist - Rcatch) < 6) lastNearTs = now;
       if (holdMs >= holdTarget){
-        try{
-          if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
-            window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
-          } else if (navigator.vibrate) {
-            navigator.vibrate([60,40,60]);
-          }
-        }catch(e) {}
+        navigator.vibrate?.([60,40,60]);
         const sound = document.getElementById('energy-sound');
-        if (sound){ try{ sound.currentTime=0; sound.play(); } catch(e) {} }
-        // здесь можно начислять награду
-        resolveIf(true);
-        close();
-        return;
+        if (sound){ try{ sound.currentTime=0; sound.play(); } catch{} }
+        alert('Покемон пойман'); close(); return;
       }
     } else {
       holdMs = Math.max(0, holdMs - dt*1000*0.55);
@@ -325,8 +310,8 @@ export function openGyroChase(rarity='common') {
   const onVis = ()=>{
     try{
       if (document.hidden){ cancelAnimationFrame(rafId); video.pause(); }
-      else { video.play().catch(function(){}); rafId = requestAnimationFrame(tick); }
-    }catch(e) {}
+      else { video.play().catch(()=>{}); rafId = requestAnimationFrame(tick); }
+    }catch{}
   };
   document.addEventListener('visibilitychange', onVis);
   cleanupFns.push(()=>document.removeEventListener('visibilitychange', onVis));
