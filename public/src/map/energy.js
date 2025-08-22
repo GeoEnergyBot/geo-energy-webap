@@ -1,3 +1,5 @@
+import { hotzones } from '../hotzones.js';
+import { store } from '../store.js';
 import { quests } from '../quests.js';
 import { anti } from '../anti.js';
 import { openGhostCatch } from '../ar/ghostCatch.js';
@@ -141,6 +143,12 @@ marker.on('click', async () => {
 
     const penalty = anti.getPenalty();
     let awarded = collectResult.point_energy_value|0;
+    // Apply store/hotzone multipliers
+    try{
+      const pos = playerPos;
+      const mult = store.energyMultiplier() * (hotzones.getBuffAt(pos.lat, pos.lng) || 1.0);
+      awarded = Math.floor(awarded * mult);
+    }catch(e){}
     if (penalty.active){
       awarded = Math.floor(awarded * penalty.factor);
       alert('⚠️ Обнаружено подозрительное перемещение (' + penalty.reason + '). Награда временно уменьшена.');
@@ -179,7 +187,7 @@ marker.on('click', async () => {
       flashPlayerMarker(playerMarker);
     }
 
-    let msg = `⚡ Собрано: ${collectResult.point_energy_value} энергии.`;
+    let msg = `⚡ База: ${collectResult.point_energy_value}`; msg += ` → с бустами: ${awarded}`;
     if (penalty.active) msg += ` (Штраф ${Math.round((1-penalty.factor)*100)}%)`;
     const used = apply;
     if (used < awarded) msg += ` Зачтено: ${used} (лимит на сегодня).`;
@@ -187,45 +195,13 @@ marker.on('click', async () => {
     alert(msg);
   } finally {
     __pending.delete(point.id);
+
+  } finally {
+    __pending.delete(point.id);
   }
 });
 
-
-          const collectResult = await res.json();
-          if (!res.ok || !collectResult.success) {
-      alert(\"🚫 Ошибка сбора энергии: \" + (collectResult.error || res.status));
-      return;
-    }
-
-    quests.onCollect(point.type);
-
-          const idx = energyMarkers.findIndex(x => x.id === point.id);
-          if (idx >= 0) {
-            map.removeLayer(energyMarkers[idx].marker);
-            energyMarkers.splice(idx, 1);
-          }
-
-          const p = collectResult.player;
-          if (!p) { alert("ℹ️ Энергия собрана, но нет данных игрока."); return; }
-
-          await updatePlayerHeader({
-            username: p.first_name || p.username,
-            avatar_url: '',
-            level: p.level,
-            energy: p.energy,
-            energy_max: p.energy_max
-          });
-
-          if (playerMarker) {
-            const newIcon = await makeLeafletGhostIconAsync(p.level);
-            playerMarker.setIcon(newIcon);
-            flashPlayerMarker(playerMarker);
-          }
-
-          alert(`⚡ Собрано: ${collectResult.point_energy_value} энергии. Уровень: ${p.level}`);
-        });
-      });
-
+    });
   } catch (error) {
     console.error("Ошибка загрузки точек:", error);
   } finally {

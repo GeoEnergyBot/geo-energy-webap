@@ -5,6 +5,8 @@ import { updatePlayerHeader } from './src/ui.js';
 import { buildBaseLayers, spawnArEntryNear, setArEntryHandler } from './src/map/tiles.js';
 import { loadEnergyPoints } from './src/map/energy.js';
 import { quests } from './src/quests.js';
+import { store } from './src/store.js';
+import { hotzones } from './src/hotzones.js';
 import { anti } from './src/anti.js';
 
 const tg = window.Telegram?.WebApp;
@@ -43,7 +45,13 @@ quests.init();
       playerMarker = L.marker([lat, lng], { icon: ghostIcon }).addTo(map).bindPopup("Вы здесь").openPopup();
       lastTileId = getTileId(lat, lng);
 
-      await loadEnergyPoints(map, playerMarker, user);
+      store.init(map, playerMarker);
+hotzones.init(map);
+try{ const pos = playerMarker.getLatLng(); hotzones.tickMaybeSpawn(pos.lat, pos.lng); }catch(e){}
+    await loadEnergyPoints(map, playerMarker, user);
+    // adapt refresh interval on lure
+    const target = store.spawnRefreshMs(60000);
+    if (target !== __refreshMs){ __refreshMs = target; }
 
       const arMarker = spawnArEntryNear(map, lat, lng);
       setArEntryHandler(arMarker, playerMarker);
@@ -53,7 +61,11 @@ quests.init();
       const tileId = getTileId(lat, lng);
       if (tileId !== lastTileId) {
         lastTileId = tileId;
-        await loadEnergyPoints(map, playerMarker, user);
+        try{ const pos = playerMarker.getLatLng(); hotzones.tickMaybeSpawn(pos.lat, pos.lng); }catch(e){}
+    await loadEnergyPoints(map, playerMarker, user);
+    // adapt refresh interval on lure
+    const target = store.spawnRefreshMs(60000);
+    if (target !== __refreshMs){ __refreshMs = target; }
 
         const arMarker = spawnArEntryNear(map, lat, lng, true);
         setArEntryHandler(arMarker, playerMarker);
@@ -77,7 +89,11 @@ quests.init();
     playerMarker = L.marker([lat, lng], { icon: ghostIcon }).addTo(map).bindPopup("Вы здесь").openPopup();
     lastTileId = getTileId(lat, lng);
 
+    try{ const pos = playerMarker.getLatLng(); hotzones.tickMaybeSpawn(pos.lat, pos.lng); }catch(e){}
     await loadEnergyPoints(map, playerMarker, user);
+    // adapt refresh interval on lure
+    const target = store.spawnRefreshMs(60000);
+    if (target !== __refreshMs){ __refreshMs = target; }
 
     const arMarker = spawnArEntryNear(map, lat, lng);
     setArEntryHandler(arMarker, playerMarker);
@@ -90,9 +106,14 @@ quests.init();
     navigator.geolocation.watchPosition(onPosition, (e) => console.warn('watchPosition error', e), {
       enableHighAccuracy: true, maximumAge: 1000, timeout: 10000,
     });
-    setInterval(async () => {
+    let __refreshMs = 60000;
+setInterval(async () => {
       if (!map || !playerMarker) return;
-      await loadEnergyPoints(map, playerMarker, user);
+      try{ const pos = playerMarker.getLatLng(); hotzones.tickMaybeSpawn(pos.lat, pos.lng); }catch(e){}
+    await loadEnergyPoints(map, playerMarker, user);
+    // adapt refresh interval on lure
+    const target = store.spawnRefreshMs(60000);
+    if (target !== __refreshMs){ __refreshMs = target; }
     }, 60000);
   } else {
     onPositionError(new Error("Геолокация не поддерживается."));
@@ -106,3 +127,5 @@ window.addEventListener('ar:open', () => {
 window.addEventListener('ar:close', () => {
   try { document.body.classList.remove('ar-open'); } catch(e) {}
 });
+
+window.addEventListener('spawn:refresh:hint', ()=>{ try{ /* No-op for now */ }catch(e){} });
