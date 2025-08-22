@@ -24,7 +24,7 @@ export async function openGhostCatch(rarity='common'){
 
     const canvas = document.createElement('canvas');
     // подгоним размер под контейнер (портрет)
-    const rect=stage.getBoundingClientRect(); const W=Math.floor(rect.width||window.innerWidth*0.9||360), H=Math.floor(rect.height||window.innerHeight*0.75||540);
+    const rect=stage.getBoundingClientRect(); const W=Math.max(320, Math.floor(rect.width||window.innerWidth*0.9||360)), H=Math.max(520, Math.floor(rect.height||window.innerHeight*0.75||540));
     canvas.width = W; canvas.height = H;
     canvas.style.display = 'block';
     canvas.style.margin = '12px auto';

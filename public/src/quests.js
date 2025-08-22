@@ -78,7 +78,7 @@ function clamp(v, a, b){ return Math.max(a, Math.min(b, v)); }
 // Public API
 export const quests = {
   init(){
-    ensureDaily(); ensureWeekly(); /* UI buttons disabled */
+    ensureDaily(); ensureWeekly(); /* UI disabled */
   },
   mountButton(){ /* disabled */ });
     btn.onclick = ()=> this.openUI();

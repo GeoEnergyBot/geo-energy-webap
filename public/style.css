@@ -26,3 +26,27 @@ body { margin:0; background: var(--bg); color: var(--text); font-family: system-
 
 .leaflet-marker-icon.flash { filter: drop-shadow(0 0 12px #00ff99) brightness(2); transition: filter .3s ease; }
 body.ar-open #top-bar, body.ar-open #map { display:none !important; }
+
+
+/* === FINAL PATCH 0822 === */
+:root { --top-h: 64px; --bot-h: 68px; }
+#top-bar{ position:fixed; top:0; left:0; right:0; height:var(--top-h); z-index:20; display:flex; gap:12px; align-items:center; padding:10px 12px;
+  background: linear-gradient(180deg, rgba(15,23,32,.95), rgba(13,19,27,.92)); border-bottom:1px solid rgba(255,255,255,.06); backdrop-filter: blur(6px); }
+#map{ position:absolute; top:var(--top-h); left:0; right:0; bottom:var(--bot-h); }
+
+#bottom-bar{ position:fixed; left:0; right:0; bottom:0; height:var(--bot-h); z-index:20; display:grid; grid-template-columns:repeat(3,1fr); gap:8px; padding:10px 12px env(safe-area-inset-bottom);
+  background: linear-gradient(180deg, rgba(15,23,32,.95), rgba(13,19,27,.92)); border-top:1px solid rgba(255,255,255,.06); }
+#bottom-bar .nav-btn{ display:grid; place-items:center; border-radius:14px; border:1px solid rgba(255,255,255,.08); background:rgba(255,255,255,.03); font-weight:600; }
+
+/* AR modal with hard width guards */
+#ar-modal{ position:fixed; inset:0; display:flex; align-items:center; justify-content:center; padding:16px; background:rgba(0,0,0,.55); z-index:50; }
+#ar-modal.hidden{ display:none; }
+#ar-stage{ width:min(96vw, 420px) !important; min-width:320px !important; height:min(75vh, 680px) !important; min-height:520px !important;
+  margin:0 auto; position:relative; background:#0d1821; border:1px solid rgba(255,255,255,.08); border-radius:16px; box-shadow:0 10px 40px rgba(0,0,0,.5); padding:32px 12px 16px; }
+#ar-stage canvas{ width:100% !important; height:100% !important; min-width:320px !important; min-height:520px !important; display:block; border-radius:16px; }
+#ar-header{ position:absolute; top:8px; left:12px; right:12px; height:40px; display:flex; align-items:center; justify-content:space-between; color:#fff; font-weight:700; pointer-events:none; }
+#ar-title{ pointer-events:none; text-shadow:0 2px 8px rgba(0,0,0,.45); }
+#ar-close{ pointer-events:all; background:rgba(0,0,0,.35); border:1px solid rgba(255,255,255,.12); color:#fff; border-radius:10px; padding:6px 10px; cursor:pointer; }
+
+/* Hide UI while AR open */
+body.ar-open #top-bar, body.ar-open #bottom-bar, body.ar-open #map{ display:none !important; }
