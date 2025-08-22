@@ -1,6 +1,6 @@
 // Entry point only. Keep index.html unchanged.
 import { initSupabase, loadOrCreatePlayer } from './src/api/supabase.js';
-import { makeLeafletGhostIcon, getTileId } from './src/utils.js';
+import { makeLeafletGhostIconAsync, makeLeafletGhostIcon, getTileId } from './src/utils.js';
 import { updatePlayerHeader } from './src/ui.js';
 import { buildBaseLayers, spawnArEntryNear, setArEntryHandler } from './src/map/tiles.js';
 import { loadEnergyPoints } from './src/map/energy.js';
@@ -16,13 +16,13 @@ initSupabase();
 
 (async () => {
   const { level, energy, energy_max, dbRow } = await loadOrCreatePlayer(user);
-  updatePlayerHeader({
+  await updatePlayerHeader({
     username: dbRow?.first_name || dbRow?.username || user.first_name || user.username || 'Игрок',
     avatar_url: dbRow?.avatar_url || '',
     level, energy, energy_max
   });
 
-  ghostIcon = makeLeafletGhostIcon(level);
+  ghostIcon = await makeLeafletGhostIconAsync(level);
 
   const onPosition = async (pos) => {
     const lat = pos.coords.latitude;
