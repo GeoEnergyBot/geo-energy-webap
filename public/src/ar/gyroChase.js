@@ -47,8 +47,8 @@ export function openGyroChase(rarity='common') {
     position:'absolute', left:'50%', top:'50%',
     width:`${reticleSize}px`, height:`${reticleSize}px`,
     marginLeft:`-${reticleSize/2}px`, marginTop:`-${reticleSize/2}px`,
-    borderRadius:'50%', border:'2px solid rgba(255,255,255,.75)`,
-    boxShadow:'0 0 0 3px rgba(0,0,0,.25), inset 0 0 30px rgba(0,255,220,.15)`,
+    borderRadius:'50%', border:'2px solid rgba(255,255,255,.75)',
+    boxShadow:'0 0 0 3px rgba(0,0,0,.25), inset 0 0 30px rgba(0,255,220,.15)',
     backdropFilter:'blur(1px)'
   });
   const ring = document.createElement('div');
@@ -56,7 +56,7 @@ export function openGyroChase(rarity='common') {
     position:'absolute', left:'50%', top:'50%',
     width:`${reticleSize+16}px`, height:`${reticleSize+16}px`,
     marginLeft:`-${(reticleSize+16)/2}px`, marginTop:`-${(reticleSize+16)/2}px`,
-    borderRadius:'50%', background:'conic-gradient(#00ffd0 0deg, rgba(255,255,255,.15) 0deg)`,
+    borderRadius:'50%', background:'conic-gradient(#00ffd0 0deg, rgba(255,255,255,.15) 0deg)',
     boxShadow:'0 0 14px rgba(0,255,220,.35)', pointerEvents:'none'
   });
   overlay.appendChild(ring); overlay.appendChild(reticle);
@@ -237,8 +237,8 @@ export function openGyroChase(rarity='common') {
   const baseSpeed = diff.baseSpeed;
   const nearBoost = diff.nearBoost;
 
-  // Динамика (ленивая инициализация координат)
-  let gx=null, gy=null;
+  // Динамика
+  let gx=(Math.random()*2-1)*HW()*0.7, gy=(Math.random()*2-1)*HH()*0.7;
   let vx=0, vy=0, lastT=performance.now(), holdMs=0, lastNearTs=0, lastFeintTs=0;
 
   // Флаг между кадрами (исправляет падение ReferenceError)
@@ -250,12 +250,6 @@ export function openGyroChase(rarity='common') {
     const dt = Math.min(50, now - lastT)/1000; lastT=now;
     const hw=HW(), hh=HH(), cx=hw, cy=hh;
 
-    // Инициализируем только когда размеры известны
-    if (gx===null || gy===null) {
-      gx=(Math.random()*2-1)*hw*0.7;
-      gy=(Math.random()*2-1)*hh*0.7;
-    }
-
     let screenX = (gx - camX) + cx;
     let screenY = (gy - camY) + cy;
 
@@ -263,7 +257,7 @@ export function openGyroChase(rarity='common') {
     const dist = Math.hypot(dx,dy);
     const dirX = dx===0?0:dx/(dist||1), dirY = dy===0?0:dy/(dist||1);
 
-    // Если застряли слишком близко к центру — лёгкий «пинок»
+    // Если стартовали фактически в центре — лёгкий пинок, чтобы не залипать
     if (dist < 1) { vx += (Math.random()*2-1)*60; vy += (Math.random()*2-1)*60; }
 
     let speed = baseSpeed + (dist < Rcatch*1.7 ? nearBoost : 0);
@@ -285,10 +279,10 @@ export function openGyroChase(rarity='common') {
     if (gy>limitY){ gy=limitY; vy*=-edgeBounce; }
     if (gy<-limitY){ gy=-limitY; vy*=-edgeBounce; }
 
-    // Пересчёт экранных координат ПОСЛЕ физики — по ним рисуем и считаем попадание
     screenX = (gx - camX) + cx;
     screenY = (gy - camY) + cy;
 
+    // Пересчёт дистанции ПОСЛЕ физики — по нему считаем попадание
     const dx2 = screenX - cx, dy2 = screenY - cy;
     const dist2 = Math.hypot(dx2, dy2);
 
@@ -298,23 +292,23 @@ export function openGyroChase(rarity='common') {
     updateArrows(screenX, screenY);
 
     const nowInside = dist2 <= Rcatch;
-    if (nowInside && !wasInside) { try{ if (navigator.vibrate) navigator.vibrate(15); }catch{} }
+    if (nowInside && !wasInside) { try{ if (navigator.vibrate) navigator.vibrate(15); }catch(e){} }
     wasInside = nowInside;
-
     if (nowInside){
       holdMs += dt*1000;
       if (Math.abs(dist2 - Rcatch) < 6) lastNearTs = now;
       if (holdMs >= holdTarget){
         try{
-          if (window.Telegram?.WebApp?.HapticFeedback) {
+          if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
             window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
           } else if (navigator.vibrate) {
             navigator.vibrate([60,40,60]);
           }
-        }catch{}
+        }catch(e){}
         const sound = document.getElementById('energy-sound');
-        if (sound){ try{ sound.currentTime=0; sound.play(); } catch{} }
-        try { if (typeof resolveIf === 'function') resolveIf(true); } catch{}
+        if (sound){ try{ sound.currentTime=0; sound.play(); } catch(e){} }
+        // Результат успеха
+        try { if (typeof resolveIf === 'function') resolveIf(true); } catch(e){}
         close(); return;
       }
     } else {
