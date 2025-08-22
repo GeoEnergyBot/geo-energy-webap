@@ -47,8 +47,8 @@ export function openGyroChase(rarity='common') {
     position:'absolute', left:'50%', top:'50%',
     width:`${reticleSize}px`, height:`${reticleSize}px`,
     marginLeft:`-${reticleSize/2}px`, marginTop:`-${reticleSize/2}px`,
-    borderRadius:'50%', border:'2px solid rgba(255,255,255,.75)',
-    boxShadow:'0 0 0 3px rgba(0,0,0,.25), inset 0 0 30px rgba(0,255,220,.15)',
+    borderRadius:'50%', border:'2px solid rgba(255,255,255,.75)`,
+    boxShadow:'0 0 0 3px rgba(0,0,0,.25), inset 0 0 30px rgba(0,255,220,.15)`,
     backdropFilter:'blur(1px)'
   });
   const ring = document.createElement('div');
@@ -56,7 +56,7 @@ export function openGyroChase(rarity='common') {
     position:'absolute', left:'50%', top:'50%',
     width:`${reticleSize+16}px`, height:`${reticleSize+16}px`,
     marginLeft:`-${(reticleSize+16)/2}px`, marginTop:`-${(reticleSize+16)/2}px`,
-    borderRadius:'50%', background:'conic-gradient(#00ffd0 0deg, rgba(255,255,255,.15) 0deg)',
+    borderRadius:'50%', background:'conic-gradient(#00ffd0 0deg, rgba(255,255,255,.15) 0deg)`,
     boxShadow:'0 0 14px rgba(0,255,220,.35)', pointerEvents:'none'
   });
   overlay.appendChild(ring); overlay.appendChild(reticle);
@@ -241,6 +241,9 @@ export function openGyroChase(rarity='common') {
   let gx=(Math.random()*2-1)*HW()*0.7, gy=(Math.random()*2-1)*HH()*0.7;
   let vx=0, vy=0, lastT=performance.now(), holdMs=0, lastNearTs=0, lastFeintTs=0;
 
+  // Флаг «внутри круга» между кадрами
+  let wasInside = false;
+
   let rafId=0;
   function tick(){
     const now = performance.now();
@@ -273,30 +276,48 @@ export function openGyroChase(rarity='common') {
     if (gy>limitY){ gy=limitY; vy*=-edgeBounce; }
     if (gy<-limitY){ gy=-limitY; vy*=-edgeBounce; }
 
+    // Координаты отрисовки (после физики/ограничений)
     screenX = (gx - camX) + cx;
     screenY = (gy - camY) + cy;
+
+    // Пересчитываем дистанцию по фактическим координатам отрисовки
+    const dx2 = screenX - cx, dy2 = screenY - cy;
+    const dist2 = Math.hypot(dx2, dy2);
 
     const pulse = 1 + Math.sin(now/220)*0.03;
     ghost.style.transform = `translate(${Math.round(screenX-48)}px, ${Math.round(screenY-48)}px) scale(${pulse})`;
 
     updateArrows(screenX, screenY);
 
-    let __wasInside = __wasInside ?? false;
-    const __nowInside = dist <= Rcatch;
-    if (__nowInside && !__wasInside) { try{ navigator.vibrate?.(15); }catch{} }
-    __wasInside = __nowInside;
-    if (__nowInside){
+    const nowInside = dist2 <= Rcatch;
+    if (nowInside && !wasInside) {
+      try{ navigator.vibrate?.(15); }catch{}
+    }
+    wasInside = nowInside;
+
+    if (nowInside){
       holdMs += dt*1000;
-      if (Math.abs(dist - Rcatch) < 6) lastNearTs = now;
+      if (Math.abs(dist2 - Rcatch) < 6) lastNearTs = now;
+
       if (holdMs >= holdTarget){
-        navigator.vibrate?.([60,40,60]);
+        try{
+          if (window.Telegram?.WebApp?.HapticFeedback) {
+            window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+          } else {
+            navigator.vibrate?.([60,40,60]);
+          }
+        }catch{}
         const sound = document.getElementById('energy-sound');
         if (sound){ try{ sound.currentTime=0; sound.play(); } catch{} }
-        alert('Покемон пойман'); close(); return;
+        // успех: возвращаем true и закрываем
+        try { __resolve(true); __resolved = true; } catch{}
+        close();
+        return;
       }
     } else {
       holdMs = Math.max(0, holdMs - dt*1000*0.55);
     }
+
     const prog = Math.max(0, Math.min(1, holdMs/holdTarget));
     const deg = Math.floor(360*prog);
     const remain = Math.max(0, holdTarget - holdMs);
@@ -307,6 +328,7 @@ export function openGyroChase(rarity='common') {
   }
   rafId = requestAnimationFrame(tick);
   cleanupFns.push(()=>cancelAnimationFrame(rafId));
+
   const onVis = ()=>{
     try{
       if (document.hidden){ cancelAnimationFrame(rafId); video.pause(); }
@@ -315,6 +337,7 @@ export function openGyroChase(rarity='common') {
   };
   document.addEventListener('visibilitychange', onVis);
   cleanupFns.push(()=>document.removeEventListener('visibilitychange', onVis));
+
   // Возвращаем промис результата
   return __promise;
 }
