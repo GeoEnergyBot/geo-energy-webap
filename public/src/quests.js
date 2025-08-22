@@ -78,13 +78,28 @@ function clamp(v, a, b){ return Math.max(a, Math.min(b, v)); }
 // Public API
 export const quests = {
   init(){
-    ensureDaily(); ensureWeekly(); /* UI disabled */
+    ensureDaily(); ensureWeekly(); this.mountButton(); this.mountWallet();
   },
-  mountButton(){ /* disabled */ });
+  mountButton(){
+    if (document.getElementById('btn-quests')) return;
+    const btn = document.createElement('button');
+    btn.id = 'btn-quests';
+    btn.textContent = 'Квесты';
+    Object.assign(btn.style, {
+      position:'absolute', left:'8px', bottom:'76px', zIndex: 1100,
+      background:'#121a21', color:'#e9f1f7', border:'1px solid rgba(255,255,255,.12)',
+      borderRadius:'14px', padding:'10px 14px', cursor:'pointer'
+    });
     btn.onclick = ()=> this.openUI();
     document.body.appendChild(btn);
   },
-  mountWallet(){ /* disabled */ }</b></span>
+  mountWallet(){
+    if (document.getElementById('wallet-panel')) return;
+    const panel = document.createElement('div');
+    panel.id = 'wallet-panel';
+    const w = getWallet();
+    panel.innerHTML = `<div style="display:flex;gap:10px;align-items:center">
+      <span>🧪 Dust: <b id="w_dust">${w.dust}</b></span>
       <span>⚡ Stamina: <b id="w_stamina">${w.stamina}</b></span>
       <span>🎖️ SP: <b id="w_sp">${w.sp}</b> (LV <b id="w_sp_lvl">${seasonLevel(w.sp)}</b>)</span>
     </div>`;

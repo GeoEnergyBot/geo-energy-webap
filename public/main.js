@@ -74,11 +74,3 @@ window.addEventListener('ar:open', ()=>{ try{ document.body.classList.add('ar-op
 window.addEventListener('ar:close', ()=>{ try{ document.body.classList.remove('ar-open'); }catch(e){} });
 
 window.addEventListener('error', (e)=>{ try{ showFatal('Ошибка: '+(e.message||'unknown')); }catch(_){} });
-
-
-/* Bottom bar handlers (placeholder) */
-try{
-  document.getElementById('nav-profile')?.addEventListener('click', ()=> alert('Профиль (в разработке)'));
-  document.getElementById('nav-inventory')?.addEventListener('click', ()=> alert('Инвентарь (в разработке)'));
-  document.getElementById('nav-rating')?.addEventListener('click', ()=> alert('Рейтинг (в разработке)'));
-}catch(_){}

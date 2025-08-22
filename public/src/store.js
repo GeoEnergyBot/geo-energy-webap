@@ -135,7 +135,7 @@ function renderStore(){
       w.dust -= item.price; setWallet(w);
       if (item.grant.item) addItem(item.grant.item, item.grant.qty||1);
       if (item.grant.effect === 'vip_30') addVipDays(item.grant.days||30);
-      alert('Покупка успешна!'); renderStore(); renderInventory(); /* wallet badge disabled */
+      alert('Покупка успешна!'); renderStore(); renderInventory(); refreshWalletBadge();
     };
     body.appendChild(div);
   }
@@ -167,8 +167,8 @@ function renderInventory(){
   const vipRemain = effects.find(x=>x.kind==='vip')?.expiresAt - now();
 
   const items = [
-    { key:'boost_xp_30', title:'Бустер Энергии 30м', use: ()=>{ if ((inv['boost_xp_30']||0)<=0) return alert('Нет предмета'); decItem('boost_xp_30',1); addTimedEffect('boost_xp_30', 30*60*1000); alert('Бустер активирован на 30 минут'); drawOverlays(); renderInventory(); /* wallet badge disabled */ } },
-    { key:'lure_10', title:'Люр 10м', use: ()=>{ if ((inv['lure_10']||0)<=0) return alert('Нет предмета'); decItem('lure_10',1); addTimedEffect('lure_10', 10*60*1000); alert('Люр активирован на 10 минут'); drawOverlays(); renderInventory(); /* wallet badge disabled */ window.dispatchEvent(new CustomEvent('spawn:refresh:hint')); } },
+    { key:'boost_xp_30', title:'Бустер Энергии 30м', use: ()=>{ if ((inv['boost_xp_30']||0)<=0) return alert('Нет предмета'); decItem('boost_xp_30',1); addTimedEffect('boost_xp_30', 30*60*1000); alert('Бустер активирован на 30 минут'); drawOverlays(); renderInventory(); refreshWalletBadge(); } },
+    { key:'lure_10', title:'Люр 10м', use: ()=>{ if ((inv['lure_10']||0)<=0) return alert('Нет предмета'); decItem('lure_10',1); addTimedEffect('lure_10', 10*60*1000); alert('Люр активирован на 10 минут'); drawOverlays(); renderInventory(); refreshWalletBadge(); window.dispatchEvent(new CustomEvent('spawn:refresh:hint')); } },
   ];
 
   body.innerHTML = '';
@@ -198,8 +198,24 @@ function renderInventory(){
   body.appendChild(eff);
 }
 
-function mountButtons(){ /* disabled */ }
-
+function mountButtons(){
+  // Store button
+  if (!document.getElementById('btn-store')){
+    const btn = document.createElement('button');
+    btn.id = 'btn-store'; btn.textContent = 'Магазин';
+    Object.assign(btn.style, { position:'absolute', left:'8px', bottom:'116px', zIndex:1100, background:'#121a21', color:'#e9f1f7', border:'1px solid rgba(255,255,255,.12)', borderRadius:'14px', padding:'10px 14px', cursor:'pointer' });
+    btn.onclick = openStore;
+    document.body.appendChild(btn);
+  }
+  // Inventory button
+  if (!document.getElementById('btn-inventory')){
+    const btn = document.createElement('button');
+    btn.id = 'btn-inventory'; btn.textContent = 'Инвентарь';
+    Object.assign(btn.style, { position:'absolute', left:'8px', bottom:'156px', zIndex:1100, background:'#121a21', color:'#e9f1f7', border:'1px solid rgba(255,255,255,.12)', borderRadius:'14px', padding:'10px 14px', cursor:'pointer' });
+    btn.onclick = openInventory;
+    document.body.appendChild(btn);
+  }
+}
 
 function refreshWalletBadge(){
   // refresh Dust number in quests wallet panel if exists
@@ -214,9 +230,9 @@ export const store = {
     // grant some starter Dust/items for demo if empty
     const w = getWallet(); if (w.dust===0) { w.dust = 200; setWallet(w); }
     const inv = getInv(); if (!inv['boost_xp_30']) { inv['boost_xp_30'] = 1; } if (!inv['lure_10']) { inv['lure_10'] = 1; } setInv(inv);
-    /* mountButtons disabled */
+    mountButtons();
     bindMap(map, playerMarker);
-    /* wallet badge disabled */
+    refreshWalletBadge();
   },
   bindMap,
   energyMultiplier,
