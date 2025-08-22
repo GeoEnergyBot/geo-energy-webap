@@ -88,12 +88,18 @@
 
   <!-- Карта -->
   <div id="map"></div>
+  <!-- Нижняя панель -->
+  <div id="bottom-bar" role="navigation" aria-label="Нижняя панель">
+    <button class="nav-btn" id="btn-profile" type="button">Профиль</button>
+    <button class="nav-btn" id="btn-inventory" type="button">Инвентарь</button>
+    <button class="nav-btn" id="btn-leaderboard" type="button">Рейтинг</button>
+  </div>
 
   <!-- AR-модалка (MindAR отрисует видео/канвас в #ar-stage) -->
   <div id="ar-modal" class="hidden" role="dialog" aria-label="AR режим">
     <div id="ar-header">
       <div id="ar-title">Поймайте призрака в круг</div>
-      <div id="ar-close" title="Закрыть">Закрыть ✕</div>
+      <div id="ar-close" role="button" title="Закрыть">Закрыть ✕</div>
     </div>
     <div id="ar-stage"></div>
 </div>

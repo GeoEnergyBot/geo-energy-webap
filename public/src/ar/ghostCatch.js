@@ -61,15 +61,7 @@ export async function openGhostCatch(rarity='common'){
     wrap.appendChild(hint);
 
     // Кнопка Старт
-    const startBtn = document.createElement('button');
-    startBtn.textContent = 'Старт';
-    startBtn.style.position='absolute'; startBtn.style.bottom='12px'; startBtn.style.left='50%';
-    startBtn.style.transform='translateX(-50%)';
-    startBtn.style.background='#171f27'; startBtn.style.color='#e9f1f7';
-    startBtn.style.border='1px solid rgba(255,255,255,.12)';
-    startBtn.style.borderRadius='14px'; startBtn.style.padding='10px 14px';
-    wrap.appendChild(startBtn);
-
+    
     // Открываем модалку
     modal.classList.remove('hidden');
     window.dispatchEvent(new Event('ar:open'));
@@ -77,7 +69,7 @@ export async function openGhostCatch(rarity='common'){
     const diff = DIFFICULTY[rarity] || DIFFICULTY.common;
     const ctx = canvas.getContext('2d');
     const circleR = diff.reticleRadiusPx || 60;
-    let ghost = { x: W/2 + 40, y: H/3, vx: 0.9*diff.baseSpeed/60, vy: 0.7*diff.baseSpeed/60 };
+    let ghost = { x: W/2, y: H/2, vx: 0.9*diff.baseSpeed/60, vy: 0.7*diff.baseSpeed/60 };
     let progress = 0; // 0..1
     let heldMs = 0, combo = 1.0;
     let lastFeint = 0, running=false, raf=0, tPrev=0;
@@ -88,7 +80,7 @@ export async function openGhostCatch(rarity='common'){
       window.dispatchEvent(new Event('ar:close'));
       stage.innerHTML='';
       close.onclick=null;
-      startBtn.onclick=null;
+      
     };
     const closeHandler = ()=>{ cleanup(); resolveFn({ success:false }); };
     close.onclick = closeHandler;
@@ -127,13 +119,13 @@ export async function openGhostCatch(rarity='common'){
       const aimY = H/2 + (Math.random()-0.5)*(DIFFICULTY[rarity]?.sensorPitchToPx ?? 6);
       const inCircle = Math.hypot(ghost.x-aimX, ghost.y-aimY) <= circleR;
 
-      if (inCircle){
+      if (inCircle){ timer.style.opacity='1';
         heldMs += dt;
         if (heldMs > (AR_TUNING.comboAfterMs||1500)){
           combo = Math.min(AR_TUNING.comboMax||1.5, combo + 0.005);
         }
         progress += (dt / (diff.holdMs||18000)) * 6 * combo; // подстройка скорости заполнения
-      } else {
+      } else { timer.style.opacity='0.6';
         heldMs = 0; combo = 1.0;
         progress -= (dt/1000) * (AR_TUNING.decayOutPerSec||0.15);
       }
@@ -154,12 +146,7 @@ export async function openGhostCatch(rarity='common'){
 
     let resolveFn;
     const promise = new Promise(res=> resolveFn = res);
-    startBtn.onclick = ()=>{
-      if (running) return;
-      running = true;
-      tPrev = performance.now();
-      raf = requestAnimationFrame(tick);
-    };
+    
 
     return await promise;
   } finally {
