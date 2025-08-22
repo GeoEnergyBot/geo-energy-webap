@@ -1,4 +1,3 @@
-
 import { FUNCTIONS_ENDPOINT, SUPABASE_ANON } from '../env.js';
 import { openGhostCatch } from '../ar/ghostCatch.js';
 import { getEnergyIcon, getDistanceKm, makeLeafletGhostIconAsync } from '../utils.js';
@@ -12,9 +11,6 @@ let energyMarkers = [];
 const IS_PROD = (typeof location!=='undefined') && (['geo-energy-webap.vercel.app'].includes(location.hostname));
 let isLoadingPoints = false;
 
-function toFinite(n, fallback){ const x = Number(n); return Number.isFinite(x) ? x : fallback; }
-
-
 function showBackendBanner(msg){
   try{
     let el = document.getElementById('backend-banner');
@@ -23,10 +19,10 @@ function showBackendBanner(msg){
       Object.assign(el.style, { position:'absolute', left:'50%', transform:'translateX(-50%)', top:'56px', zIndex:1200, background:'#7f1d1d', color:'#fff', padding:'6px 10px', borderRadius:'10px', border:'1px solid rgba(255,255,255,.25)', boxShadow:'0 4px 20px rgba(0,0,0,.3)', fontSize:'12px' });
       document.body.appendChild(el);
     }
-    el.textContent = msg;
+    el.textContent = msg || '';
+    if (!msg) el.style.display='none'; else el.style.display='block';
   }catch(e){}
 }
-
 
 const __pointCooldown = new Map();
 const __pending = new Set();
@@ -67,32 +63,12 @@ async function apiGenerate(telegram_id, lat, lng){
   if (!res.ok) throw new Error(json.error||('HTTP '+res.status));
   return json;
 }
-    return { success:true, points: pts };
-  }
-  const res = await fetch(FUNCTIONS_ENDPOINT, {
-    method:'POST',
-    headers:{ 'Content-Type':'application/json', 'Authorization': `Bearer ${SUPABASE_ANON}` },
-    body: JSON.stringify({ action:'generate', telegram_id: String(telegram_id) })
-  });
-  const json = await res.json().catch(()=>({}));
-  if (!res.ok) throw new Error(json.error||('HTTP '+res.status));
-  return json;
-}
 async function apiCollect(telegram_id, point_id){
   if (!FUNCTIONS_ENDPOINT) throw new Error('FUNCTIONS_ENDPOINT not set');
   const res = await fetch(FUNCTIONS_ENDPOINT, {
     method:'POST',
     headers:{ 'Content-Type':'application/json', 'Authorization': `Bearer ${SUPABASE_ANON}` },
     body: JSON.stringify({ action:'collect', telegram_id:String(telegram_id), point_id })
-  });
-  const json = await res.json().catch(()=>({}));
-  if (!res.ok) throw new Error(json.error||('HTTP '+res.status));
-  return json;
-}
-  const res = await fetch(FUNCTIONS_ENDPOINT, {
-    method:'POST',
-    headers:{ 'Content-Type':'application/json', 'Authorization': `Bearer ${SUPABASE_ANON}` },
-    body: JSON.stringify({ action:'collect', telegram_id: String(telegram_id), point_id })
   });
   const json = await res.json().catch(()=>({}));
   if (!res.ok) throw new Error(json.error||('HTTP '+res.status));
@@ -106,8 +82,19 @@ export async function loadEnergyPoints(map, playerMarker, user){
     // cleanup previous markers
     for (const m of energyMarkers){ try{ map.removeLayer(m.marker);}catch(e){} }
     energyMarkers = [];
-    const pos = playerMarker.getLatLng();
-    let data; try{ data = await apiGenerate(user.id, pos.lat, pos.lng); showBackendBanner(''); } catch(err){ console.error('generate error', err); showBackendBanner('Нет соединения с бэкендом'); console.error('generate error', err); throw err; }
+
+    const pos = pickCenterLatLng(playerMarker);
+    console.debug('[generate] send lat/lng:', pos.lat, pos.lng);
+    let data; 
+    try{ 
+      data = await apiGenerate(user.id, pos.lat, pos.lng); 
+      showBackendBanner(''); 
+    } catch(err){ 
+      console.error('generate error', err); 
+      showBackendBanner('Нет соединения с бэкендом'); 
+      throw err; 
+    }
+
     const points = data.points||[];
     for (const p of points){
       const marker = L.marker([p.lat, p.lng], { icon: getEnergyIcon(p.type) });
@@ -120,8 +107,7 @@ export async function loadEnergyPoints(map, playerMarker, user){
 
         const playerPos = playerMarker.getLatLng();
         if (getDistanceKm(playerPos.lat, playerPos.lng, p.lat, p.lng) > 0.02){
-          alert('🚫 Подойдите ближе (до 20 м), чтобы собрать энергию.'); return;
-        }
+          alert('🚫 Подойдите ближе (до 20 м), чтобы собрать энергию.'); return; }
 
         // daily cap pre-check
         const lvl = Number(document.getElementById('level-badge')?.textContent||'1')||1;
@@ -139,7 +125,15 @@ export async function loadEnergyPoints(map, playerMarker, user){
           const step=(ts)=>{ const t=Math.min(1,(ts-t0)/duration); const lat=start.lat+(end.lat-start.lat)*t; const lng=start.lng+(end.lng-start.lng)*t; anim.setLatLng([lat,lng]); if (t<1) requestAnimationFrame(step); else map.removeLayer(anim); };
           requestAnimationFrame(step);
 
-          let collect; try{ collect = await apiCollect(user.id, p.id); showBackendBanner(''); } catch(err){ console.error('collect error', err); showBackendBanner('Нет соединения с бэкендом'); console.error('generate error', err); throw err; }
+          let collect; 
+          try{ 
+            collect = await apiCollect(user.id, p.id); 
+            showBackendBanner(''); 
+          } catch(err){ 
+            console.error('collect error', err); 
+            showBackendBanner('Нет соединения с бэкендом'); 
+            throw err; 
+          }
           if (!collect?.success){ alert('🚫 Ошибка сбора энергии'); return; }
           quests.onCollect(p.type);
 
