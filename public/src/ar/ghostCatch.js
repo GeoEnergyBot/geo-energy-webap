@@ -59,7 +59,12 @@ export async function openGhostCatch(rarity='common'){
     hint.style.textAlign='center'; hint.style.fontWeight='600';
     hint.style.textShadow='0 2px 8px rgba(0,0,0,.7)';
     wrap.appendChild(hint);
-
+    const timeLabel = document.createElement('div');
+    timeLabel.textContent = 'Осталось: 0:00';
+    timeLabel.style.position='absolute'; timeLabel.style.top='40px'; timeLabel.style.left='0'; timeLabel.style.right='0';
+    timeLabel.style.textAlign='center'; timeLabel.style.fontWeight='700'; timeLabel.style.display='none';
+    timeLabel.style.textShadow='0 2px 8px rgba(0,0,0,.7)';
+    wrap.appendChild(timeLabel);
     // Кнопка Старт
     const startBtn = document.createElement('button');
     startBtn.textContent = 'Старт';
@@ -77,7 +82,7 @@ export async function openGhostCatch(rarity='common'){
     const diff = DIFFICULTY[rarity] || DIFFICULTY.common;
     const ctx = canvas.getContext('2d');
     const circleR = diff.reticleRadiusPx || 60;
-    let ghost = { x: W/2 + 40, y: H/3, vx: 0.9*diff.baseSpeed/60, vy: 0.7*diff.baseSpeed/60 };
+    let ghost = { x: W/2, y: H/2, vx: 0.9*diff.baseSpeed/60, vy: 0.7*diff.baseSpeed/60 };
     let progress = 0; // 0..1
     let heldMs = 0, combo = 1.0;
     let lastFeint = 0, running=false, raf=0, tPrev=0;
@@ -123,9 +128,8 @@ export async function openGhostCatch(rarity='common'){
       if (ghost.y < circleR || ghost.y > H-circleR) ghost.vy*=-1;
 
       // прицел (для MVP центр + шум)
-      const aimX = W/2 + (Math.random()-0.5)*(DIFFICULTY[rarity]?.sensorYawToPx ?? 6);
-      const aimY = H/2 + (Math.random()-0.5)*(DIFFICULTY[rarity]?.sensorPitchToPx ?? 6);
-      const inCircle = Math.hypot(ghost.x-aimX, ghost.y-aimY) <= circleR;
+      const reticleX = W/2, reticleY = H/2;
+      const inCircle = Math.hypot(ghost.x-reticleX, ghost.y-reticleY) <= circleR + 18;
 
       if (inCircle){
         heldMs += dt;

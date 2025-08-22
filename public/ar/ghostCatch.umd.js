@@ -39,11 +39,11 @@
     modal.classList.remove('hidden');
     title && (title.textContent = 'Поймайте призрака в круг');
 
-    // Backdrop close
+    try{ window.dispatchEvent(new Event('ar:open')); }catch(_){} // Backdrop close
     const cleanupFns = [];
     const close = () => {
       try{ cleanupFns.forEach(fn => fn && fn()); }catch(_){}
-      modal.classList.add('hidden');
+      try{ window.dispatchEvent(new Event('ar:close')); }catch(_){} modal.classList.add('hidden');
       stage.innerHTML='';
       _busy = false;
     };
@@ -76,7 +76,7 @@
     function getCenter(){ const r = reticle.getBoundingClientRect(); const o = overlay.getBoundingClientRect(); return { cx: r.left - o.left + r.width/2, cy: r.top - o.top + r.height/2 }; }
 
     // Reticle + ring
-    let Rcatch = preset.reticle/2; function _updR(){ try{ const r = reticle.getBoundingClientRect(); Rcatch = Math.min(r.width, r.height)/2*0.9; }catch(_){ Rcatch = preset.reticle/2; } }
+    const Rcatch = preset.reticle/2;
     const reticle = document.createElement('div');
     Object.assign(reticle.style,{ zIndex:6,
       position:'absolute',left:'50%',top:'50%',width:`${preset.reticle}px`,height:`${preset.reticle}px`,
@@ -92,6 +92,17 @@
       background:'conic-gradient(#00ffd0 0deg, rgba(255,255,255,.2) 0deg)'
     });
     overlay.appendChild(ring);
+    // Time label (hidden until inside)
+    const timeLabel = document.createElement('div');
+    Object.assign(timeLabel.style, {
+      position:'absolute', left:'50%', top:'10px', transform:'translateX(-50%)',
+      background:'rgba(0,0,0,0.45)', color:'#eaffff', padding:'6px 10px',
+      borderRadius:'12px', fontWeight:'700', fontSize:'14px', letterSpacing:'0.3px',
+      zIndex:7, display:'none', textShadow:'0 1px 2px rgba(0,0,0,.6)'
+    });
+    timeLabel.textContent = '0:00';
+    overlay.appendChild(timeLabel);
+    
     function setProgress(p){
       const clamped = Math.max(0, Math.min(1, p));
       const deg = Math.floor(clamped*360);
@@ -149,9 +160,8 @@
 
     // Game loop
     const speedScale = speedFor(rarity);
-    let gx=0, gy=0;
-    // initial kick so it starts fleeing immediately
-    let ang0=Math.random()*Math.PI*2; let vx=Math.cos(ang0)*preset.baseSpeed*0.85, vy=Math.sin(ang0)*preset.baseSpeed*0.85; let lastT=performance.now(); let holdMs=0; let lastFeintTs=0;
+    let gx=0, gy=0; // start at center
+    let vx=0, vy=0; let lastT=performance.now(); let holdMs=0; let lastFeintTs=0;
     const fatigueMs = 700, edgeBounce=0.8;
 
     function tick(){
@@ -178,10 +188,16 @@
       screenX=(gx-camX)+hw; screenY=(gy-camY)+hh;
       ghost.style.transform = `translate(${Math.round(screenX-48)}px, ${Math.round(screenY-48)}px)`;
 
-      _updR();
-      if (dist<=Rcatch){ holdMs -= dt*1000; } else { holdMs = Math.min(preset.holdMs, holdMs + dt*1000*0.55); }
-      setProgress(1 - (holdMs / preset.holdMs));
-      if (holdMs <= 0){
+      const GHOST_R=48; if (dist <= (Rcatch + GHOST_R*0.66)) { holdMs += dt*1000; } else { holdMs = Math.max(0, holdMs - dt*1000*0.6); }
+      if (typeof timeLabel!=='undefined'){ 
+          if (holdMs>0 && dist <= (Rcatch + 48*0.66)) { 
+            const remain = Math.max(0, Math.ceil((preset.holdMs - holdMs)/1000));
+            const mm = Math.floor(remain/60), ss=String(remain%60).padStart(2,'0');
+            timeLabel.style.display='block'; timeLabel.textContent = `Осталось: ${mm}:${ss}`;
+          } else { timeLabel.style.display='none'; }
+        }
+        setProgress(holdMs / preset.holdMs);
+      if (holdMs >= preset.holdMs){
         try{ navigator.vibrate && navigator.vibrate([60,40,60]); }catch(_){}
         close();
         resolve({ success:true, rarity:String(rarity||'normal'), holdMs: preset.holdMs });

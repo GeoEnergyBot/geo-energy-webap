@@ -1,6 +1,4 @@
-
 import { FUNCTIONS_ENDPOINT, SUPABASE_ANON } from '../env.js';
-import { openGhostCatch } from '../ar/ghostCatch.js';
 import { getEnergyIcon, getDistanceKm, makeLeafletGhostIconAsync } from '../utils.js';
 import { updatePlayerHeader, flashPlayerMarker } from '../ui.js';
 import { quests } from '../quests.js';
@@ -20,14 +18,30 @@ function showBackendBanner(msg){
       Object.assign(el.style, { position:'absolute', left:'50%', transform:'translateX(-50%)', top:'56px', zIndex:1200, background:'#7f1d1d', color:'#fff', padding:'6px 10px', borderRadius:'10px', border:'1px solid rgba(255,255,255,.25)', boxShadow:'0 4px 20px rgba(0,0,0,.3)', fontSize:'12px' });
       document.body.appendChild(el);
     }
-    el.textContent = msg;
+    el.textContent = msg || '';
+    if (!msg) el.style.display='none'; else el.style.display='block';
   }catch(e){}
 }
-
 
 const __pointCooldown = new Map();
 const __pending = new Set();
 const now = ()=> Date.now();
+
+function pickCenterLatLng(playerMarker){
+  try{
+    const p = playerMarker?.getLatLng?.();
+    let lat = Number(p?.lat);
+    let lng = Number(p?.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)){
+      lat = Number(localStorage.getItem('last_lat'));
+      lng = Number(localStorage.getItem('last_lng'));
+    }
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)){
+      lat = 43.238949; lng = 76.889709; // Алматы
+    }
+    return {lat, lng};
+  }catch(_){ return { lat:43.238949, lng:76.889709 }; }
+}
 
 function todayKey(){ const d=new Date(); return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`; }
 function getDailyCap(level){ return 1200 + 80 * (Number(level)||1); }
@@ -38,33 +52,22 @@ function isCooldown(id,ms=3000){ const t=__pointCooldown.get(id)||0; return now(
 function setCooldown(id){ __pointCooldown.set(id, now()); }
 
 async function apiGenerate(telegram_id, lat, lng){
-  if (!FUNCTIONS_ENDPOINT){
-    // offline fallback: generate local points
-    const pts=[];
-    for (let i=0;i<25;i++){
-      const dLat = (Math.random()-0.5)*0.01;
-      const dLng = (Math.random()-0.5)*0.01;
-      const types = ['normal','normal','advanced','rare'];
-      const type = types[(Math.random()*types.length)|0];
-      pts.push({ id: 'local_'+(Math.random()*1e9|0)+'_'+i, lat: lat+dLat, lng: lng+dLng, type, energy: (type==='rare'?120:(type==='advanced'?70:35)) });
-    }
-    return { success:true, points: pts };
-  }
+  if (!FUNCTIONS_ENDPOINT) throw new Error('FUNCTIONS_ENDPOINT not set');
   const res = await fetch(FUNCTIONS_ENDPOINT, {
     method:'POST',
     headers:{ 'Content-Type':'application/json', 'Authorization': `Bearer ${SUPABASE_ANON}` },
-    body: JSON.stringify({ action:'generate', telegram_id: String(telegram_id) })
+    body: JSON.stringify({ action:'generate', telegram_id:String(telegram_id), center_lat: lat, center_lng: lng })
   });
   const json = await res.json().catch(()=>({}));
   if (!res.ok) throw new Error(json.error||('HTTP '+res.status));
   return json;
 }
 async function apiCollect(telegram_id, point_id){
-  if (!FUNCTIONS_ENDPOINT){ if (IS_PROD) throw new Error('No backend in prod'); return { success:true, point_energy_value: (Math.random()<0.1?120:(Math.random()<0.4?70:35)), player:{ level: (Number(document.getElementById('level-badge')?.textContent)||1), energy_max: (Number(document.getElementById('energy-max')?.textContent)||1000) } }; }
+  if (!FUNCTIONS_ENDPOINT) throw new Error('FUNCTIONS_ENDPOINT not set');
   const res = await fetch(FUNCTIONS_ENDPOINT, {
     method:'POST',
     headers:{ 'Content-Type':'application/json', 'Authorization': `Bearer ${SUPABASE_ANON}` },
-    body: JSON.stringify({ action:'collect', telegram_id: String(telegram_id), point_id })
+    body: JSON.stringify({ action:'collect', telegram_id:String(telegram_id), point_id })
   });
   const json = await res.json().catch(()=>({}));
   if (!res.ok) throw new Error(json.error||('HTTP '+res.status));
@@ -78,8 +81,19 @@ export async function loadEnergyPoints(map, playerMarker, user){
     // cleanup previous markers
     for (const m of energyMarkers){ try{ map.removeLayer(m.marker);}catch(e){} }
     energyMarkers = [];
-    const pos = playerMarker.getLatLng();
-    let data; try{ data = await apiGenerate(user.id, pos.lat, pos.lng); showBackendBanner(''); } catch(err){ console.error('generate error', err); showBackendBanner('Нет соединения с бэкендом'); throw err; }
+
+    const pos = pickCenterLatLng(playerMarker);
+    console.debug('[generate] send lat/lng:', pos.lat, pos.lng);
+    let data; 
+    try{ 
+      data = await apiGenerate(user.id, pos.lat, pos.lng); 
+      showBackendBanner(''); 
+    } catch(err){ 
+      console.error('generate error', err); 
+      showBackendBanner('Нет соединения с бэкендом'); 
+      throw err; 
+    }
+
     const points = data.points||[];
     for (const p of points){
       const marker = L.marker([p.lat, p.lng], { icon: getEnergyIcon(p.type) });
@@ -92,14 +106,13 @@ export async function loadEnergyPoints(map, playerMarker, user){
 
         const playerPos = playerMarker.getLatLng();
         if (getDistanceKm(playerPos.lat, playerPos.lng, p.lat, p.lng) > 0.02){
-          alert('🚫 Подойдите ближе (до 20 м), чтобы собрать энергию.'); return;
-        }
+          alert('🚫 Подойдите ближе (до 20 м), чтобы собрать энергию.'); return; }
 
         // daily cap pre-check
         const lvl = Number(document.getElementById('level-badge')?.textContent||'1')||1;
         if (remainingDaily(lvl) <= 0){ alert('⚠️ Дневной лимит фарма достигнут, попробуйте завтра'); return; }
 
-        const ar = await openGhostCatch(p.type==='rare'?'rare':(p.type==='advanced'?'advanced':'common'));
+        const ar = await window.openGhostCatch(p.type==='rare'?'rare':(p.type==='advanced'?'advanced':'common'));
         if (!ar || !ar.success) return;
         quests.onARWin();
 
@@ -111,7 +124,15 @@ export async function loadEnergyPoints(map, playerMarker, user){
           const step=(ts)=>{ const t=Math.min(1,(ts-t0)/duration); const lat=start.lat+(end.lat-start.lat)*t; const lng=start.lng+(end.lng-start.lng)*t; anim.setLatLng([lat,lng]); if (t<1) requestAnimationFrame(step); else map.removeLayer(anim); };
           requestAnimationFrame(step);
 
-          let collect; try{ collect = await apiCollect(user.id, p.id); showBackendBanner(''); } catch(err){ console.error('collect error', err); showBackendBanner('Нет соединения с бэкендом'); throw err; }
+          let collect; 
+          try{ 
+            collect = await apiCollect(user.id, p.id); 
+            showBackendBanner(''); 
+          } catch(err){ 
+            console.error('collect error', err); 
+            showBackendBanner('Нет соединения с бэкендом'); 
+            throw err; 
+          }
           if (!collect?.success){ alert('🚫 Ошибка сбора энергии'); return; }
           quests.onCollect(p.type);
 
