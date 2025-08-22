@@ -1,3 +1,4 @@
+import { openGhostCatch } from '../ar/ghostCatch.js';
 import { FUNCTIONS_ENDPOINT, SUPABASE_ANON } from '../env.js';
 import { getEnergyIcon, getDistanceKm, makeLeafletGhostIconAsync } from '../utils.js';
 import { updatePlayerHeader, flashPlayerMarker } from '../ui.js';
@@ -48,6 +49,9 @@ export async function loadEnergyPoints(map, playerMarker, user) {
             return;
           }
 
+// === Мини-игра перед сбором ===
+const arResult = await openGhostCatch(point.type === 'rare' ? 'rare' : (point.type === 'advanced' ? 'advanced' : 'common'));
+if (!arResult || !arResult.success) return;
           const sound = document.getElementById('energy-sound');
           if (sound) { try { sound.currentTime = 0; await sound.play(); } catch (_) {} }
           const animatedCircle = L.circleMarker([point.lat, point.lng], {
