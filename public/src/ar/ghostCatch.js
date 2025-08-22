@@ -6,21 +6,25 @@ let _busy = false;
 
 function _difficulty(rarity) {
   const d = DIFFICULTY?.[rarity] || {};
+  // Сделаем движение мягче и медленнее по умолчанию
   return {
-    sensorYawToPx:   d.sensorYawToPx   ?? 6,  // чувствительность поворота к пикселям
+    sensorYawToPx:   d.sensorYawToPx   ?? 6,
     sensorPitchToPx: d.sensorPitchToPx ?? 6,
-    baseSpeed:       d.baseSpeed       ?? ({ common:180, advanced:220, rare:260 }[rarity] || 200),
-    nearBoost:       d.nearBoost       ?? ({ common: 80, advanced:110, rare:140 }[rarity] ||  90),
-    minSpeed:        d.minSpeed        ?? ({ common: 40, advanced: 60, rare: 80 }[rarity] ||  50),
-    maxSpeed:        d.maxSpeed        ?? ({ common:300, advanced:360, rare:420 }[rarity] || 340),
-    catchRadius:     d.catchRadius     ?? 70, // радиус круга-захвата (в CSS-пикселях холста)
+    // замедленные значения
+    baseSpeed:       d.baseSpeed       ?? ({ common:130, advanced:160, rare:190 }[rarity] || 140),
+    minSpeed:        d.minSpeed        ?? ({ common: 20, advanced: 30, rare: 40 }[rarity] || 25),
+    maxSpeed:        d.maxSpeed        ?? ({ common:220, advanced:260, rare:300 }[rarity] || 240),
+    // радиус и время удержания
+    catchRadius:     d.catchRadius     ?? 70,
     holdMs:          d.holdMs          ?? ({ common:1100, advanced:1300, rare:1500 }[rarity] || 1200),
+    // плавность следования к желаемой скорости (чем меньше — тем плавнее)
+    accel:           d.accel           ?? ({ common:3.0, advanced:3.5, rare:4.0 }[rarity] || 3.2),
   };
 }
 
 /**
  * Запуск мини-игры. Возвращает {success:boolean}
- * Требуемая разметка вне этого модуля:
+ * Требуется разметка:
  *  <div id="ar-modal" class="hidden">
  *    <div id="ar-title"></div>
  *    <button id="ar-close">×</button>
@@ -39,7 +43,6 @@ export async function openGhostCatch(rarity = 'common') {
 
   _busy = true;
 
-  // --------- локальные переменные, доступные из cleanup ----------
   let raf = 0;
   let onOrientBound = null;
   let onResizeBound = null;
@@ -58,12 +61,12 @@ export async function openGhostCatch(rarity = 'common') {
       position: 'relative',
       width: '100%',
       height: '100%',
-      paddingTop: '4px',        // небольшой отступ сверху, чтобы ничего не налезало
+      paddingTop: '4px',
       boxSizing: 'border-box'
     });
     stage.appendChild(wrap);
 
-    // Canvas с ретиной и адаптивом
+    // Canvas с ретиной и адаптивом (2:3)
     const canvas = document.createElement('canvas');
     Object.assign(canvas.style, {
       display: 'block',
@@ -98,7 +101,7 @@ export async function openGhostCatch(rarity = 'common') {
     bar.appendChild(barIn);
     wrap.appendChild(bar);
 
-    // Кнопка включения сенсоров — компактно в правом верхнем углу холста, скрыта по умолчанию
+    // Кнопка включения сенсоров (для iOS)
     const perm = document.createElement('button');
     perm.textContent = 'Сенсоры';
     Object.assign(perm.style, {
@@ -118,13 +121,12 @@ export async function openGhostCatch(rarity = 'common') {
     });
     wrap.appendChild(perm);
 
-    // --- размеры холста (в CSS-пикселях) и пиксельное соотношение ---
-    let W = 360, H = 540; // базовое соотношение 2:3
+    // Размеры холста
+    let W = 360, H = 540; // исходное соотношение 2:3
     function resizeCanvas() {
-      // подгоняем под ширину wrap/bar с сохранением 2:3
-      const host = bar; // у бара такая же ширина, как у холста
+      const host = bar;
       const cssW = Math.min(host.clientWidth || 360, 480);
-      const cssH = Math.round(cssW * 3 / 2); // 2:3
+      const cssH = Math.round(cssW * 3 / 2);
       const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
       canvas.style.width = cssW + 'px';
       canvas.style.height = cssH + 'px';
@@ -137,7 +139,7 @@ export async function openGhostCatch(rarity = 'common') {
     onResizeBound = () => resizeCanvas();
     window.addEventListener('resize', onResizeBound, { passive: true });
 
-    // ---- Управление камерой (сенсоры + джойстик) ----
+    // ---- Управление (сенсоры + джойстик) ----
     const conf = _difficulty(rarity);
     let camX = 0, camY = 0;      // мгновенный сдвиг камеры
     let camXS = 0, camYS = 0;    // сглаженный сдвиг
@@ -168,19 +170,16 @@ export async function openGhostCatch(rarity = 'common') {
           if (res !== 'granted') throw new Error('denied');
         }
         window.addEventListener('deviceorientation', onOrientBound = onOrient, true);
-        // скрывать кнопку будем, когда придёт первое валидное событие
       } catch {
-        // Если не дали доступ — играем джойстиком
+        // остаётся управление джойстиком
       }
     }
 
-    // Показываем кнопку сенсоров на iOS (где требуется запрос)
     if ('DeviceOrientationEvent' in window &&
         typeof DeviceOrientationEvent.requestPermission === 'function') {
       perm.style.display = 'inline-block';
       perm.onclick = enableSensors;
     } else {
-      // На платформах без запроса — пытаемся сразу подписаться
       try {
         window.addEventListener('deviceorientation', onOrientBound = onOrient, true);
       } catch { /* no-op */ }
@@ -197,18 +196,18 @@ export async function openGhostCatch(rarity = 'common') {
     canvas.addEventListener('pointercancel', endJoy);
     canvas.addEventListener('pointermove', (ev) => {
       if (!joy) return;
-      camX = (ev.clientX - jx) * 1.2;
-      camY = (ev.clientY - jy) * 1.2;
+      camX = (ev.clientX - jx) * 1.1; // чуть мягче джойстик
+      camY = (ev.clientY - jy) * 1.1;
     });
 
-    // ---- Модель призрака: старт из центра круга и сразу "убегает" ----
-    let gx = 0, gy = 0; // мировые координаты, центр мира совпадает с центром прицела
-    let vx = 0, vy = 0; // мгновенная скорость
+    // ---- Модель призрака: старт из центра круга и сразу "плывёт" ----
+    let gx = 0, gy = 0; // мир = центр прицела
+    let vx = 0, vy = 0; // текущая скорость (px/s)
     {
-      // начальный толчок
+      // небольшой начальный толчок
       const a = Math.random() * Math.PI * 2;
-      vx = Math.cos(a) * conf.minSpeed;
-      vy = Math.sin(a) * conf.minSpeed;
+      vx = Math.cos(a) * conf.minSpeed * 0.8;
+      vy = Math.sin(a) * conf.minSpeed * 0.8;
     }
 
     // ---- Игровые параметры ----
@@ -216,7 +215,10 @@ export async function openGhostCatch(rarity = 'common') {
     const holdNeed = conf.holdMs;
     const centerX = () => W / 2;
     const centerY = () => H / 2;
-    const Rcatch = () => conf.catchRadius; // радиус в CSS-пикселях
+    const Rcatch = () => conf.catchRadius;
+
+    // Предел скорости сделаем мягче
+    const VMAX = conf.maxSpeed * 0.65;
 
     // Рисование
     function draw(aimX, aimY) {
@@ -259,7 +261,6 @@ export async function openGhostCatch(rarity = 'common') {
 
     // Игровой цикл
     let last = performance.now();
-    const FRICTION = 4.0; // константа демпфирования
 
     function tick(ts) {
       const dtMs = Math.min(50, ts - last);
@@ -270,7 +271,6 @@ export async function openGhostCatch(rarity = 'common') {
       camXS = camXS * 0.85 + camX * 0.15;
       camYS = camYS * 0.85 + camY * 0.15;
 
-      // Прицел фиксирован в центре
       const aimX = centerX();
       const aimY = centerY();
 
@@ -278,54 +278,66 @@ export async function openGhostCatch(rarity = 'common') {
       const scrX = gx + centerX() - camXS;
       const scrY = gy + centerY() - camYS;
 
-      // Расстояние до прицела
+      // Вектор от прицела к призраку (в экранных координатах)
       const dx = scrX - aimX;
       const dy = scrY - aimY;
       const dist = Math.hypot(dx, dy);
 
-      // Направление «убегания» (в мировых координатах)
+      // Направление «убегания»
       const dirx = dist > 0 ? dx / dist : 0;
       const diry = dist > 0 ? dy / dist : 0;
 
-      // Целевая скорость (с бустом рядом)
-      let speed = conf.baseSpeed + (dist < Rcatch() * 1.6 ? conf.nearBoost : 0);
-      speed = Math.max(conf.minSpeed, Math.min(conf.maxSpeed, speed));
+      // --- ПЛАВНОЕ ДВИЖЕНИЕ ---
+      // Целевая скорость растёт с расстоянием и резко снижается рядом с кругом,
+      // чтобы было проще удержать призрака внутри.
+      // t=0 рядом с центром, t=1 далеко (~за 2.5R)
+      let t = Math.min(1, dist / (Rcatch() * 2.5));
+      let speedTarget = conf.minSpeed + (conf.baseSpeed - conf.minSpeed) * t;
 
-      // Демпфирование на dt (FPS-независимо)
-      const friction = Math.exp(-FRICTION * dt);
-      vx = (vx + dirx * speed * dt) * friction;
-      vy = (vy + diry * speed * dt) * friction;
+      // "Slow zone" возле круга — упрощаем поимку
+      if (dist < Rcatch()) {
+        speedTarget *= 0.20;        // внутри круга почти не дёргается
+      } else if (dist < Rcatch() * 1.6) {
+        speedTarget *= 0.55;        // рядом с кругом заметно медленнее
+      }
 
-      // Ограничение по скорости
-      const vmod = Math.hypot(vx, vy);
-      if (vmod > conf.maxSpeed) {
-        const k = conf.maxSpeed / vmod; vx *= k; vy *= k;
-      }
-      if (vmod < conf.minSpeed && (dirx || diry)) {
-        vx = dirx * conf.minSpeed;
-        vy = diry * conf.minSpeed;
-      }
+      // ограничим верхнюю границу
+      speedTarget = Math.min(speedTarget, VMAX);
+
+      // желаемая скорость как вектор
+      const vdx = dirx * speedTarget;
+      const vdy = diry * speedTarget;
+
+      // Плавное приближение текущей скорости к желаемой (экспоненциальное сглаживание)
+      // Чем меньше accel — тем мягче и плавнее.
+      vx += (vdx - vx) * conf.accel * dt;
+      vy += (vdy - vy) * conf.accel * dt;
+
+      // Очень лёгкое трение, чтобы не разгонялся на колебаниях камеры
+      const friction = Math.exp(-0.5 * dt);
+      vx *= friction;
+      vy *= friction;
 
       // Обновляем мировые координаты
       gx += vx * dt;
       gy += vy * dt;
 
-      // Границы мира ~ размер экрана (немного меньше)
+      // Границы мира ~ размер экрана (мягкий отскок)
       const limX = (W / 2) * 0.95;
       const limY = (H / 2) * 0.95;
-      if (gx >  limX) { gx =  limX; vx *= -0.8; }
-      if (gx < -limX) { gx = -limX; vx *= -0.8; }
-      if (gy >  limY) { gy =  limY; vy *= -0.8; }
-      if (gy < -limY) { gy = -limY; vy *= -0.8; }
+      if (gx >  limX) { gx =  limX; vx *= -0.3; }
+      if (gx < -limX) { gx = -limX; vx *= -0.3; }
+      if (gy >  limY) { gy =  limY; vy *= -0.3; }
+      if (gy < -limY) { gy = -limY; vy *= -0.3; }
 
-      // Захват / спад прогресса
+      // Захват / спад прогресса — щадящий рядом с кругом
       if (dist <= Rcatch()) {
         holdMs += dt * 1000;
-      } else if (dist <= Rcatch() * 1.2) {
-        // мягкий спад, если чуть-чуть вышел за круг
-        holdMs = Math.max(0, holdMs - dt * 250);
+      } else if (dist <= Rcatch() * 1.15) {
+        holdMs = Math.max(0, holdMs - dt * 150);
+      } else if (dist <= Rcatch() * 1.6) {
+        holdMs = Math.max(0, holdMs - dt * 300);
       } else {
-        // быстрый спад, если далеко
         holdMs = Math.max(0, holdMs - dt * 600);
       }
       const pct = Math.max(0, Math.min(100, Math.round(100 * holdMs / holdNeed)));
@@ -334,7 +346,7 @@ export async function openGhostCatch(rarity = 'common') {
       // Рисуем кадр
       draw(aimX, aimY);
 
-      // Проверяем победу
+      // Победа
       if (holdMs >= holdNeed) {
         finish({ success: true });
         return;
