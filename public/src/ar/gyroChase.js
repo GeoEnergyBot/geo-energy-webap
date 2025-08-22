@@ -10,9 +10,11 @@ export function openGyroChase(rarity='common') {
   if (__arActive) return Promise.resolve(false);
   __arActive = true;
   window.dispatchEvent(new Event('ar:open'));
+
   let __resolve;
   let __resolved = false;
   const __promise = new Promise((res)=>{ __resolve = res; });
+
   const modal = document.getElementById('ar-modal');
   const closeBtn = document.getElementById('ar-close');
   const stage = document.getElementById('ar-stage');
@@ -37,8 +39,10 @@ export function openGyroChase(rarity='common') {
   const overlay = document.createElement('div');
   Object.assign(overlay.style, { position:'absolute', inset:'0', overflow:'hidden', pointerEvents:'auto', zIndex:'2' });
   stage.appendChild(overlay);
+
   // Клик по экрану — ре-калибровка базового угла
-  overlay.addEventListener('click', ()=>{ try{ calib.alpha0=null; calib.beta0=null; }catch{} });
+  let calib = { alpha0:null, beta0:null };
+  overlay.addEventListener('click', ()=>{ try{ calib.alpha0=null; calib.beta0=null; }catch(e) {} });
 
   // Прицел/прогресс
   const reticleSize = diff.reticleRadiusPx * 2;
@@ -47,8 +51,8 @@ export function openGyroChase(rarity='common') {
     position:'absolute', left:'50%', top:'50%',
     width:`${reticleSize}px`, height:`${reticleSize}px`,
     marginLeft:`-${reticleSize/2}px`, marginTop:`-${reticleSize/2}px`,
-    borderRadius:'50%', border:'2px solid rgba(255,255,255,.75)',
-    boxShadow:'0 0 0 3px rgba(0,0,0,.25), inset 0 0 30px rgba(0,255,220,.15)',
+    borderRadius:'50%', border:'2px solid rgba(255,255,255,.75)`,
+    boxShadow:'0 0 0 3px rgba(0,0,0,.25), inset 0 0 30px rgba(0,255,220,.15)`,
     backdropFilter:'blur(1px)'
   });
   const ring = document.createElement('div');
@@ -56,10 +60,11 @@ export function openGyroChase(rarity='common') {
     position:'absolute', left:'50%', top:'50%',
     width:`${reticleSize+16}px`, height:`${reticleSize+16}px`,
     marginLeft:`-${(reticleSize+16)/2}px`, marginTop:`-${(reticleSize+16)/2}px`,
-    borderRadius:'50%', background:'conic-gradient(#00ffd0 0deg, rgba(255,255,255,.15) 0deg)',
+    borderRadius:'50%', background:'conic-gradient(#00ffd0 0deg, rgba(255,255,255,.15) 0deg)`,
     boxShadow:'0 0 14px rgba(0,255,220,.35)', pointerEvents:'none'
   });
   overlay.appendChild(ring); overlay.appendChild(reticle);
+
   const holdLabel = document.createElement('div');
   Object.assign(holdLabel.style, {
     position:'absolute', left:'50%', top:'50%', transform:'translate(-50%,-50%)',
@@ -77,8 +82,10 @@ export function openGyroChase(rarity='common') {
     background:'radial-gradient(60% 60% at 30% 30%, rgba(255,255,255,.95), rgba(255,255,255,.2)), radial-gradient(55% 55% at 70% 70%, rgba(0,200,255,.5), rgba(0,0,0,0))',
     border:'2px solid rgba(255,255,255,.4)',
     boxShadow:'0 12px 30px rgba(0,0,0,.45), inset 0 0 18px rgba(0,200,255,.35)',
-    display:'grid', placeItems:'center', transition:'transform .08s linear', zIndex:'3' });
-  ghost.textContent = '👻'; ghost.style.fontSize = '64px';
+    display:'grid', placeItems:'center', transition:'transform .08s linear', zIndex:'3'
+  });
+  ghost.textContent = '👻';
+  ghost.style.fontSize = '64px';
   ghost.style.filter = 'drop-shadow(0 6px 14px rgba(0,0,0,.45))';
   overlay.appendChild(ghost);
 
@@ -131,9 +138,9 @@ export function openGyroChase(rarity='common') {
 
   // Закрытие
   const cleanupFns = [];
-  const resolveIf = (val)=>{ if(!__resolved){ __resolved=true; try{ __resolve(val); }catch{} } };
+  const resolveIf = (val)=>{ if(!__resolved){ __resolved=true; try{ __resolve(val); }catch(e) {} } };
   const close = () => {
-    try { cleanupFns.forEach(fn => fn && fn()); } catch {}
+    try { cleanupFns.forEach(fn => fn && fn()); } catch(e) {}
     modal.classList.add('hidden'); stage.innerHTML='';
     resolveIf(false);
     __arActive = false;
@@ -147,11 +154,11 @@ export function openGyroChase(rarity='common') {
     try {
       try {
         stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal:'environment' } }, audio:false });
-      } catch {
+      } catch(e) {
         stream = await navigator.mediaDevices.getUserMedia({ video: true, audio:false });
       }
       video.srcObject = stream; await video.play();
-      cleanupFns.push(() => { try { stream.getTracks().forEach(t => t.stop()); } catch {} });
+      cleanupFns.push(() => { try { stream.getTracks().forEach(t => t.stop()); } catch(e) {} });
     } catch (err) {
       console.error('Camera error', err);
       alert('Не удалось запустить камеру. Проверьте разрешения Telegram на камеру.');
@@ -159,14 +166,12 @@ export function openGyroChase(rarity='common') {
     }
   })();
 
-  // Хелперы
-  const W = () => overlay.clientWidth, H = () => overlay.clientHeight;
-  const HW = () => W()/2, HH = () => H()/2;
-  const setRingProgress = p => {
-    const clamped = Math.max(0, Math.min(1, p));
-    const deg = Math.floor(360 * clamped);
-    ring.style.background = `conic-gradient(#00ffd0 ${deg}deg, rgba(255,255,255,.15) ${deg}deg)`;
-  };
+  // Хелперы размеров
+  const W = () => overlay.clientWidth;
+  const H = () => overlay.clientHeight;
+  const HW = () => W()/2;
+  const HH = () => H()/2;
+
   const updateArrows = (x,y) => {
     const w=W(), h=H(), m=40;
     arrowL.style.opacity = x < -m ? '1':'0';
@@ -174,12 +179,8 @@ export function openGyroChase(rarity='common') {
     arrowT.style.opacity = y < -m ? '1':'0';
     arrowB.style.opacity = y > h+m ? '1':'0';
   };
-  const vib = p => { try { navigator.vibrate && navigator.vibrate(p); } catch {} };
-
-  const haptic = (pattern)=>{ try{ if (window.Telegram?.WebApp?.HapticFeedback) { window.Telegram.WebApp.HapticFeedback.impactOccurred('light'); } else if (navigator.vibrate) { navigator.vibrate(pattern || 15); } }catch{} };
 
   // Состояние гироскопа/эмуляции
-  let calib = { alpha0:null, beta0:null };
   let useSensors = false;
   let camX=0, camY=0;
 
@@ -237,25 +238,34 @@ export function openGyroChase(rarity='common') {
   const baseSpeed = diff.baseSpeed;
   const nearBoost = diff.nearBoost;
 
-  // Динамика
-  let gx=(Math.random()*2-1)*HW()*0.7, gy=(Math.random()*2-1)*HH()*0.7;
+  // ——— ДИНАМИКА ———
+  // ВАЖНО: лениво инициализируем gx/gy, когда уже известны размеры
+  let gx=null, gy=null;
   let vx=0, vy=0, lastT=performance.now(), holdMs=0, lastNearTs=0, lastFeintTs=0;
-
-  // Флаг между кадрами (исправляет падение ReferenceError)
   let wasInside = false;
 
   let rafId=0;
   function tick(){
     const now = performance.now();
     const dt = Math.min(50, now - lastT)/1000; lastT=now;
-    const hw=HW(), hh=HH(), cx=hw, cy=hh;
 
+    const hw=HW(), hh=HH(), cx=hw, cy=hh;
+    if (gx===null || gy===null) {
+      // Стартовое положение — не по центру
+      gx = (Math.random()*2-1)*hw*0.7;
+      gy = (Math.random()*2-1)*hh*0.7;
+    }
+
+    // Экранные координаты ДО шага физики (для направления)
     let screenX = (gx - camX) + cx;
     let screenY = (gy - camY) + cy;
 
     const dx = screenX - cx, dy = screenY - cy;
-    const dist = Math.hypot(dx,dy);
-    const dirX = dx===0?0:dx/(dist||1), dirY = dy===0?0:dy/(dist||1);
+    let dist = Math.hypot(dx,dy);
+    let dirX = dx===0?0:dx/(dist||1), dirY = dy===0?0:dy/(dist||1);
+
+    // Если застряли в центре — пинок
+    if (dist < 1) { vx += (Math.random()*2-1)*60; vy += (Math.random()*2-1)*60; }
 
     let speed = baseSpeed + (dist < Rcatch*1.7 ? nearBoost : 0);
     if (now - lastNearTs < fatigueMs) speed *= 0.35;
@@ -270,26 +280,35 @@ export function openGyroChase(rarity='common') {
     const friction=0.92; vx*=friction; vy*=friction;
     gx += vx*dt; gy += vy*dt;
 
+    // Границы
     const limitX=hw*1.1, limitY=hh*1.1;
     if (gx>limitX){ gx=limitX; vx*=-edgeBounce; }
     if (gx<-limitX){ gx=-limitX; vx*=-edgeBounce; }
     if (gy>limitY){ gy=limitY; vy*=-edgeBounce; }
     if (gy<-limitY){ gy=-limitY; vy*=-edgeBounce; }
 
+    // Экранные координаты ПОСЛЕ физики — по ним рисуем и считаем ловлю
     screenX = (gx - camX) + cx;
     screenY = (gy - camY) + cy;
+
+    const dx2 = screenX - cx, dy2 = screenY - cy;
+    const dist2 = Math.hypot(dx2, dy2);
 
     const pulse = 1 + Math.sin(now/220)*0.03;
     ghost.style.transform = `translate(${Math.round(screenX-48)}px, ${Math.round(screenY-48)}px) scale(${pulse})`;
 
     updateArrows(screenX, screenY);
 
-    const nowInside = dist <= Rcatch;
-    if (nowInside && !wasInside) { try{ if (navigator.vibrate) navigator.vibrate(15); }catch(e){} }
+    const nowInside = dist2 <= Rcatch;
+    if (nowInside && !wasInside) {
+      try { if (navigator.vibrate) navigator.vibrate(15); } catch(e) {}
+    }
     wasInside = nowInside;
+
     if (nowInside){
       holdMs += dt*1000;
-      if (Math.abs(dist - Rcatch) < 6) lastNearTs = now;
+      if (Math.abs(dist2 - Rcatch) < 6) lastNearTs = now;
+
       if (holdMs >= holdTarget){
         try{
           if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
@@ -300,13 +319,14 @@ export function openGyroChase(rarity='common') {
         }catch(e){}
         const sound = document.getElementById('energy-sound');
         if (sound){ try{ sound.currentTime=0; sound.play(); } catch(e){} }
-        // Результат успеха
-        try { if (typeof resolveIf === 'function') resolveIf(true); } catch(e){}
-        close(); return;
+        try { __resolve(true); __resolved = true; } catch(e){}
+        close();
+        return;
       }
     } else {
       holdMs = Math.max(0, holdMs - dt*1000*0.55);
     }
+
     const prog = Math.max(0, Math.min(1, holdMs/holdTarget));
     const deg = Math.floor(360*prog);
     const remain = Math.max(0, holdTarget - holdMs);
@@ -317,14 +337,16 @@ export function openGyroChase(rarity='common') {
   }
   rafId = requestAnimationFrame(tick);
   cleanupFns.push(()=>cancelAnimationFrame(rafId));
+
   const onVis = ()=>{
     try{
       if (document.hidden){ cancelAnimationFrame(rafId); video.pause(); }
       else { video.play().catch(function(){}); rafId = requestAnimationFrame(tick); }
-    }catch{}
+    }catch(e){}
   };
   document.addEventListener('visibilitychange', onVis);
   cleanupFns.push(()=>document.removeEventListener('visibilitychange', onVis));
+
   // Возвращаем промис результата
   return __promise;
 }
