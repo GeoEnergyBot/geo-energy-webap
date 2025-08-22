@@ -29,6 +29,9 @@
     const closeBtn = document.getElementById('ar-close');
     const stage = document.getElementById('ar-stage');
     const title = document.getElementById('ar-title');
+    /* TELEGRAM SIZE FIX */
+    modal.style.width='100vw'; modal.style.height='100vh';
+    stage.style.width='100%'; stage.style.height='100%';
     if (!modal || !stage){ _busy = false; return { success:false, error:'no-stage' }; }
 
     // Reset DOM

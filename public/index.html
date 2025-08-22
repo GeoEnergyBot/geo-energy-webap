@@ -67,7 +67,16 @@
       color: #cfefff; font-size: 12px; opacity: .85; text-align: center;
       padding: 0 10px;
     }
-  </style>
+  
+    /* --- Robust full-screen AR layout fix --- */
+    html, body { height: 100%; }
+    body { margin: 0; }
+    #ar-modal { position: fixed; inset: 0; display: flex; flex-direction: column; width: 100vw; height: 100vh; }
+    #ar-header { flex: 0 0 auto; }
+    #ar-stage  { position: relative; flex: 1 1 auto; min-height: 0; min-width: 0; width: 100%; height: 100%; }
+    #ar-stage > video, #ar-stage > canvas { position: absolute !important; inset: 0 !important; width: 100% !important; height: 100% !important; object-fit: cover !important; }
+    #ar-stage > div { position: absolute; inset: 0; }
+    </style>
 </head>
 <body>
 
