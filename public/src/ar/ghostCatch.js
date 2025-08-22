@@ -52,28 +52,7 @@ export async function openGhostCatch(rarity='common'){
     timer.textContent = '0:00';
     wrap.appendChild(timer);
 
-    // Подсказка
-    const hint = document.createElement('div');
-    hint.textContent = 'Держите призрака в круге!';
-    hint.style.position='absolute'; hint.style.top='8px'; hint.style.left='0'; hint.style.right='0';
-    hint.style.textAlign='center'; hint.style.fontWeight='600';
-    hint.style.textShadow='0 2px 8px rgba(0,0,0,.7)';
-    wrap.appendChild(hint);
-    const timeLabel = document.createElement('div');
-    timeLabel.textContent = 'Осталось: 0:00';
-    timeLabel.style.position='absolute'; timeLabel.style.top='40px'; timeLabel.style.left='0'; timeLabel.style.right='0';
-    timeLabel.style.textAlign='center'; timeLabel.style.fontWeight='700'; timeLabel.style.display='none';
-    timeLabel.style.textShadow='0 2px 8px rgba(0,0,0,.7)';
-    wrap.appendChild(timeLabel);
-    // Кнопка Старт
-    const startBtn = document.createElement('button');
-    startBtn.textContent = 'Старт';
-    startBtn.style.position='absolute'; startBtn.style.bottom='12px'; startBtn.style.left='50%';
-    startBtn.style.transform='translateX(-50%)';
-    startBtn.style.background='#171f27'; startBtn.style.color='#e9f1f7';
-    startBtn.style.border='1px solid rgba(255,255,255,.12)';
-    startBtn.style.borderRadius='14px'; startBtn.style.padding='10px 14px';
-    wrap.appendChild(startBtn);
+    // Подсказка — подсказка показана в заголовке, отдельная кнопка не нужна
 
     // Открываем модалку
     modal.classList.remove('hidden');
@@ -127,28 +106,39 @@ export async function openGhostCatch(rarity='common'){
       if (ghost.x < circleR || ghost.x > W-circleR) ghost.vx*=-1;
       if (ghost.y < circleR || ghost.y > H-circleR) ghost.vy*=-1;
 
-      // прицел (для MVP центр + шум)
+      
+      // прицел — круг в центре
       const reticleX = W/2, reticleY = H/2;
-      const inCircle = Math.hypot(ghost.x-reticleX, ghost.y-reticleY) <= circleR + 18;
+      const inCircle = Math.hypot(ghost.x-reticleX, ghost.y-reticleY) <= circleR;
 
       if (inCircle){
         heldMs += dt;
+        // Комбо мягко растёт при удержании
         if (heldMs > (AR_TUNING.comboAfterMs||1500)){
-          combo = Math.min(AR_TUNING.comboMax||1.5, combo + 0.005);
+          combo = Math.min(AR_TUNING.comboMax||1.5, combo + 0.003);
         }
-        progress += (dt / (diff.holdMs||18000)) * 6 * combo; // подстройка скорости заполнения
       } else {
-        heldMs = 0; combo = 1.0;
-        progress -= (dt/1000) * (AR_TUNING.decayOutPerSec||0.15);
+        // Сброс удержания, когда вышли из круга
+        combo = 1.0;
       }
-      progress = Math.max(0, Math.min(1, progress));
+      // Прогресс равен доле удержанного времени
+      const goalMs = (DIFFICULTY[rarity]?.holdMs || 16000);
+      // Заполняем, только если внутри круга
+      if (inCircle){
+        progress = Math.min(1, heldMs / goalMs);
+      } else {
+        // вне круга немного убывает
+        progress = Math.max(0, progress - (dt/1000) * (AR_TUNING.decayOutPerSec||0.15));
+      }
 
       // рендер
       ctx.clearRect(0,0,W,H);
       drawTarget();
       drawGhost();
       progIn.style.width = (progress*100).toFixed(1)+'%';
-      timer.textContent = formatMs((diff.holdMs||18000));
+      // Таймер идёт только внутри круга
+      const remain = Math.max(0, goalMs - heldMs);
+      timer.textContent = inCircle ? ('Осталось: ' + formatMs(remain)) : 'Наведите призрака в круг';
 
       if (progress >= 1){
         cleanup();
@@ -158,12 +148,10 @@ export async function openGhostCatch(rarity='common'){
 
     let resolveFn;
     const promise = new Promise(res=> resolveFn = res);
-    startBtn.onclick = ()=>{
-      if (running) return;
-      running = true;
-      tPrev = performance.now();
-      raf = requestAnimationFrame(tick);
-    };
+    // Автозапуск без кнопки
+    running = true;
+    tPrev = performance.now();
+    raf = requestAnimationFrame(tick);
 
     return await promise;
   } finally {
