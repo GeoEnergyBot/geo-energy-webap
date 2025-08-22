@@ -1,26 +1,27 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="utf-8" />
+  <meta charset="utf-8">
   <title>GeoEnergyBot</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
   <!-- Стили проекта + Leaflet -->
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
   <!-- Telegram WebApp -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
+  <!-- Мини-стили для AR-модалки -->
   <style>
-    /* ===== AR Overlay (миникигра) ===== */
+    /* AR Overlay */
     #ar-modal.hidden { display: none; }
     #ar-modal {
       position: fixed; inset: 0;
       background: #000;
       z-index: 9999;
       display: grid;
-      grid-template-rows: auto 1fr; /* заголовок + сцена */
+      grid-template-rows: auto 1fr auto;
     }
     #ar-header {
       display: flex; justify-content: space-between; align-items: center;
@@ -40,34 +41,37 @@
     #ar-stage {
       position: relative;
       overflow: hidden;
-      width: 100%;
-      height: 100%;
     }
-
-    /* Когда AR открыт — скрываем верх и карту */
-    body.ar-open #top-bar,
-    body.ar-open #map { display: none !important; }
-
-    /* Простейший оверлей ошибок, чтобы видеть, почему «не грузится» */
-    #err-overlay {
-      position: fixed; left: 0; right: 0; bottom: 0;
-      background: rgba(255,0,0,.08);
-      color: #b00020; font: 13px/1.4 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
-      border-top: 1px solid rgba(255,0,0,.25);
-      padding: 8px 12px;
-      z-index: 99999;
-      display: none;
-      white-space: pre-wrap;
-      word-break: break-word;
-      max-height: 35vh; overflow: auto;
+    /* MindAR сам подставит <video> и <canvas> внутрь контейнера */
+    #ar-actions {
+      display: grid; place-items: center;
+      padding: 12px;
+      gap: 8px;
+      background: linear-gradient(180deg, rgba(0,0,0,0), rgba(0,0,0,.35));
+      border-top: 1px solid rgba(255,255,255,.08);
+    }
+    #catch-btn {
+      appearance: none; border: none; outline: none;
+      background: linear-gradient(90deg, #00ffcc, #00bfff, #0077ff);
+      color: #00131a; font-weight: 800; letter-spacing: .2px;
+      padding: 12px 18px; border-radius: 999px; cursor: pointer;
+      box-shadow: 0 6px 24px rgba(0, 153, 255, .35);
+      font-size: 16px;
+      opacity: 0.6; /* станет 1.0 когда маркер видим */
+      transition: opacity .2s ease;
+    }
+    #catch-hint {
+      color: #cfefff; font-size: 12px; opacity: .85; text-align: center;
+      padding: 0 10px;
     }
   </style>
 </head>
 <body>
+
   <!-- Верхняя панель -->
   <div id="top-bar">
     <div id="player-icon">
-      <img id="avatar" src="https://via.placeholder.com/48" alt="avatar" />
+      <img id="avatar" src="https://via.placeholder.com/48" alt="avatar">
       <div id="level-badge">1</div>
     </div>
     <div id="player-info">
@@ -82,50 +86,27 @@
   <!-- Карта -->
   <div id="map"></div>
 
-  <!-- AR-модалка -->
+  <!-- AR-модалка (MindAR отрисует видео/канвас в #ar-stage) -->
   <div id="ar-modal" class="hidden" role="dialog" aria-label="AR режим">
     <div id="ar-header">
       <div id="ar-title">Поймайте призрака в круг</div>
       <div id="ar-close" title="Закрыть">Закрыть ✕</div>
     </div>
     <div id="ar-stage"></div>
+</div>
   </div>
-
-  <!-- Оверлей ошибок -->
-  <div id="err-overlay"></div>
 
   <!-- Leaflet -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-  <!-- ВНИМАНИЕ: MindAR/Three сейчас не используются мини-игрой.
-       Если хочется — можно вернуть; но для надёжности убираем. -->
-  <!--
+  <!-- Three.js + MindAR (image tracking) -->
   <script src="https://unpkg.com/three@0.155.0/build/three.min.js"></script>
   <script src="https://unpkg.com/mind-ar/dist/mindar-image-three.prod.js"></script>
-  -->
 
-  <!-- Глобальный ловец ошибок, чтобы сразу видеть причину, если «не загружается» -->
-  <script>
-    (function(){
-      const box = document.getElementById('err-overlay');
-      function show(msg){
-        if (!box) return;
-        box.style.display = 'block';
-        box.textContent += (box.textContent ? "\n" : "") + msg;
-      }
-      window.addEventListener('error', (e) => {
-        show('[Error] ' + (e.message || e.error?.message || String(e.error || e)));
-      });
-      window.addEventListener('unhandledrejection', (e) => {
-        show('[Promise] ' + (e.reason?.message || String(e.reason || e)));
-      });
-    })();
-  </script>
-
-  <!-- Ваш код (ES Modules обязателен, если в main.js есть import) -->
+  <!-- Ваш код -->
   <script type="module" src="main.js"></script>
 
-  <!-- Звук -->
+  <!-- Звук сбора -->
   <audio id="energy-sound" src="sounds/pickup.mp3" preload="auto"></audio>
 </body>
 </html>
