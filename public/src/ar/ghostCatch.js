@@ -1,300 +1,172 @@
-/* UMD-style AR mini-game: no imports, safe to include or import.
-   Exposes on window:
-     - openGhostCatch(rarity?, opts?)
-     - openGyroChase(rarity?, opts?) // alias
-*/
+import { DIFFICULTY, AR_TUNING } from '../env.js';
 
-const DEFAULT_DIFF = {
-  common:   { sensorYawToPx: 6, sensorPitchToPx: 6, baseSpeed: 180, nearBoost: 80,  minSpeed: 40, maxSpeed: 300, catchRadius: 70, holdMs: 1100 },
-  advanced: { sensorYawToPx: 7, sensorPitchToPx: 7, baseSpeed: 220, nearBoost: 110, minSpeed: 60, maxSpeed: 360, catchRadius: 66, holdMs: 1300 },
-  rare:     { sensorYawToPx: 8, sensorPitchToPx: 8, baseSpeed: 260, nearBoost: 140, minSpeed: 80, maxSpeed: 420, catchRadius: 62, holdMs: 1500 },
-};
-
-function getGlobalDiff(){
-  const w = typeof window !== 'undefined' ? window : {};
-  return w.GEO_AR_DIFFICULTY || w.DIFFICULTY || DEFAULT_DIFF;
-}
-
-function clamp(v, a, b){ return Math.max(a, Math.min(b, v)); }
-function shortestDeg(a){ return (((a + 180) % 360) + 360) % 360 - 180; }
-function lerp(a,b,t){ return a + (b-a)*t; }
-
-function resolvedDifficulty(rarity='common', opts={}){
-  const glob = getGlobalDiff();
-  const d = (glob && glob[rarity]) || DEFAULT_DIFF.common;
-
-  let baseSpeed = d.baseSpeed;
-  if (Number.isFinite(opts.playerLevel)){
-    const lv = Math.max(1, Math.floor(opts.playerLevel));
-    const inc = Math.min(0.20, Math.floor((lv-1)/10) * 0.04); // +4% / 10 уровней, до +20%
-    baseSpeed = Math.round(baseSpeed * (1 + inc));
-  }
-  if (opts.easyMode){
-    return {
-      sensorYawToPx:  d.sensorYawToPx,
-      sensorPitchToPx:d.sensorPitchToPx,
-      baseSpeed:      Math.round(baseSpeed * 0.85),
-      nearBoost:      Math.round(d.nearBoost * 0.85),
-      minSpeed:       d.minSpeed,
-      maxSpeed:       Math.round(d.maxSpeed * 0.85),
-      catchRadius:    d.catchRadius + 5,
-      holdMs:         Math.round(d.holdMs * 0.8),
-    };
-  }
-  return { ...d, baseSpeed };
-}
-
-function drawGhost(ctx, x, y){
-  const grd = ctx.createRadialGradient(x-10, y-10, 5, x, y, 40);
-  grd.addColorStop(0,'rgba(255,255,255,.95)');
-  grd.addColorStop(1,'rgba(0,200,255,.25)');
-  ctx.fillStyle = grd;
-  ctx.beginPath(); ctx.arc(x, y, 26, 0, Math.PI*2); ctx.fill();
-  ctx.fillStyle='rgba(255,255,255,.92)';
-  ctx.font='32px system-ui';
-  ctx.textAlign='center'; ctx.textBaseline='middle';
-  ctx.fillText('👻', x, y);
-}
-
+/** Простая AR-мини-игра «Поймай призрака»: удерживать призрака внутри круга до заполнения шкалы */
 let _busy = false;
-async function openGhostCatch(rarity='common', opts={}){
+
+export async function openGhostCatch(rarity='common'){
   if (_busy) return { success:false };
   _busy = true;
-
-  const tStart = performance.now();
-
   try{
     const modal = document.getElementById('ar-modal');
     const stage = document.getElementById('ar-stage');
     const title = document.getElementById('ar-title');
     const close = document.getElementById('ar-close');
-    if (!modal || !stage) { _busy=false; return { success:false, error:'no-stage' }; }
+    if (!modal || !stage) return { success:false };
 
-    title && (title.textContent = 'Поймайте призрака в круг');
-    modal.classList.remove('hidden');
-    console.log('[AR] open');
-
-    // Scene
+    title.textContent = 'Поймайте призрака в круг';
+    // Очистим и создадим сцену
     stage.innerHTML = '';
     const wrap = document.createElement('div');
-    Object.assign(wrap.style, { position:'relative', width:'100%', height:'100%' });
+    wrap.style.position = 'relative';
+    wrap.style.width = '100%';
+    wrap.style.height = '100%';
     stage.appendChild(wrap);
 
     const canvas = document.createElement('canvas');
-    const rect = stage.getBoundingClientRect();
-    const H = Math.floor(Math.max(420, Math.min(680, rect.height || 540)));
-    const W = Math.floor(Math.max(300, Math.min(480, Math.round(H*0.666))));
+    // подгоним размер под контейнер (портрет)
+    const W = 360, H = 540;
     canvas.width = W; canvas.height = H;
-    Object.assign(canvas.style, { display:'block', margin:'12px auto', borderRadius:'16px',
-      background:'radial-gradient(circle at 50% 40%, rgba(0,255,153,.18), transparent 60%), #0a0e11' });
+    canvas.style.display = 'block';
+    canvas.style.margin = '12px auto';
+    canvas.style.borderRadius = '16px';
+    canvas.style.background = 'radial-gradient(circle at 50% 40%, rgba(0,255,153,.18), transparent 60%), #0a0e11';
     wrap.appendChild(canvas);
+
+    // Прогресс-бар
+    const prog = document.createElement('div');
+    const progIn = document.createElement('div');
+    prog.style.height = '10px'; prog.style.borderRadius='8px';
+    prog.style.background='rgba(255,255,255,.12)';
+    progIn.style.height = '10px'; progIn.style.width='0%';
+    progIn.style.background='linear-gradient(90deg,#22d3ee,#818cf8,#e879f9)';
+    progIn.style.borderRadius='8px';
+    prog.appendChild(progIn);
+    prog.style.margin = '8px 12px 0 12px';
+    wrap.appendChild(prog);
+
+    // Таймер
+    const timer = document.createElement('div');
+    timer.style.position='absolute'; timer.style.top='8px'; timer.style.right='12px';
+    timer.style.padding='4px 8px'; timer.style.borderRadius='8px';
+    timer.style.background='rgba(0,0,0,.35)'; timer.style.fontSize='12px';
+    timer.textContent = '0:00';
+    wrap.appendChild(timer);
+
+    // Подсказка
+    const hint = document.createElement('div');
+    hint.textContent = 'Держите призрака в круге!';
+    hint.style.position='absolute'; hint.style.top='8px'; hint.style.left='0'; hint.style.right='0';
+    hint.style.textAlign='center'; hint.style.fontWeight='600';
+    hint.style.textShadow='0 2px 8px rgba(0,0,0,.7)';
+    wrap.appendChild(hint);
+
+    // Кнопка Старт
+    const startBtn = document.createElement('button');
+    startBtn.textContent = 'Старт';
+    startBtn.style.position='absolute'; startBtn.style.bottom='12px'; startBtn.style.left='50%';
+    startBtn.style.transform='translateX(-50%)';
+    startBtn.style.background='#171f27'; startBtn.style.color='#e9f1f7';
+    startBtn.style.border='1px solid rgba(255,255,255,.12)';
+    startBtn.style.borderRadius='14px'; startBtn.style.padding='10px 14px';
+    wrap.appendChild(startBtn);
+
+    // Открываем модалку
+    modal.classList.remove('hidden');
+    window.dispatchEvent(new Event('ar:open'));
+
+    const diff = DIFFICULTY[rarity] || DIFFICULTY.common;
     const ctx = canvas.getContext('2d');
+    const circleR = diff.reticleRadiusPx || 60;
+    let ghost = { x: W/2 + 40, y: H/3, vx: 0.9*diff.baseSpeed/60, vy: 0.7*diff.baseSpeed/60 };
+    let progress = 0; // 0..1
+    let heldMs = 0, combo = 1.0;
+    let lastFeint = 0, running=false, raf=0, tPrev=0;
 
-    // Progress bar
-    const bar = document.createElement('div');
-    const barIn = document.createElement('div');
-    Object.assign(bar.style, { height:'10px', borderRadius:'8px', background:'rgba(255,255,255,.12)', margin:'8px 12px 0' });
-    Object.assign(barIn.style,{ height:'10px', width:'0%', borderRadius:'8px', background:'linear-gradient(90deg,#22d3ee,#818cf8,#e879f9)' });
-    bar.appendChild(barIn); wrap.appendChild(bar);
+    const cleanup = ()=>{
+      cancelAnimationFrame(raf);
+      modal.classList.add('hidden');
+      window.dispatchEvent(new Event('ar:close'));
+      stage.innerHTML='';
+      close.onclick=null;
+      startBtn.onclick=null;
+    };
+    const closeHandler = ()=>{ cleanup(); resolveFn({ success:false }); };
+    close.onclick = closeHandler;
 
-    // Permission UI
-    const conf = resolvedDifficulty(rarity, opts);
-    const perm = document.createElement('div');
-    Object.assign(perm.style, {
-      position:'absolute', left:'50%', bottom:'16px', transform:'translateX(-50%)',
-      display:'flex', gap:'10px', background:'rgba(0,0,0,.35)', color:'#fff',
-      padding:'8px 10px', borderRadius:'12px', alignItems:'center', fontSize:'14px', zIndex:'10'
-    });
-    const permMsg = document.createElement('span');
-    permMsg.textContent = 'Разрешите датчики для управления или используйте джойстик.';
-    const permBtn = document.createElement('button');
-    permBtn.textContent = 'Включить управление';
-    Object.assign(permBtn.style, { border:'none', borderRadius:'999px', padding:'6px 10px',
-      fontWeight:'800', background:'linear-gradient(90deg,#00ffcc,#00bfff,#0077ff)', color:'#00131a', cursor:'pointer' });
-    perm.appendChild(permMsg); perm.appendChild(permBtn); wrap.appendChild(perm);
-
-    // Controls
-    let camX=0, camY=0, camXS=0, camYS=0;
-    let baseAlpha=null, baseBeta=null, sensorsOn=false, eventsCount=0;
-
-    function onOrient(e){
-      if (e.alpha==null || e.beta==null) return;
-      eventsCount++;
-      if (baseAlpha==null) baseAlpha=e.alpha;
-      if (baseBeta==null) baseBeta=e.beta;
-      const dyaw = shortestDeg(e.alpha - baseAlpha);
-      const dpitch = e.beta - baseBeta;
-      camX = (conf.sensorYawToPx ?? 6) * dyaw;
-      camY = -(conf.sensorPitchToPx ?? 6) * dpitch;
+    function drawTarget(){
+      ctx.save();
+      ctx.strokeStyle = 'rgba(0,255,200,0.85)';
+      ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.arc(W/2, H/2, circleR, 0, Math.PI*2); ctx.stroke();
+      ctx.restore();
     }
-
-    async function enableSensorsByGesture(){
-      try{
-        if (typeof DeviceOrientationEvent!=='undefined' && typeof DeviceOrientationEvent.requestPermission==='function'){
-          const r = await DeviceOrientationEvent.requestPermission();
-          if (r!=='granted') throw new Error('denied');
-        }
-        window.addEventListener('deviceorientation', onOrient, true);
-        // fallback-слушатель для некоторых Android
-        try{ window.addEventListener('deviceorientationabsolute', onOrient, true); }catch{}
-        sensorsOn = true; perm.style.display='none';
-        console.log('[AR] sensors granted');
-      }catch(_){
-        sensorsOn = false;
-        permMsg.textContent = 'Сенсоры недоступны. Используйте джойстик.';
-        console.log('[AR] sensors denied → joystick');
-      }
-    }
-    permBtn.onclick = enableSensorsByGesture;
-
-    // Попытка автоподключения (Android Chrome)
-    if (!('DeviceOrientationEvent' in window && typeof DeviceOrientationEvent.requestPermission==='function')){
-      try {
-        window.addEventListener('deviceorientation', onOrient, true);
-        try{ window.addEventListener('deviceorientationabsolute', onOrient, true); }catch{}
-        sensorsOn=true; perm.style.display='none';
-        console.log('[AR] sensors auto-on');
-      } catch {}
-    }
-
-    // Если в течение 1 сек не пришло ни одного события — показываем джойстик-подсказку
-    setTimeout(()=>{ if (eventsCount===0) { sensorsOn=false; permMsg.textContent='Сенсоры недоступны. Используйте джойстик.'; }}, 1000);
-
-    // Joystick fallback
-    let joy=false, jx=0, jy=0;
-    canvas.addEventListener('pointerdown', ev=>{ joy=true; jx=ev.clientX; jy=ev.clientY; try{ canvas.setPointerCapture(ev.pointerId); }catch{} });
-    const endJoy = ()=>{ joy=false; };
-    canvas.addEventListener('pointerup', endJoy); canvas.addEventListener('pointercancel', endJoy);
-    canvas.addEventListener('pointermove', ev=>{ if(joy){ camX = (ev.clientX-jx)*1.2; camY = (ev.clientY-jy)*1.2; }});
-
-    // World / ghost
-    let gx = (Math.random()*2-1)*(W*0.25);
-    let gy = (Math.random()*2-1)*(H*0.25);
-    let vx = 0, vy=0;
-    let holdMs=0, last=performance.now();
-    const centerX = W/2, centerY = H/2;
-    const Rcatch = conf.catchRadius, holdNeed = conf.holdMs;
-
-    // Telemetry
-    let samples=0, insideSamples=0;
-
-    function render(aimX, aimY){
-      ctx.clearRect(0,0,W,H);
-      ctx.beginPath();
-      ctx.arc(aimX, aimY, Rcatch, 0, Math.PI*2);
-      ctx.strokeStyle='rgba(255,255,255,.7)'; ctx.lineWidth=2; ctx.stroke();
-
-      const scrX = gx + centerX - camXS;
-      const scrY = gy + centerY - camYS;
-      drawGhost(ctx, scrX, scrY);
+    function drawGhost(){
+      ctx.save();
+      ctx.shadowColor='rgba(0,255,200,0.5)'; ctx.shadowBlur=12;
+      ctx.fillStyle='rgba(190,230,255,0.95)';
+      ctx.beginPath(); ctx.arc(ghost.x, ghost.y, 18, 0, Math.PI*2); ctx.fill();
+      ctx.restore();
     }
 
     function tick(ts){
-      const dt = Math.min(50, ts-last)/1000; last=ts;
-      camXS = lerp(camXS, camX, 0.15);
-      camYS = lerp(camYS, camY, 0.15);
-
-      const aimX = clamp(centerX + camXS, W*0.15, W*0.85);
-      const aimY = clamp(centerY + camYS, H*0.15, H*0.85);
-
-      const scrX = gx + centerX - camXS;
-      const scrY = gy + centerY - camYS;
-      const dx = scrX - aimX, dy = scrY - aimY;
-      const dist = Math.hypot(dx, dy);
-      const dirx = dist>0 ? dx/dist : 0;
-      const diry = dist>0 ? dy/dist : 0;
-
-      let speed = conf.baseSpeed + (dist < Rcatch*1.6 ? conf.nearBoost : 0);
-      speed = clamp(speed, conf.minSpeed, conf.maxSpeed);
-
-      vx += dirx * speed * dt;
-      vy += diry * speed * dt;
-      vx *= 0.90; vy *= 0.90;
-      gx += vx * dt; gy += vy * dt;
-
-      const limX = (W/2)*0.95, limY = (H/2)*0.95;
-      if (gx >  limX){ gx= limX; vx*=-0.8; }
-      if (gx < -limX){ gx=-limX; vx*=-0.8; }
-      if (gy >  limY){ gy= limY; vy*=-0.8; }
-      if (gy < -limY){ gy=-limY; vy*=-0.8; }
-
-      samples++;
-      if (dist <= Rcatch){ insideSamples++; holdMs += dt*1000; }
-      else { holdMs = Math.max(0, holdMs - dt*600); }
-      barIn.style.width = Math.min(100, Math.floor(100*holdMs/holdNeed)) + '%';
-
-      render(aimX, aimY);
-
-      if (holdMs >= holdNeed){
-        cancelAnimationFrame(raf);
-        absorbAnimation().then(()=>{
-          const durationMs = Math.round(performance.now() - tStart);
-          const inCirclePercent = samples>0 ? Math.round(100*insideSamples/samples) : 0;
-          const result = { success:true, durationMs, inCirclePercent, samples };
-          console.log('[AR] success', result);
-          resolve(result);
-        });
-        return;
-      }
       raf = requestAnimationFrame(tick);
-    }
-
-    async function absorbAnimation(){
-      try { navigator.vibrate && navigator.vibrate([40,40,40]); } catch {}
-      const aCtx = canvas.getContext('2d');
-      const start = performance.now(); const dur = 500;
-      while (true){
-        const t = performance.now(); const p = clamp((t-start)/dur, 0, 1);
-        aCtx.clearRect(0,0,W,H);
-        aCtx.fillStyle = 'rgba(0,0,0,' + (0.1 + 0.2*p) + ')';
-        aCtx.fillRect(0,0,W,H);
-        const r = lerp(26, 8, p);
-        const x = centerX, y = centerY;
-        const grd = aCtx.createRadialGradient(x-6,y-6,3, x,y, r*2);
-        grd.addColorStop(0,'rgba(255,255,255,0.95)'); grd.addColorStop(1,'rgba(0,200,255,' + (0.25*(1-p)) + ')');
-        aCtx.fillStyle = grd;
-        aCtx.beginPath(); aCtx.arc(x, y, r, 0, Math.PI*2); aCtx.fill();
-        if (p>=1) break;
-        await new Promise(r=>requestAnimationFrame(r));
+      const dt = Math.min(32, ts - (tPrev||ts)); tPrev = ts;
+      lastFeint += dt;
+      if (lastFeint > (DIFFICULTY[rarity]?.feintEveryMs ?? 1800)){
+        lastFeint = 0; ghost.vx *= -1.15; ghost.vy *= 1.12;
       }
-      try { navigator.vibrate && navigator.vibrate(60); } catch {}
-      await new Promise(r=>setTimeout(r, 150));
+      // движение
+      ghost.x += ghost.vx * dt;
+      ghost.y += ghost.vy * dt;
+      // отскоки
+      if (ghost.x < circleR || ghost.x > W-circleR) ghost.vx*=-1;
+      if (ghost.y < circleR || ghost.y > H-circleR) ghost.vy*=-1;
+
+      // прицел (для MVP центр + шум)
+      const aimX = W/2 + (Math.random()-0.5)*(DIFFICULTY[rarity]?.sensorYawToPx ?? 6);
+      const aimY = H/2 + (Math.random()-0.5)*(DIFFICULTY[rarity]?.sensorPitchToPx ?? 6);
+      const inCircle = Math.hypot(ghost.x-aimX, ghost.y-aimY) <= circleR;
+
+      if (inCircle){
+        heldMs += dt;
+        if (heldMs > (AR_TUNING.comboAfterMs||1500)){
+          combo = Math.min(AR_TUNING.comboMax||1.5, combo + 0.005);
+        }
+        progress += (dt / (diff.holdMs||18000)) * 6 * combo; // подстройка скорости заполнения
+      } else {
+        heldMs = 0; combo = 1.0;
+        progress -= (dt/1000) * (AR_TUNING.decayOutPerSec||0.15);
+      }
+      progress = Math.max(0, Math.min(1, progress));
+
+      // рендер
+      ctx.clearRect(0,0,W,H);
+      drawTarget();
+      drawGhost();
+      progIn.style.width = (progress*100).toFixed(1)+'%';
+      timer.textContent = formatMs((diff.holdMs||18000));
+
+      if (progress >= 1){
+        cleanup();
+        resolveFn({ success:true, rewardMult: Math.min(1.2, 1 + (combo-1)/2) });
+      }
     }
 
-    let resolve = ()=>{};
-    const promise = new Promise(res=> resolve=res);
-    let raf = requestAnimationFrame(tick);
-
-    function cleanup(){
-      try{ cancelAnimationFrame(raf); }catch{}
-      try{ window.removeEventListener('deviceorientation', onOrient, true); }catch{}
-      try{ window.removeEventListener('deviceorientationabsolute', onOrient, true); }catch{}
-      try{ stage && (stage.innerHTML=''); }catch{}
-      try{ modal.classList.add('hidden'); }catch{}
-      _busy=false;
-      console.log('[AR] close');
-    }
-
-    const onClose = ()=>{
-      const result = { success:false };
-      resolve(result);
+    let resolveFn;
+    const promise = new Promise(res=> resolveFn = res);
+    startBtn.onclick = ()=>{
+      if (running) return;
+      running = true;
+      tPrev = performance.now();
+      raf = requestAnimationFrame(tick);
     };
-    if (close) close.onclick = onClose;
 
-    const result = await promise;
-    cleanup();
-    return result;
-
-  } catch (err){
-    console.error('[AR] error:', err);
-    _busy=false;
-    return { success:false, error:String(err) };
+    return await promise;
+  } finally {
+    _busy = false;
   }
 }
 
-function openGyroChase(rarity='common', opts={}){ return openGhostCatch(rarity, opts); }
-
-if (typeof window !== 'undefined'){
-  window.openGhostCatch = openGhostCatch;
-  window.openGyroChase = openGyroChase;
+function formatMs(ms){
+  const s = Math.max(0, Math.ceil(ms/1000)); const m=(s/60)|0; const ss=String(s%60).padStart(2,'0'); return `${m}:${ss}`;
 }

@@ -1,5 +1,4 @@
 import { FUNCTIONS_ENDPOINT, SUPABASE_ANON } from '../env.js';
-import { openGhostCatch } from '../ar/ghostCatch.js';
 import { getEnergyIcon, getDistanceKm, makeLeafletGhostIconAsync } from '../utils.js';
 import { updatePlayerHeader, flashPlayerMarker } from '../ui.js';
 import { quests } from '../quests.js';
@@ -113,7 +112,7 @@ export async function loadEnergyPoints(map, playerMarker, user){
         const lvl = Number(document.getElementById('level-badge')?.textContent||'1')||1;
         if (remainingDaily(lvl) <= 0){ alert('⚠️ Дневной лимит фарма достигнут, попробуйте завтра'); return; }
 
-        const ar = await openGhostCatch(p.type==='rare'?'rare':(p.type==='advanced'?'advanced':'common'));
+        const ar = await window.openGhostCatch(p.type==='rare'?'rare':(p.type==='advanced'?'advanced':'common'));
         if (!ar || !ar.success) return;
         quests.onARWin();
 
