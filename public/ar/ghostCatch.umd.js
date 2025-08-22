@@ -32,11 +32,19 @@
     /* TELEGRAM SIZE FIX */
     modal.style.width='100vw'; modal.style.height='100vh';
     stage.style.width='100%'; stage.style.height='100%';
+    /* Enforce layout to avoid narrow-strip in Telegram */
+    try{
+      modal.style.display='grid'; modal.style.gridTemplateRows='auto 1fr'; modal.style.padding='0';
+      modal.style.left='0'; modal.style.top='0'; modal.style.right='0'; modal.style.bottom='0';
+      stage.style.position='relative'; stage.style.padding='0'; stage.style.minWidth='0'; stage.style.minHeight='0';
+      stage.style.overflow='hidden';
+    }catch(_){}
+    
     if (!modal || !stage){ _busy = false; return { success:false, error:'no-stage' }; }
 
     // Reset DOM
     stage.innerHTML = '';
-    modal.classList.remove('hidden');
+    modal.classList.remove('hidden'); modal.style.setProperty('display','grid','important');
     title && (title.textContent = 'Поймайте призрака в круг');
 
     try{ window.dispatchEvent(new Event('ar:open')); }catch(_){} // Backdrop close
