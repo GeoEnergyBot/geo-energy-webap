@@ -5,8 +5,8 @@ export const FUNCTIONS_ENDPOINT = 'https://ptkzsrlicfhufdnegwjl.functions.supaba
 export const GHOST_ICON_BASES = ['assets/ghosts', 'ghost_icons'];
 
 export const DIFFICULTY = {
-  common:   { reticleRadiusPx: 56,  holdMs: 1500, baseSpeed: 180 },
-  advanced: { reticleRadiusPx: 50,  holdMs: 1800, baseSpeed: 220 },
+  common:   { reticleRadiusPx: 56,  holdMs: 1600, baseSpeed: 180 },
+  advanced: { reticleRadiusPx: 50,  holdMs: 1900, baseSpeed: 220 },
   rare:     { reticleRadiusPx: 44,  holdMs: 2200, baseSpeed: 260 },
 };
 

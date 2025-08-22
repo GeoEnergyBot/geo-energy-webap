@@ -3,10 +3,6 @@ import { makeLeafletGhostIconAsync } from './src/utils.js';
 import { updatePlayerHeader } from './src/ui.js';
 import { buildBaseLayers, spawnArEntryNear, setArEntryHandler } from './src/map/tiles.js';
 import { loadEnergyPoints } from './src/map/energy.js';
-import { quests } from './src/quests.js';
-import { store } from './src/store.js';
-import { hotzones } from './src/hotzones.js';
-import { anti } from './src/anti.js';
 
 function showFatal(msg){
   try{
@@ -20,13 +16,10 @@ const tg = window.Telegram?.WebApp;
 if (tg) tg.expand();
 
 (async () => {
-  // Telegram user or guest
   const user = tg?.initDataUnsafe?.user ?? { id: 'guest', first_name: 'Гость', username: 'guest' };
 
-  // Header initial
   await updatePlayerHeader({ username: user.first_name || user.username || 'Игрок', level:1, energy:0, energy_max:1000 });
 
-  // Geolocation and map
   let map = null;
   let playerMarker = null;
 
@@ -38,11 +31,13 @@ if (tg) tg.expand();
 
   function setPlayer(lat, lng, lvl=1){
     if (!playerMarker){
-      makeLeafletGhostIconAsync(lvl).then(icon => {
+      return makeLeafletGhostIconAsync(lvl).then(icon => {
         playerMarker = L.marker([lat,lng], { icon }).addTo(map).bindPopup('Вы здесь').openPopup();
+        return playerMarker;
       });
     } else {
       playerMarker.setLatLng([lat,lng]);
+      return Promise.resolve(playerMarker);
     }
   }
 
@@ -50,13 +45,14 @@ if (tg) tg.expand();
     try{
       const lat = pos.coords.latitude, lng = pos.coords.longitude;
       if (!map) initMap(lat,lng);
-      setPlayer(lat,lng,1);
-      quests.init(); store.init(); hotzones.init(map); quests.bindMap(map, playerMarker); store.bindMap(map, playerMarker);
-      spawnArEntryNear(map, lat, lng);
-      setArEntryHandler(spawnArEntryNear(map, lat, lng), playerMarker, async ()=>{
+      await setPlayer(lat,lng,1);
+
+      const arMarker = spawnArEntryNear(map, lat, lng);
+      setArEntryHandler(arMarker, playerMarker, async ()=>{
         const { openGhostCatch } = await import('./src/ar/ghostCatch.js');
         await openGhostCatch('common');
       });
+
       const profile = await loadOrCreatePlayer(user);
       await updatePlayerHeader({ username: user.first_name || user.username || 'Игрок', ...profile });
       await loadEnergyPoints(map, playerMarker, user);
@@ -70,7 +66,7 @@ if (tg) tg.expand();
     console.warn('geolocation error', e);
     const lat=51.128, lng=71.431;
     if (!map) initMap(lat,lng);
-    setPlayer(lat,lng,1);
+    await setPlayer(lat,lng,1);
     const profile = await loadOrCreatePlayer(user);
     await updatePlayerHeader({ username: user.first_name || user.username || 'Игрок', ...profile });
     await loadEnergyPoints(map, playerMarker, user);
@@ -79,25 +75,16 @@ if (tg) tg.expand();
   if ('geolocation' in navigator){
     navigator.geolocation.getCurrentPosition(onPos, onPosErr);
     navigator.geolocation.watchPosition((p)=>{
-      try{ anti.tick(p.coords.latitude, p.coords.longitude); if (playerMarker){ playerMarker.setLatLng([p.coords.latitude,p.coords.longitude]); } }catch{}
+      try{ if (playerMarker){ playerMarker.setLatLng([p.coords.latitude,p.coords.longitude]); } }catch{}
     }, (e)=>console.warn('watchPosition error', e), { enableHighAccuracy:true, maximumAge:1000, timeout:10000 });
   } else {
     onPosErr(new Error('Геолокация недоступна'));
   }
 
-  // periodic refresh
-  let intervalMs = 60000;
+  // refresh points each 60s
   setInterval(async ()=>{
-    try{
-      if (map && playerMarker){
-        const pos = playerMarker.getLatLng();
-        hotzones.tickMaybeSpawn(pos.lat, pos.lng);
-        await loadEnergyPoints(map, playerMarker, user);
-        const target = store.spawnRefreshMs(60000);
-        if (target !== intervalMs) intervalMs = target;
-      }
-    } catch(e){ console.warn(e); }
-  }, intervalMs);
+    try{ if (map && playerMarker) await loadEnergyPoints(map, playerMarker, user); }catch(e){}
+  }, 60000);
 })();
 
 window.addEventListener('ar:open', ()=>{ try{ document.body.classList.add('ar-open'); }catch{} });

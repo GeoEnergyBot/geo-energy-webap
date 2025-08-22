@@ -2,10 +2,6 @@ import { FUNCTIONS_ENDPOINT, SUPABASE_ANON } from '../env.js';
 import { openGhostCatch } from '../ar/ghostCatch.js';
 import { getEnergyIcon, getDistanceKm, makeLeafletGhostIconAsync } from '../utils.js';
 import { updatePlayerHeader, flashPlayerMarker } from '../ui.js';
-import { quests } from '../quests.js';
-import { anti } from '../anti.js';
-import { store } from '../store.js';
-import { hotzones } from '../hotzones.js';
 
 let energyMarkers = [];
 let isLoadingPoints = false;
@@ -50,11 +46,10 @@ async function apiCollect(telegram_id, point_id){
 
 export async function loadEnergyPoints(map, playerMarker, user){
   if (isLoadingPoints) return;
+  if (!playerMarker || !playerMarker.getLatLng) return;
   isLoadingPoints = true;
   try{
     const pos = playerMarker.getLatLng();
-
-    // fetch from backend
     let result;
     try{
       result = await apiGenerate(user.id, pos.lat, pos.lng);
@@ -66,7 +61,6 @@ export async function loadEnergyPoints(map, playerMarker, user){
     }
     if (!result?.success || !Array.isArray(result.points)) return;
 
-    // remove old markers
     energyMarkers.forEach(m => { try{ map.removeLayer(m.marker); }catch{} });
     energyMarkers = [];
 
@@ -79,7 +73,6 @@ export async function loadEnergyPoints(map, playerMarker, user){
         energyMarkers.push({ id: p.id, marker });
 
         marker.on('click', async () => {
-          console.debug('[point-click] id=%s type=%s', p.id, p.type);
           if (isCooldown(p.id)) { alert('Подождите пару секунд...'); return; }
           if (__pending.has(p.id)) return;
           setCooldown(p.id);
@@ -90,24 +83,20 @@ export async function loadEnergyPoints(map, playerMarker, user){
             return;
           }
 
-          // AR mini-game
           const rarity = (p.type==='rare'?'rare':(p.type==='advanced'?'advanced':'common'));
           const ar = await openGhostCatch(rarity);
           if (!ar || !ar.success) return;
-          quests.onARWin();
 
           __pending.add(p.id);
           try{
             const sound = document.getElementById('energy-sound');
             if (sound) { try{ sound.currentTime=0; await sound.play(); }catch{} }
 
-            // suction animation
             const anim = L.circleMarker([p.lat, p.lng], { radius: 10, color: '#00ff99', fillColor: '#00ff99', fillOpacity: 0.85 }).addTo(map);
             const start = L.latLng(p.lat, p.lng), end = playerPos; const duration = 500; const t0 = performance.now();
             const step = (ts) => { const t = Math.min(1, (ts - t0) / duration); const lat = start.lat + (end.lat - start.lat) * t; const lng = start.lng + (end.lng - start.lng) * t; anim.setLatLng([lat, lng]); if (t < 1) requestAnimationFrame(step); else map.removeLayer(anim); };
             requestAnimationFrame(step);
 
-            // collect on server
             let collect;
             try{
               collect = await apiCollect(user.id, p.id);
@@ -119,20 +108,16 @@ export async function loadEnergyPoints(map, playerMarker, user){
               return;
             }
             if (!collect?.success || !collect.player) { alert('🚫 Ошибка сбора энергии'); return; }
-            quests.onCollect(p.type);
 
-            // remove marker
             const idx = energyMarkers.findIndex(x => x.id === p.id);
             if (idx >= 0) { map.removeLayer(energyMarkers[idx].marker); energyMarkers.splice(idx,1); }
 
-            // toast
             const base = Number(collect.point_energy_value || 0);
             const applied = Number(collect.applied || 0);
             const mult = Number(collect.multiplier || 1);
             const hz = collect.hotzone ? (', зона x' + collect.hotzone.mult) : '';
             alert(`⚡ База: ${base} × ${mult} → начислено: ${applied}${hz}`);
 
-            // update HUD
             await updatePlayerHeader(collect.player);
             try{
               const icon = await makeLeafletGhostIconAsync(collect.player.level || 1);
