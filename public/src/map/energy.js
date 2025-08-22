@@ -46,7 +46,7 @@ function pickCenterLatLng(playerMarker){
 function todayKey(){ return ""; }
 function getDailyCap(level){ return Infinity; }
 function getDailyProgress(){ return 0; }
-function addDailyProgress(delta){ /* disabled daily limit */ }
+function addDailyProgress(delta){ /* disabled */ }
 function remainingDaily(level){ return Infinity; }
 function isCooldown(id,ms=3000){ const t=__pointCooldown.get(id)||0; return now()-t < ms; }
 function setCooldown(id){ __pointCooldown.set(id, now()); }

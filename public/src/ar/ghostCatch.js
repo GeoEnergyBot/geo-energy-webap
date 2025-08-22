@@ -24,7 +24,7 @@ export async function openGhostCatch(rarity='common'){
 
     const canvas = document.createElement('canvas');
     // подгоним размер под контейнер (портрет)
-    const W = 360, H = 540;
+    const W = Math.floor(stage.clientWidth||360), H = Math.floor(stage.clientHeight||540);
     canvas.width = W; canvas.height = H;
     canvas.style.display = 'block';
     canvas.style.margin = '12px auto';
@@ -52,7 +52,7 @@ export async function openGhostCatch(rarity='common'){
     timer.textContent = '0:00';
     wrap.appendChild(timer);
 
-    // Подсказка — подсказка показана в заголовке, отдельная кнопка не нужна
+    // Подсказка скрыта — автозапуск мини-игры
 
     // Открываем модалку
     modal.classList.remove('hidden');
@@ -72,8 +72,7 @@ export async function openGhostCatch(rarity='common'){
       window.dispatchEvent(new Event('ar:close'));
       stage.innerHTML='';
       close.onclick=null;
-      startBtn.onclick=null;
-    };
+      running = true; tPrev = performance.now(); raf = requestAnimationFrame(tick);
     const closeHandler = ()=>{ cleanup(); resolveFn({ success:false }); };
     close.onclick = closeHandler;
 
@@ -107,36 +106,28 @@ export async function openGhostCatch(rarity='common'){
       if (ghost.y < circleR || ghost.y > H-circleR) ghost.vy*=-1;
 
       
-      // прицел — круг в центре
       const reticleX = W/2, reticleY = H/2;
       const inCircle = Math.hypot(ghost.x-reticleX, ghost.y-reticleY) <= circleR;
 
       if (inCircle){
         heldMs += dt;
-        // Комбо мягко растёт при удержании
         if (heldMs > (AR_TUNING.comboAfterMs||1500)){
           combo = Math.min(AR_TUNING.comboMax||1.5, combo + 0.003);
         }
       } else {
-        // Сброс удержания, когда вышли из круга
         combo = 1.0;
       }
-      // Прогресс равен доле удержанного времени
       const goalMs = (DIFFICULTY[rarity]?.holdMs || 16000);
-      // Заполняем, только если внутри круга
       if (inCircle){
-        progress = Math.min(1, heldMs / goalMs);
+        progress = Math.min(1, heldMs/goalMs);
       } else {
-        // вне круга немного убывает
         progress = Math.max(0, progress - (dt/1000) * (AR_TUNING.decayOutPerSec||0.15));
       }
 
-      // рендер
       ctx.clearRect(0,0,W,H);
       drawTarget();
       drawGhost();
       progIn.style.width = (progress*100).toFixed(1)+'%';
-      // Таймер идёт только внутри круга
       const remain = Math.max(0, goalMs - heldMs);
       timer.textContent = inCircle ? ('Осталось: ' + formatMs(remain)) : 'Наведите призрака в круг';
 
@@ -148,10 +139,7 @@ export async function openGhostCatch(rarity='common'){
 
     let resolveFn;
     const promise = new Promise(res=> resolveFn = res);
-    // Автозапуск без кнопки
-    running = true;
-    tPrev = performance.now();
-    raf = requestAnimationFrame(tick);
+    running = true; tPrev = performance.now(); raf = requestAnimationFrame(tick);
 
     return await promise;
   } finally {

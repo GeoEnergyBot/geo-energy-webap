@@ -74,6 +74,14 @@
   <!-- Карта -->
   <div id="map"></div>
 
+  <!-- Нижняя панель -->
+  <nav id="bottom-bar" aria-label="Navigation">
+    <div class="nav-btn" id="nav-profile">Профиль</div>
+    <div class="nav-btn" id="nav-inventory">Инвентарь</div>
+    <div class="nav-btn" id="nav-rating">Рейтинг</div>
+  </nav>
+
+
   <!-- AR-модалка (MindAR отрисует видео/канвас в #ar-stage) -->
   <div id="ar-modal" class="hidden" role="dialog" aria-label="AR режим">
     <div id="ar-header">
@@ -83,15 +91,7 @@
     <div id="ar-stage"></div>
 </div>
 
-  
-  <!-- Нижняя панель -->
-  <nav id="bottom-bar" aria-label="Navigation">
-    <div class="nav-btn" id="nav-profile">Профиль</div>
-    <div class="nav-btn" id="nav-inventory">Инвентарь</div>
-    <div class="nav-btn" id="nav-rating">Рейтинг</div>
-  </nav>
-
-<!-- Leaflet -->
+  <!-- Leaflet -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
   <!-- Three.js + MindAR (image tracking) -->
