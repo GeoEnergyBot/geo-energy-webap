@@ -6,7 +6,6 @@ let _busy = false;
 
 function _difficulty(rarity) {
   const d = DIFFICULTY?.[rarity] || {};
-  // Мягкое, более медленное движение по умолчанию
   return {
     sensorYawToPx:   d.sensorYawToPx   ?? 6,
     sensorPitchToPx: d.sensorPitchToPx ?? 6,
@@ -15,7 +14,6 @@ function _difficulty(rarity) {
     maxSpeed:        d.maxSpeed        ?? ({ common:220, advanced:260, rare:300 }[rarity] || 240),
     catchRadius:     d.catchRadius     ?? 70,
     holdMs:          d.holdMs          ?? ({ common:1100, advanced:1300, rare:1500 }[rarity] || 1200),
-    // чем меньше accel — тем плавнее тяготение к целевой скорости
     accel:           d.accel           ?? ({ common:3.0, advanced:3.5, rare:4.0 }[rarity] || 3.2),
   };
 }
@@ -28,11 +26,11 @@ export async function openGhostCatch(rarity = 'common') {
   const stage = document.getElementById('ar-stage');
   const title = document.getElementById('ar-title');
   const close = document.getElementById('ar-close');
-  if (!modal || !stage || !close) return { success: false };
+  if (!modal || !stage || !close) return { success:false };
 
   _busy = true;
 
-  // ---- Создаём промис СРАЗУ (fix гонки) ----
+  // Промис завершения — создаём сразу
   let resolveDone;
   const done = new Promise(res => { resolveDone = res; });
 
@@ -42,6 +40,11 @@ export async function openGhostCatch(rarity = 'common') {
   let onKeyBound = null;
   let onVisibilityBound = null;
 
+  // камера
+  let stopCamera = () => {};
+  let cameraReady = false;
+
+  // очистка
   let cleanup = () => {};
 
   try {
@@ -49,61 +52,123 @@ export async function openGhostCatch(rarity = 'common') {
     modal.classList.remove('hidden');
     window.dispatchEvent(new Event('ar:open'));
 
-    // Сцена
+    // Полноэкранная сцена
     stage.innerHTML = '';
+    Object.assign(stage.style, {
+      position: 'relative',
+      width: '100vw',
+      height: '100vh',    // базово; ниже поправим на реальный innerHeight
+      overflow: 'hidden'
+    });
+
+    // Правильный 100vh на мобильных (без перекрытия адресной строки)
+    const applyVh = () => {
+      const vh = window.innerHeight * 0.01;
+      stage.style.setProperty('--vh', `${vh}px`);
+      stage.style.height = `calc(var(--vh) * 100)`;
+    };
+    applyVh();
+    onResizeBound = () => applyVh();
+    window.addEventListener('resize', onResizeBound, { passive:true });
+
+    // Контейнер сцены
     const wrap = document.createElement('div');
     Object.assign(wrap.style, {
       position: 'relative',
       width: '100%',
       height: '100%',
-      paddingTop: '4px',
-      boxSizing: 'border-box'
+      overflow: 'hidden',
+      background: '#000' // на случай, если камера не включится
     });
     stage.appendChild(wrap);
 
-    // Canvas (ретина + адаптив 2:3)
+    // Видео-фон (камера)
+    const video = document.createElement('video');
+    Object.assign(video, {
+      autoplay: true,
+      playsInline: true,
+      muted: true
+    });
+    Object.assign(video.style, {
+      position: 'absolute',
+      inset: 0,
+      width: '100%',
+      height: '100%',
+      objectFit: 'cover', // заполняем всю сцену без полос
+      zIndex: 0,
+      background: '#000'
+    });
+    wrap.appendChild(video);
+
+    // Виньетка/оверлей (для контраста)
+    const fx = document.createElement('div');
+    Object.assign(fx.style, {
+      position: 'absolute',
+      inset: 0,
+      zIndex: 1,
+      pointerEvents: 'none',
+      background: 'radial-gradient(120% 120% at 50% 40%, rgba(0,0,0,0) 40%, rgba(0,0,0,0.35) 90%)'
+    });
+    wrap.appendChild(fx);
+
+    // Canvas поверх видео
     const canvas = document.createElement('canvas');
     Object.assign(canvas.style, {
+      position: 'absolute',
+      inset: 0,
       display: 'block',
-      margin: '8px auto 0',
-      borderRadius: '16px',
-      background: 'radial-gradient(circle at 50% 40%, rgba(0,255,153,.18), transparent 60%), #0a0e11',
-      maxWidth: '480px',
       width: '100%',
-      height: 'auto',
-      touchAction: 'none'
+      height: '100%',
+      touchAction: 'none',
+      zIndex: 2,
+      background: 'transparent' // важно: видеть камеру
     });
     wrap.appendChild(canvas);
     const ctx = canvas.getContext('2d');
+
+    // HUD (прогресс/кнопки)
+    const hud = document.createElement('div');
+    Object.assign(hud.style, {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      top: 0,
+      padding: '16px 14px calc(env(safe-area-inset-bottom,0) + 12px)',
+      display: 'flex',
+      justifyContent: 'center',
+      zIndex: 3,
+      pointerEvents: 'none'
+    });
+    wrap.appendChild(hud);
 
     // Прогресс-бар
     const bar = document.createElement('div');
     const barIn = document.createElement('div');
     Object.assign(bar.style, {
-      height: '10px',
-      borderRadius: '8px',
-      background: 'rgba(255,255,255,.12)',
-      margin: '10px auto 0',
-      maxWidth: '480px',
-      width: '100%'
+      height: '12px',
+      borderRadius: '10px',
+      background: 'rgba(255,255,255,.18)',
+      width: 'min(520px, 86vw)',
+      boxShadow: '0 2px 10px rgba(0,0,0,.25)',
+      pointerEvents: 'auto'
     });
     Object.assign(barIn.style, {
-      height: '10px',
+      height: '100%',
       width: '0%',
-      borderRadius: '8px',
+      borderRadius: '10px',
       background: 'linear-gradient(90deg,#22d3ee,#818cf8,#e879f9)'
     });
     bar.appendChild(barIn);
-    wrap.appendChild(bar);
+    hud.appendChild(bar);
 
-    // Кнопка включения сенсоров (для iOS)
+    // Кнопка «Сенсоры» (для iOS) — в правом верхнем
     const perm = document.createElement('button');
     perm.textContent = 'Сенсоры';
     Object.assign(perm.style, {
       position: 'absolute',
-      top: '12px',
-      right: '18px',
-      zIndex: 2,
+      top: '16px',
+      right: '16px',
+      zIndex: 4,
       border: 'none',
       borderRadius: '999px',
       padding: '6px 10px',
@@ -116,27 +181,90 @@ export async function openGhostCatch(rarity = 'common') {
     });
     wrap.appendChild(perm);
 
-    // Размеры холста
-    let W = 360, H = 540; // исходное соотношение 2:3
+    // Кнопка «Камера» (повторить запрос / переключить)
+    const camBtn = document.createElement('button');
+    camBtn.textContent = 'Камера';
+    Object.assign(camBtn.style, {
+      position: 'absolute',
+      top: '16px',
+      left: '16px',
+      zIndex: 4,
+      border: 'none',
+      borderRadius: '999px',
+      padding: '6px 10px',
+      fontWeight: 800,
+      fontSize: '12px',
+      background: 'linear-gradient(90deg,#22c55e,#10b981,#06b6d4)',
+      color: '#00131a',
+      cursor: 'pointer',
+      display: 'none'
+    });
+    wrap.appendChild(camBtn);
+
+    // Функции камеры
+    async function startCamera(preferEnvironment = true) {
+      // Останавливаем прошлые треки (если были)
+      stopCamera();
+      cameraReady = false;
+      camBtn.style.display = 'none';
+
+      try {
+        const constraints = { video: { facingMode: preferEnvironment ? { ideal: 'environment' } : 'user' }, audio: false };
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        video.srcObject = stream;
+        await video.play().catch(()=>{});
+        cameraReady = true;
+
+        // Кнопка «Камера» покажется для переключения только если хотим
+        camBtn.style.display = 'inline-block';
+        stopCamera = () => {
+          try {
+            const tr = stream.getTracks?.() || [];
+            tr.forEach(t => t.stop?.());
+          } catch {}
+          video.srcObject = null;
+          cameraReady = false;
+          camBtn.style.display = 'inline-block'; // оставляем доступной для повторного запроса
+        };
+      } catch (e) {
+        // Фоллбек — показываем кнопку для повторной попытки
+        camBtn.style.display = 'inline-block';
+        cameraReady = false;
+        console.warn('[AR] Camera not available:', e);
+      }
+    }
+
+    camBtn.onclick = async () => {
+      // Тап по кнопке — попробовать другой facingMode, если уже был environment
+      const usingEnv = !!(video.srcObject && video.srcObject.getVideoTracks?.()[0]?.getSettings?.().facingMode !== 'user');
+      await startCamera(!usingEnv);
+    };
+
+    // Запускаем камеру сразу (вызов идёт после юзерского тапа по точке — разрешение возможно)
+    if (navigator.mediaDevices?.getUserMedia) {
+      await startCamera(true);
+    } else {
+      camBtn.style.display = 'inline-block';
+    }
+
+    // Размеры/ретина канваса по реальному контейнеру
+    let W = 300, H = 500;
     function resizeCanvas() {
-      const host = bar;
-      const cssW = Math.min(host.clientWidth || 360, 480);
-      const cssH = Math.round(cssW * 3 / 2);
+      const cssW = wrap.clientWidth || window.innerWidth;
+      const cssH = wrap.clientHeight || window.innerHeight;
       const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
       canvas.style.width = cssW + 'px';
       canvas.style.height = cssH + 'px';
       canvas.width = Math.round(cssW * dpr);
       canvas.height = Math.round(cssH * dpr);
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // работаем в CSS-пикселях
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // рисуем в CSS-пикселях
       W = cssW; H = cssH;
     }
     resizeCanvas();
-    onResizeBound = () => resizeCanvas();
-    window.addEventListener('resize', onResizeBound, { passive: true });
 
     // ---- Управление (сенсоры + джойстик) ----
     const conf = _difficulty(rarity);
-    let camX = 0, camY = 0;      // мгновенный сдвиг камеры
+    let camX = 0, camY = 0;      // мгновенный сдвиг "камеры"
     let camXS = 0, camYS = 0;    // сглаженный сдвиг
     let baseAlpha = null, baseBeta = null;
     let firstSensorTick = false;
@@ -144,41 +272,34 @@ export async function openGhostCatch(rarity = 'common') {
     const shortest = (a) => (((a + 180) % 360) + 360) % 360 - 180;
     const screenAngle = () => {
       const ang = (screen.orientation?.angle ?? window.orientation ?? 0) || 0;
-      // нормализуем к [0,90,180,270]
       const n = ((ang % 360) + 360) % 360;
       return n === 0 || n === 90 || n === 180 || n === 270 ? n : 0;
     };
 
     function recenterSensors() {
       baseAlpha = null;
-      baseBeta = null;
-      // следующая валидная посылка сделает новую базу
+      baseBeta  = null;
     }
 
     function onOrient(e) {
       if (e.alpha == null || e.beta == null) return;
       if (!firstSensorTick) {
         firstSensorTick = true;
-        perm.style.display = 'none'; // прячем только после первого валидного события
+        perm.style.display = 'none';
       }
       if (baseAlpha == null) baseAlpha = e.alpha;
-      if (baseBeta == null) baseBeta = e.beta;
+      if (baseBeta  == null) baseBeta  = e.beta;
 
-      // Расчёт yaw/pitch относительно базовых значений
       let dyaw = shortest(e.alpha - baseAlpha);
       let dpitch = e.beta - baseBeta;
 
-      // Коррекция под ориентацию экрана
-      // 0: портрет, 90: ландшафт (слева), 270: ландшафт (справа)
+      // учёт ориентации экрана
       const ang = screenAngle();
       let yaw = dyaw, pitch = dpitch;
-      if (ang === 90) {        // поворот экрана влево
-        [yaw, pitch] = [dpitch, -dyaw];
-      } else if (ang === 270) {// поворот экрана вправо
-        [yaw, pitch] = [-dpitch, dyaw];
-      } else if (ang === 180) {// вверх ногами
-        yaw = -dyaw; pitch = -dpitch;
-      }
+      if (ang === 90) { [yaw, pitch] = [dpitch, -dyaw]; }
+      else if (ang === 270) { [yaw, pitch] = [-dpitch, dyaw]; }
+      else if (ang === 180) { yaw = -dyaw; pitch = -dpitch; }
+
       camX = conf.sensorYawToPx * yaw;
       camY = -conf.sensorPitchToPx * pitch;
     }
@@ -192,7 +313,7 @@ export async function openGhostCatch(rarity = 'common') {
         }
         window.addEventListener('deviceorientation', onOrientBound = onOrient, true);
       } catch {
-        // остаётся управление джойстиком
+        // останется джойстик
       }
     }
 
@@ -201,12 +322,10 @@ export async function openGhostCatch(rarity = 'common') {
       perm.style.display = 'inline-block';
       perm.onclick = enableSensors;
     } else {
-      try {
-        window.addEventListener('deviceorientation', onOrientBound = onOrient, true);
-      } catch { /* no-op */ }
+      try { window.addEventListener('deviceorientation', onOrientBound = onOrient, true); } catch {}
     }
 
-    // Джойстик (pointer по холсту двигает камеру)
+    // Джойстик
     let joy = false, jx = 0, jy = 0;
     canvas.addEventListener('pointerdown', (ev) => {
       joy = true; jx = ev.clientX; jy = ev.clientY;
@@ -217,60 +336,54 @@ export async function openGhostCatch(rarity = 'common') {
     canvas.addEventListener('pointercancel', endJoy);
     canvas.addEventListener('pointermove', (ev) => {
       if (!joy) return;
-      camX = (ev.clientX - jx) * 1.1; // мягкий коэффициент
+      camX = (ev.clientX - jx) * 1.1;
       camY = (ev.clientY - jy) * 1.1;
     });
 
-    // Быстрая перекалибровка (dblclick по холсту или R)
-    canvas.addEventListener('dblclick', recenterSensors, { passive: true });
+    // Быстрая перекалибровка (dblclick по канвасу или R)
+    canvas.addEventListener('dblclick', recenterSensors, { passive:true });
     onKeyBound = (ev) => {
-      if (ev.key === 'Escape') finish({ success: false });
+      if (ev.key === 'Escape') finish({ success:false });
       if (ev.key === 'r' || ev.key === 'R') recenterSensors();
     };
     window.addEventListener('keydown', onKeyBound);
 
-    // ---- Модель призрака: старт из центра и сразу "плывёт" ----
-    let gx = 0, gy = 0; // мир = центр прицела
-    let vx = 0, vy = 0; // текущая скорость (px/s)
+    // Игровая модель
+    let gx = 0, gy = 0;
+    let vx = 0, vy = 0;
     {
       const a = Math.random() * Math.PI * 2;
       vx = Math.cos(a) * conf.minSpeed * 0.8;
       vy = Math.sin(a) * conf.minSpeed * 0.8;
     }
 
-    // ---- Игровые параметры ----
     let holdMs = 0;
     const holdNeed = conf.holdMs;
     const centerX = () => W / 2;
     const centerY = () => H / 2;
-    const Rcatch = () => conf.catchRadius;
+    const Rcatch  = () => conf.catchRadius;
+    const VMAX    = conf.maxSpeed * 0.65;
 
-    // Предел скорости помягче
-    const VMAX = conf.maxSpeed * 0.65;
-
-    // Рисование
     function draw(aimX, aimY) {
       ctx.clearRect(0, 0, W, H);
 
-      // Прицел
+      // прицел
       ctx.beginPath();
       ctx.arc(aimX, aimY, Rcatch(), 0, Math.PI * 2);
-      ctx.strokeStyle = 'rgba(255,255,255,.75)';
+      ctx.strokeStyle = 'rgba(255,255,255,.85)';
       ctx.lineWidth = 2;
       ctx.stroke();
 
-      // Координаты призрака на экране
+      // призрак
       const scrX = gx + centerX() - camXS;
       const scrY = gy + centerY() - camYS;
 
-      // Свечение
       const grd = ctx.createRadialGradient(scrX - 10, scrY - 10, 5, scrX, scrY, 40);
       grd.addColorStop(0, 'rgba(255,255,255,.95)');
       grd.addColorStop(1, 'rgba(0,200,255,.25)');
       ctx.fillStyle = grd;
       ctx.beginPath(); ctx.arc(scrX, scrY, 26, 0, Math.PI * 2); ctx.fill();
 
-      // Эмодзи
       ctx.fillStyle = 'rgba(255,255,255,.92)';
       ctx.font = '32px system-ui';
       ctx.textAlign = 'center';
@@ -278,7 +391,7 @@ export async function openGhostCatch(rarity = 'common') {
       ctx.fillText('👻', scrX, scrY);
     }
 
-    // Завершение мини-игры
+    // Завершение
     let finished = false;
     function finish(result) {
       if (finished) return;
@@ -287,7 +400,7 @@ export async function openGhostCatch(rarity = 'common') {
       resolveDone && resolveDone(result);
     }
 
-    // Пауза по видимости вкладки
+    // Пауза при сворачивании вкладки
     let paused = false;
     onVisibilityBound = () => {
       if (document.hidden) {
@@ -301,7 +414,10 @@ export async function openGhostCatch(rarity = 'common') {
         }
       }
     };
-    document.addEventListener('visibilitychange', onVisibilityBound, { passive: true });
+    document.addEventListener('visibilitychange', onVisibilityBound, { passive:true });
+
+    // Подписки
+    window.addEventListener('resize', resizeCanvas, { passive:true });
 
     // Игровой цикл
     let last = performance.now();
@@ -309,21 +425,20 @@ export async function openGhostCatch(rarity = 'common') {
 
     function tick(ts) {
       const dtMs = Math.min(50, ts - last);
-      const dt = dtMs / 1000; // сек
+      const dt = dtMs / 1000;
       last = ts;
 
-      // Сглаживаем камеру
+      // сглаживание камеры
       camXS = camXS * 0.85 + camX * 0.15;
       camYS = camYS * 0.85 + camY * 0.15;
 
       const aimX = centerX();
       const aimY = centerY();
 
-      // Экранные координаты призрака
+      // экранные координаты призрака
       const scrX = gx + centerX() - camXS;
       const scrY = gy + centerY() - camYS;
 
-      // Вектор от прицела к призраку (в экранных координатах)
       const dx = scrX - aimX;
       const dy = scrY - aimY;
       const dist = Math.hypot(dx, dy);
@@ -331,47 +446,32 @@ export async function openGhostCatch(rarity = 'common') {
       const dirx = dist > 0 ? dx / dist : 0;
       const diry = dist > 0 ? dy / dist : 0;
 
-      // --- ПЛАВНОЕ ДВИЖЕНИЕ ---
-      // t=0 рядом с центром, t=1 далеко (~за 2.5R)
+      // таргет-скорость с "slow zone"
       let t = Math.min(1, dist / (Rcatch() * 2.5));
       let speedTarget = conf.minSpeed + (conf.baseSpeed - conf.minSpeed) * t;
-
-      // "Slow zone" возле круга — упрощаем поимку
-      if (dist < Rcatch()) {
-        speedTarget *= 0.20;
-      } else if (dist < Rcatch() * 1.6) {
-        speedTarget *= 0.55;
-      }
-
-      // ограничим верхнюю границу
+      if (dist < Rcatch())        speedTarget *= 0.20;
+      else if (dist < Rcatch()*1.6) speedTarget *= 0.55;
       speedTarget = Math.min(speedTarget, VMAX);
 
-      // желаемая скорость как вектор
+      // приближаем текущую скорость к целевой
       const vdx = dirx * speedTarget;
       const vdy = diry * speedTarget;
-
-      // Плавное приближение текущей скорости к желаемой
       vx += (vdx - vx) * conf.accel * dt;
       vy += (vdy - vy) * conf.accel * dt;
 
-      // Лёгкое трение
       const friction = Math.exp(-0.5 * dt);
-      vx *= friction;
-      vy *= friction;
+      vx *= friction; vy *= friction;
 
-      // Обновляем мировые координаты
-      gx += vx * dt;
-      gy += vy * dt;
+      gx += vx * dt; gy += vy * dt;
 
-      // Границы мира (мягкий отскок)
-      const limX = (W / 2) * 0.95;
-      const limY = (H / 2) * 0.95;
+      // границы
+      const limX = (W/2) * 0.95, limY = (H/2) * 0.95;
       if (gx >  limX) { gx =  limX; vx *= -0.3; }
       if (gx < -limX) { gx = -limX; vx *= -0.3; }
       if (gy >  limY) { gy =  limY; vy *= -0.3; }
       if (gy < -limY) { gy = -limY; vy *= -0.3; }
 
-      // Захват / спад прогресса — щадящий рядом с кругом
+      // прогресс удержания
       const inCircle = dist <= Rcatch();
       if (inCircle) {
         if (!wasInCircle) { navigator.vibrate?.(15); }
@@ -388,36 +488,28 @@ export async function openGhostCatch(rarity = 'common') {
       const pct = Math.max(0, Math.min(100, Math.round(100 * holdMs / holdNeed)));
       barIn.style.width = pct + '%';
 
-      // Рисуем кадр
+      // рендер
       draw(aimX, aimY);
 
-      // Победа
+      // финиш
       if (holdMs >= holdNeed) {
-        finish({ success: true });
+        finish({ success:true });
         return;
       }
       raf = requestAnimationFrame(tick);
     }
 
-    // Очистка ресурсов
+    // Очистка
     cleanup = () => {
       try { cancelAnimationFrame(raf); } catch {}
-      if (onOrientBound) {
-        try { window.removeEventListener('deviceorientation', onOrientBound, true); } catch {}
-        onOrientBound = null;
-      }
-      if (onResizeBound) {
-        try { window.removeEventListener('resize', onResizeBound); } catch {}
-        onResizeBound = null;
-      }
-      if (onKeyBound) {
-        try { window.removeEventListener('keydown', onKeyBound); } catch {}
-        onKeyBound = null;
-      }
-      if (onVisibilityBound) {
-        try { document.removeEventListener('visibilitychange', onVisibilityBound); } catch {}
-        onVisibilityBound = null;
-      }
+      if (onOrientBound) { try { window.removeEventListener('deviceorientation', onOrientBound, true); } catch {} onOrientBound = null; }
+      if (onResizeBound)  { try { window.removeEventListener('resize', onResizeBound); } catch {} onResizeBound = null; }
+      if (onKeyBound)     { try { window.removeEventListener('keydown', onKeyBound); } catch {} onKeyBound = null; }
+      if (onVisibilityBound) { try { document.removeEventListener('visibilitychange', onVisibilityBound); } catch {} onVisibilityBound = null; }
+
+      // стоп камера
+      try { stopCamera(); } catch {}
+
       close.onclick = null;
       stage.innerHTML = '';
       modal.classList.add('hidden');
@@ -426,14 +518,17 @@ export async function openGhostCatch(rarity = 'common') {
     };
 
     // Кнопка закрытия
-    close.onclick = () => {
-      finish({ success: false });
-    };
+    close.onclick = () => { finish({ success:false }); };
 
-    // Старт цикла
+    // Показать «Сенсоры» на iOS
+    if ('DeviceOrientationEvent' in window &&
+        typeof DeviceOrientationEvent.requestPermission === 'function') {
+      perm.style.display = 'inline-block';
+    }
+
+    // Старт
     raf = requestAnimationFrame(tick);
 
-    // Ждём завершения
     const result = await done;
     cleanup();
     return result;
@@ -442,6 +537,6 @@ export async function openGhostCatch(rarity = 'common') {
     console.error('AR error:', err);
     cleanup();
     _busy = false;
-    return { success: false };
+    return { success:false };
   }
 }
