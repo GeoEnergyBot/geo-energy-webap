@@ -199,15 +199,7 @@ function renderInventory(){
 }
 
 function mountButtons(){ /* disabled */ }
-  // Inventory button
-  if (!document.getElementById('btn-inventory')){
-    const btn = document.createElement('button');
-    btn.id = 'btn-inventory'; btn.textContent = 'Инвентарь';
-    Object.assign(btn.style, { position:'absolute', left:'8px', bottom:'156px', zIndex:1100, background:'#121a21', color:'#e9f1f7', border:'1px solid rgba(255,255,255,.12)', borderRadius:'14px', padding:'10px 14px', cursor:'pointer' });
-    btn.onclick = openInventory;
-    document.body.appendChild(btn);
-  }
-}
+
 
 function refreshWalletBadge(){
   // refresh Dust number in quests wallet panel if exists

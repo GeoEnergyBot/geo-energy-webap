@@ -24,7 +24,7 @@ export async function openGhostCatch(rarity='common'){
 
     const canvas = document.createElement('canvas');
     // подгоним размер под контейнер (портрет)
-    const rect = stage.getBoundingClientRect(); const W = Math.floor(rect.width||window.innerWidth*0.9||360), H = Math.floor(rect.height||window.innerHeight*0.75||540);
+    const rect=stage.getBoundingClientRect(); const W=Math.floor(rect.width||window.innerWidth*0.9||360), H=Math.floor(rect.height||window.innerHeight*0.75||540);
     canvas.width = W; canvas.height = H;
     canvas.style.display = 'block';
     canvas.style.margin = '12px auto';
@@ -61,7 +61,7 @@ export async function openGhostCatch(rarity='common'){
     const diff = DIFFICULTY[rarity] || DIFFICULTY.common;
     const ctx = canvas.getContext('2d');
     const circleR = diff.reticleRadiusPx || 60;
-    let ghost = { x: W/2, y: H/2, vx: 0.9*diff.(baseSpeed||200)/60, vy: 0.7*diff.(baseSpeed||200)/60 };
+    let ghost = { x: W/2, y: H/2, vx: 0.9*diff.baseSpeed/60, vy: 0.7*diff.baseSpeed/60 };
     let progress = 0; // 0..1
     let heldMs = 0, combo = 1.0;
     let lastFeint = 0, running=false, raf=0, tPrev=0;
@@ -72,7 +72,8 @@ export async function openGhostCatch(rarity='common'){
       window.dispatchEvent(new Event('ar:close'));
       stage.innerHTML='';
       close.onclick=null;
-      running = true; tPrev = performance.now(); raf = requestAnimationFrame(tick);
+      startBtn.onclick=null;
+    };
     const closeHandler = ()=>{ cleanup(); resolveFn({ success:false }); };
     close.onclick = closeHandler;
 
@@ -106,16 +107,16 @@ export async function openGhostCatch(rarity='common'){
       if (ghost.y < circleR || ghost.y > H-circleR) ghost.vy*=-1;
 
       
-      const reticleX = W/2, reticleY = H/2;
+      const reticleX=W/2, reticleY=H/2;
       const inCircle = Math.hypot(ghost.x-reticleX, ghost.y-reticleY) <= circleR;
       if (inCircle){ heldMs += dt; if (heldMs > (AR_TUNING.comboAfterMs||1500)) combo = Math.min(AR_TUNING.comboMax||1.5, combo + 0.003); }
       else { combo = 1.0; }
       const goalMs = (DIFFICULTY[rarity]?.holdMs || 16000);
-      if (inCircle) progress = Math.min(1, heldMs/goalMs); else progress = Math.max(0, progress - (dt/1000) * (AR_TUNING.decayOutPerSec||0.15));
+      if (inCircle) progress = Math.min(1, heldMs/goalMs);
+      else progress = Math.max(0, progress - (dt/1000) * (AR_TUNING.decayOutPerSec||0.15));
       ctx.clearRect(0,0,W,H); drawTarget(); drawGhost();
       progIn.style.width = (progress*100).toFixed(1)+'%';
-      const remain = Math.max(0, goalMs - heldMs);
-      timer.textContent = inCircle ? ('Осталось: ' + formatMs(remain)) : 'Наведите призрака в круг';
+      const remain = Math.max(0, goalMs - heldMs); timer.textContent = inCircle ? ('Осталось: ' + formatMs(remain)) : 'Наведите призрака в круг';
 
       if (progress >= 1){
         cleanup();
@@ -125,7 +126,7 @@ export async function openGhostCatch(rarity='common'){
 
     let resolveFn;
     const promise = new Promise(res=> resolveFn = res);
-    running = true; tPrev = performance.now(); raf = requestAnimationFrame(tick);
+    running=true; tPrev=performance.now(); raf=requestAnimationFrame(tick);
 
     return await promise;
   } finally {

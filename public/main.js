@@ -76,7 +76,7 @@ window.addEventListener('ar:close', ()=>{ try{ document.body.classList.remove('a
 window.addEventListener('error', (e)=>{ try{ showFatal('Ошибка: '+(e.message||'unknown')); }catch(_){} });
 
 
-/* Bottom bar demo handlers */
+/* Bottom bar demo handlers (non-blocking) */
 try{
   document.getElementById('nav-profile')?.addEventListener('click', ()=> alert('Профиль (в разработке)'));
   document.getElementById('nav-inventory')?.addEventListener('click', ()=> alert('Инвентарь (в разработке)'));

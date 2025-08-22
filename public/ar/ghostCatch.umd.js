@@ -9,9 +9,9 @@
   const DIFFICULTY = (typeof window!=='undefined' && window.DIFFICULTY) ? window.DIFFICULTY : 'normal';
   const preset = {
     easy:   { holdMs: 1200, baseSpeed: 180, nearBoost: 60,  feintEveryMs: 3400, reticle: 160 },
-    normal: { holdMs: 1500, baseSpeed: 220, nearBoost: 110, feintEveryMs: 3000, reticle: 140 },
-    hard:   { holdMs: 1800, baseSpeed: 260, nearBoost: 145, feintEveryMs: 2600, reticle: 120 }
-  }[DIFFICULTY] || { holdMs: 1500, baseSpeed: 220, nearBoost: 110, feintEveryMs: 3000, reticle: 140 };
+    normal: { holdMs: 1500, baseSpeed: 180, nearBoost: 110, feintEveryMs: 3000, reticle: 140 },
+    hard:   { holdMs: 1800, baseSpeed: 180, nearBoost: 145, feintEveryMs: 2600, reticle: 120 }
+  }[DIFFICULTY] || { holdMs: 1500, baseSpeed: 180, nearBoost: 110, feintEveryMs: 3000, reticle: 140 };
 
   function speedFor(rarity){
     switch(String(rarity||'normal')){
