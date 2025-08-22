@@ -1,3 +1,4 @@
+import { quests } from '../quests.js';
 import { anti } from '../anti.js';
 import { openGhostCatch } from '../ar/ghostCatch.js';
 import { FUNCTIONS_ENDPOINT, SUPABASE_ANON } from '../env.js';
@@ -94,6 +95,7 @@ marker.on('click', async () => {
   // Mini-game before collect
   const arResult = await openGhostCatch(point.type === 'rare' ? 'rare' : (point.type === 'advanced' ? 'advanced' : 'common'));
   if (!arResult || !arResult.success) return;
+  quests.onARWin();
 
   __pending.add(point.id);
   try{
@@ -123,9 +125,11 @@ marker.on('click', async () => {
     });
     const collectResult = await res.json();
     if (!res.ok || !collectResult.success) {
-      alert("🚫 Ошибка сбора энергии: " + (collectResult.error || res.status));
+      alert(\"🚫 Ошибка сбора энергии: \" + (collectResult.error || res.status));
       return;
     }
+
+    quests.onCollect(point.type);
 
     // Remove marker locally
     const idx = energyMarkers.findIndex(x => x.id === point.id);
@@ -189,9 +193,11 @@ marker.on('click', async () => {
 
           const collectResult = await res.json();
           if (!res.ok || !collectResult.success) {
-            alert("🚫 Ошибка сбора энергии: " + (collectResult.error || res.status));
-            return;
-          }
+      alert(\"🚫 Ошибка сбора энергии: \" + (collectResult.error || res.status));
+      return;
+    }
+
+    quests.onCollect(point.type);
 
           const idx = energyMarkers.findIndex(x => x.id === point.id);
           if (idx >= 0) {

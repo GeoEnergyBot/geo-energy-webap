@@ -4,6 +4,7 @@ import { makeLeafletGhostIconAsync, makeLeafletGhostIcon, getTileId } from './sr
 import { updatePlayerHeader } from './src/ui.js';
 import { buildBaseLayers, spawnArEntryNear, setArEntryHandler } from './src/map/tiles.js';
 import { loadEnergyPoints } from './src/map/energy.js';
+import { quests } from './src/quests.js';
 import { anti } from './src/anti.js';
 
 const tg = window.Telegram?.WebApp;
@@ -14,6 +15,7 @@ let map, playerMarker, ghostIcon;
 let lastTileId = null;
 
 initSupabase();
+quests.init();
 
 (async () => {
   const { level, energy, energy_max, dbRow } = await loadOrCreatePlayer(user);
