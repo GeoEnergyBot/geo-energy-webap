@@ -47,8 +47,8 @@ export function openGyroChase(rarity='common') {
     position:'absolute', left:'50%', top:'50%',
     width:`${reticleSize}px`, height:`${reticleSize}px`,
     marginLeft:`-${reticleSize/2}px`, marginTop:`-${reticleSize/2}px`,
-    borderRadius:'50%', border:'2px solid rgba(255,255,255,.75)`,
-    boxShadow:'0 0 0 3px rgba(0,0,0,.25), inset 0 0 30px rgba(0,255,220,.15)`,
+    borderRadius:'50%', border:'2px solid rgba(255,255,255,.75)',
+    boxShadow:'0 0 0 3px rgba(0,0,0,.25), inset 0 0 30px rgba(0,255,220,.15)',
     backdropFilter:'blur(1px)'
   });
   const ring = document.createElement('div');
@@ -56,7 +56,7 @@ export function openGyroChase(rarity='common') {
     position:'absolute', left:'50%', top:'50%',
     width:`${reticleSize+16}px`, height:`${reticleSize+16}px`,
     marginLeft:`-${(reticleSize+16)/2}px`, marginTop:`-${(reticleSize+16)/2}px`,
-    borderRadius:'50%', background:'conic-gradient(#00ffd0 0deg, rgba(255,255,255,.15) 0deg)`,
+    borderRadius:'50%', background:'conic-gradient(#00ffd0 0deg, rgba(255,255,255,.15) 0deg)',
     boxShadow:'0 0 14px rgba(0,255,220,.35)', pointerEvents:'none'
   });
   overlay.appendChild(ring); overlay.appendChild(reticle);
@@ -233,7 +233,6 @@ export function openGyroChase(rarity='common') {
 
   // Параметры сложности
   const Rcatch = diff.reticleRadiusPx;
-  const CAPTURE_PAD = 18; // небольшой допуск к радиусу для мягкого захвата
   const holdTarget = diff.holdMs;
   const baseSpeed = diff.baseSpeed;
   const nearBoost = diff.nearBoost;
@@ -292,7 +291,7 @@ export function openGyroChase(rarity='common') {
 
     updateArrows(screenX, screenY);
 
-    const nowInside = dist2 <= (Rcatch + CAPTURE_PAD);
+    const nowInside = dist2 <= Rcatch;
     if (nowInside && !wasInside) { try{ if (navigator.vibrate) navigator.vibrate(15); }catch(e){} }
     wasInside = nowInside;
     if (nowInside){
