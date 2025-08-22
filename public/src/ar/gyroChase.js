@@ -39,7 +39,7 @@ export function openGyroChase(rarity='common') {
   stage.appendChild(overlay);
   // Клик по экрану — ре-калибровка базового угла
   let calib = { alpha0:null, beta0:null };
-  overlay.addEventListener('click', ()=>{ try{ calib.alpha0=null; calib.beta0=null; }catch{} });
+  overlay.addEventListener('click', ()=>{ try{ calib.alpha0=null; calib.beta0=null; }catch(e) {} });
 
   // Прицел/прогресс
   const reticleSize = diff.reticleRadiusPx * 2;
@@ -132,9 +132,9 @@ export function openGyroChase(rarity='common') {
 
   // Закрытие
   const cleanupFns = [];
-  const resolveIf = (val)=>{ if(!__resolved){ __resolved=true; try{ __resolve(val); }catch{} } };
+  const resolveIf = (val)=>{ if(!__resolved){ __resolved=true; try{ __resolve(val); }catch(e) {} } };
   const close = () => {
-    try { cleanupFns.forEach(fn => fn && fn()); } catch {}
+    try { cleanupFns.forEach(fn => fn && fn()); } catch(e) {}
     modal.classList.add('hidden'); stage.innerHTML='';
     resolveIf(false);
     __arActive = false;
@@ -148,11 +148,11 @@ export function openGyroChase(rarity='common') {
     try {
       try {
         stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal:'environment' } }, audio:false });
-      } catch {
+      } catch(e) {
         stream = await navigator.mediaDevices.getUserMedia({ video: true, audio:false });
       }
       video.srcObject = stream; await video.play();
-      cleanupFns.push(() => { try { stream.getTracks().forEach(t => t.stop()); } catch {} });
+      cleanupFns.push(() => { try { stream.getTracks().forEach(t => t.stop()); } catch(e) {} });
     } catch (err) {
       console.error('Camera error', err);
       alert('Не удалось запустить камеру. Проверьте разрешения Telegram на камеру.');
@@ -287,7 +287,7 @@ export function openGyroChase(rarity='common') {
 
     const nowInside = dist2 <= Rcatch;
     if (nowInside && !wasInside) {
-      try{ if (navigator.vibrate) navigator.vibrate(15); }catch{}
+      try{ if (navigator.vibrate) navigator.vibrate(15); }catch(e) {}
     }
     wasInside = nowInside;
 
@@ -301,9 +301,9 @@ export function openGyroChase(rarity='common') {
           } else if (navigator.vibrate) {
             navigator.vibrate([60,40,60]);
           }
-        }catch{}
+        }catch(e) {}
         const sound = document.getElementById('energy-sound');
-        if (sound){ try{ sound.currentTime=0; sound.play(); } catch{} }
+        if (sound){ try{ sound.currentTime=0; sound.play(); } catch(e) {} }
         // здесь можно начислять награду
         resolveIf(true);
         close();
@@ -326,7 +326,7 @@ export function openGyroChase(rarity='common') {
     try{
       if (document.hidden){ cancelAnimationFrame(rafId); video.pause(); }
       else { video.play().catch(function(){}); rafId = requestAnimationFrame(tick); }
-    }catch{}
+    }catch(e) {}
   };
   document.addEventListener('visibilitychange', onVis);
   cleanupFns.push(()=>document.removeEventListener('visibilitychange', onVis));
