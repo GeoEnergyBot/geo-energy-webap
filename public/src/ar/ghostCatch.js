@@ -1,23 +1,30 @@
-import { DIFFICULTY as DIFF_FROM_ENV, AR_TUNING } from '../env.js';
+/* UMD-style AR mini-game: no imports, safe to include or import.
+   Exposes:
+     - window.openGhostCatch
+     - window.openGyroChase (alias)
+     - CommonJS: module.exports = { openGhostCatch, openGyroChase }
+*/
 
-// Fallback difficulty table (used if env lacks values)
 const DEFAULT_DIFF = {
   common:   { sensorYawToPx: 6, sensorPitchToPx: 6, baseSpeed: 180, nearBoost: 80,  minSpeed: 40, maxSpeed: 300, catchRadius: 70, holdMs: 1100 },
   advanced: { sensorYawToPx: 7, sensorPitchToPx: 7, baseSpeed: 220, nearBoost: 110, minSpeed: 60, maxSpeed: 360, catchRadius: 66, holdMs: 1300 },
   rare:     { sensorYawToPx: 8, sensorPitchToPx: 8, baseSpeed: 260, nearBoost: 140, minSpeed: 80, maxSpeed: 420, catchRadius: 62, holdMs: 1500 },
 };
 
-const DIFFICULTY = DIFF_FROM_ENV && typeof DIFF_FROM_ENV === 'object' ? DIFF_FROM_ENV : DEFAULT_DIFF;
-
-let _busy = false;
+function getGlobalDiff(){
+  const w = typeof window !== 'undefined' ? window : {};
+  // allow override via globals
+  return w.GEO_AR_DIFFICULTY || w.DIFFICULTY || DEFAULT_DIFF;
+}
 
 function clamp(v, a, b){ return Math.max(a, Math.min(b, v)); }
 function shortestDeg(a){ return (((a + 180) % 360) + 360) % 360 - 180; }
 function lerp(a,b,t){ return a + (b-a)*t; }
 
 function resolvedDifficulty(rarity='common', opts={}){
-  const d = DIFFICULTY[rarity] || DEFAULT_DIFF.common;
-  // Adaptive (optional): tweak based on player level / accessibility flag
+  const glob = getGlobalDiff();
+  const d = (glob && glob[rarity]) || DEFAULT_DIFF.common;
+
   let baseSpeed = d.baseSpeed;
   if (Number.isFinite(opts.playerLevel)){
     const lv = Math.max(1, Math.floor(opts.playerLevel));
@@ -51,7 +58,8 @@ function drawGhost(ctx, x, y){
   ctx.fillText('👻', x, y);
 }
 
-export async function openGhostCatch(rarity='common', opts={}){
+let _busy = false;
+async function openGhostCatch(rarity='common', opts={}){
   if (_busy) return { success:false };
   _busy = true;
 
@@ -76,7 +84,6 @@ export async function openGhostCatch(rarity='common', opts={}){
     stage.appendChild(wrap);
 
     const canvas = document.createElement('canvas');
-    // Dimensions try to follow container, but keep aspect ~2:3
     const rect = stage.getBoundingClientRect();
     const H = Math.floor(Math.max(420, Math.min(680, rect.height || 540)));
     const W = Math.floor(Math.max(300, Math.min(480, Math.round(H*0.666))));
@@ -93,7 +100,8 @@ export async function openGhostCatch(rarity='common', opts={}){
     Object.assign(barIn.style,{ height:'10px', width:'0%', borderRadius:'8px', background:'linear-gradient(90deg,#22d3ee,#818cf8,#e879f9)' });
     bar.appendChild(barIn); wrap.appendChild(bar);
 
-    // Permission UI (iOS)
+    // Permission UI (iOS/Android)
+    const conf = resolvedDifficulty(rarity, opts);
     const perm = document.createElement('div');
     Object.assign(perm.style, {
       position:'absolute', left:'50%', bottom:'16px', transform:'translateX(-50%)',
@@ -109,8 +117,6 @@ export async function openGhostCatch(rarity='common', opts={}){
     perm.appendChild(permMsg); perm.appendChild(permBtn); wrap.appendChild(perm);
 
     // Controls
-    const conf = resolvedDifficulty(rarity, opts);
-
     let camX=0, camY=0, camXS=0, camYS=0;
     let baseAlpha=null, baseBeta=null, sensorsOn=false;
 
@@ -140,12 +146,8 @@ export async function openGhostCatch(rarity='common', opts={}){
       }
     }
     permBtn.onclick = enableSensorsByGesture;
-    // Android: подключаемся сразу (нет диалога разрешений)
     if (!('DeviceOrientationEvent' in window && typeof DeviceOrientationEvent.requestPermission==='function')){
-      try {
-        window.addEventListener('deviceorientation', onOrient, true);
-        sensorsOn = true; perm.style.display='none';
-      } catch {}
+      try { window.addEventListener('deviceorientation', onOrient, true); sensorsOn=true; perm.style.display='none'; } catch {}
     }
 
     // Joystick fallback
@@ -164,19 +166,15 @@ export async function openGhostCatch(rarity='common', opts={}){
     const centerX = W/2, centerY = H/2;
     const Rcatch = conf.catchRadius, holdNeed = conf.holdMs;
 
-    // Telemetry counters
+    // Telemetry
     let samples=0, insideSamples=0;
 
-    let raf=0, finished=false;
     function render(aimX, aimY){
       ctx.clearRect(0,0,W,H);
-
-      // aim circle
       ctx.beginPath();
       ctx.arc(aimX, aimY, Rcatch, 0, Math.PI*2);
       ctx.strokeStyle='rgba(255,255,255,.7)'; ctx.lineWidth=2; ctx.stroke();
 
-      // ghost
       const scrX = gx + centerX - camXS;
       const scrY = gy + centerY - camYS;
       drawGhost(ctx, scrX, scrY);
@@ -184,56 +182,41 @@ export async function openGhostCatch(rarity='common', opts={}){
 
     function tick(ts){
       const dt = Math.min(50, ts-last)/1000; last=ts;
-
-      // Smooth sensors
       camXS = lerp(camXS, camX, 0.15);
       camYS = lerp(camYS, camY, 0.15);
 
-      // Aim (clamped to central zone)
       const aimX = clamp(centerX + camXS, W*0.15, W*0.85);
       const aimY = clamp(centerY + camYS, H*0.15, H*0.85);
 
-      // Screen ghost pos
       const scrX = gx + centerX - camXS;
       const scrY = gy + centerY - camYS;
-
       const dx = scrX - aimX, dy = scrY - aimY;
       const dist = Math.hypot(dx, dy);
       const dirx = dist>0 ? dx/dist : 0;
       const diry = dist>0 ? dy/dist : 0;
 
-      // Speed (runs away from aim)
       let speed = conf.baseSpeed + (dist < Rcatch*1.6 ? conf.nearBoost : 0);
       speed = clamp(speed, conf.minSpeed, conf.maxSpeed);
 
-      // Physics in world coords
       vx += dirx * speed * dt;
       vy += diry * speed * dt;
-      // friction
       vx *= 0.90; vy *= 0.90;
       gx += vx * dt; gy += vy * dt;
 
-      // Bounds (world ~ screen half)
       const limX = (W/2)*0.95, limY = (H/2)*0.95;
       if (gx >  limX){ gx= limX; vx*=-0.8; }
       if (gx < -limX){ gx=-limX; vx*=-0.8; }
       if (gy >  limY){ gy= limY; vy*=-0.8; }
       if (gy < -limY){ gy=-limY; vy*=-0.8; }
 
-      // Capture logic
       samples++;
-      if (dist <= Rcatch){
-        insideSamples++;
-        holdMs += dt*1000;
-      } else {
-        holdMs = Math.max(0, holdMs - dt*600);
-      }
+      if (dist <= Rcatch){ insideSamples++; holdMs += dt*1000; }
+      else { holdMs = Math.max(0, holdMs - dt*600); }
       barIn.style.width = Math.min(100, Math.floor(100*holdMs/holdNeed)) + '%';
 
       render(aimX, aimY);
 
-      if (!finished && holdMs >= holdNeed){
-        finished = true;
+      if (holdMs >= holdNeed){
         cancelAnimationFrame(raf);
         absorbAnimation().then(()=>{
           const durationMs = Math.round(performance.now() - tStart);
@@ -244,11 +227,9 @@ export async function openGhostCatch(rarity='common', opts={}){
         });
         return;
       }
-
-      if (!finished) raf = requestAnimationFrame(tick);
+      raf = requestAnimationFrame(tick);
     }
 
-    // Small absorb animation (~450-600ms), with gentle vibration
     async function absorbAnimation(){
       try { navigator.vibrate && navigator.vibrate([40,40,40]); } catch {}
       const aCtx = canvas.getContext('2d');
@@ -256,7 +237,6 @@ export async function openGhostCatch(rarity='common', opts={}){
       while (true){
         const t = performance.now(); const p = clamp((t-start)/dur, 0, 1);
         aCtx.clearRect(0,0,W,H);
-        // fade to center pulse
         aCtx.fillStyle = 'rgba(0,0,0,' + (0.1 + 0.2*p) + ')';
         aCtx.fillRect(0,0,W,H);
         const r = lerp(26, 8, p);
@@ -272,35 +252,47 @@ export async function openGhostCatch(rarity='common', opts={}){
       await new Promise(r=>setTimeout(r, 150));
     }
 
-    // Promise & cleanup
     let resolve = ()=>{};
     const promise = new Promise(res=> resolve=res);
 
-    cleanup = ()=>{
+    let raf = requestAnimationFrame(tick);
+
+    function cleanup(){
       try{ cancelAnimationFrame(raf); }catch{}
       try{ window.removeEventListener('deviceorientation', onOrient, true); }catch{}
       try{ stage && (stage.innerHTML=''); }catch{}
       try{ modal.classList.add('hidden'); }catch{}
       window.dispatchEvent(new Event('ar:close'));
-      _busy = false;
-    };
+      _busy=false;
+    }
 
-    close.onclick = ()=>{
+    const onClose = ()=>{
       const result = { success:false };
       window.dispatchEvent(new CustomEvent('ar:fail', { detail: { rarity, reason:'closed' } }));
       resolve(result);
     };
+    if (close) close.onclick = onClose;
 
-    // Start loop
-    let raf = requestAnimationFrame(tick);
     const result = await promise;
     cleanup();
     return result;
 
   } catch (err){
     console.error('AR error:', err);
-    cleanup();
-    _busy = false;
+    _busy=false;
     return { success:false };
   }
+}
+
+function openGyroChase(rarity='common', opts={}){ return openGhostCatch(rarity, opts); }
+
+// expose to window
+if (typeof window !== 'undefined'){
+  window.openGhostCatch = openGhostCatch;
+  window.openGyroChase = openGyroChase;
+}
+
+// CommonJS (optional)
+if (typeof module !== 'undefined' && module.exports){
+  module.exports = { openGhostCatch, openGyroChase };
 }
