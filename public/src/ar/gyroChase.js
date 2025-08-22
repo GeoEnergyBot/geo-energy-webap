@@ -47,8 +47,8 @@ export function openGyroChase(rarity='common') {
     position:'absolute', left:'50%', top:'50%',
     width:`${reticleSize}px`, height:`${reticleSize}px`,
     marginLeft:`-${reticleSize/2}px`, marginTop:`-${reticleSize/2}px`,
-    borderRadius:'50%', border:'2px solid rgba(255,255,255,.75)',
-    boxShadow:'0 0 0 3px rgba(0,0,0,.25), inset 0 0 30px rgba(0,255,220,.15)',
+    borderRadius:'50%', border:'2px solid rgba(255,255,255,.75)`,
+    boxShadow:'0 0 0 3px rgba(0,0,0,.25), inset 0 0 30px rgba(0,255,220,.15)`,
     backdropFilter:'blur(1px)'
   });
   const ring = document.createElement('div');
@@ -56,7 +56,7 @@ export function openGyroChase(rarity='common') {
     position:'absolute', left:'50%', top:'50%',
     width:`${reticleSize+16}px`, height:`${reticleSize+16}px`,
     marginLeft:`-${(reticleSize+16)/2}px`, marginTop:`-${(reticleSize+16)/2}px`,
-    borderRadius:'50%', background:'conic-gradient(#00ffd0 0deg, rgba(255,255,255,.15) 0deg)',
+    borderRadius:'50%', background:'conic-gradient(#00ffd0 0deg, rgba(255,255,255,.15) 0deg)`,
     boxShadow:'0 0 14px rgba(0,255,220,.35)', pointerEvents:'none'
   });
   overlay.appendChild(ring); overlay.appendChild(reticle);
@@ -162,11 +162,6 @@ export function openGyroChase(rarity='common') {
   // Хелперы
   const W = () => overlay.clientWidth, H = () => overlay.clientHeight;
   const HW = () => W()/2, HH = () => H()/2;
-  const setRingProgress = p => {
-    const clamped = Math.max(0, Math.min(1, p));
-    const deg = Math.floor(360 * clamped);
-    ring.style.background = `conic-gradient(#00ffd0 ${deg}deg, rgba(255,255,255,.15) ${deg}deg)`;
-  };
   const updateArrows = (x,y) => {
     const w=W(), h=H(), m=40;
     arrowL.style.opacity = x < -m ? '1':'0';
@@ -174,9 +169,6 @@ export function openGyroChase(rarity='common') {
     arrowT.style.opacity = y < -m ? '1':'0';
     arrowB.style.opacity = y > h+m ? '1':'0';
   };
-  const vib = p => { try { navigator.vibrate && navigator.vibrate(p); } catch {} };
-
-  const haptic = (pattern)=>{ try{ if (window.Telegram?.WebApp?.HapticFeedback) { window.Telegram.WebApp.HapticFeedback.impactOccurred('light'); } else if (navigator.vibrate) { navigator.vibrate(pattern || 15); } }catch{} };
 
   // Состояние гироскопа/эмуляции
   let calib = { alpha0:null, beta0:null };
@@ -233,6 +225,7 @@ export function openGyroChase(rarity='common') {
 
   // Параметры сложности
   const Rcatch = diff.reticleRadiusPx;
+  const CAPTURE_PAD = 10;          // небольшой допуск к радиусу — попадается мягче
   const holdTarget = diff.holdMs;
   const baseSpeed = diff.baseSpeed;
   const nearBoost = diff.nearBoost;
@@ -241,7 +234,7 @@ export function openGyroChase(rarity='common') {
   let gx=(Math.random()*2-1)*HW()*0.7, gy=(Math.random()*2-1)*HH()*0.7;
   let vx=0, vy=0, lastT=performance.now(), holdMs=0, lastNearTs=0, lastFeintTs=0;
 
-  // Флаг между кадрами (исправляет падение ReferenceError)
+  // Флаг между кадрами
   let wasInside = false;
 
   let rafId=0;
@@ -257,7 +250,7 @@ export function openGyroChase(rarity='common') {
     const dist = Math.hypot(dx,dy);
     const dirX = dx===0?0:dx/(dist||1), dirY = dy===0?0:dy/(dist||1);
 
-    // Если стартовали фактически в центре — лёгкий пинок, чтобы не залипать
+    // если оказались почти в центре — задаём стартовый импульс
     if (dist < 1) { vx += (Math.random()*2-1)*60; vy += (Math.random()*2-1)*60; }
 
     let speed = baseSpeed + (dist < Rcatch*1.7 ? nearBoost : 0);
@@ -279,10 +272,9 @@ export function openGyroChase(rarity='common') {
     if (gy>limitY){ gy=limitY; vy*=-edgeBounce; }
     if (gy<-limitY){ gy=-limitY; vy*=-edgeBounce; }
 
+    // Координаты и дистанция ПОСЛЕ физики — по ним рисуем и считаем ловлю
     screenX = (gx - camX) + cx;
     screenY = (gy - camY) + cy;
-
-    // Пересчёт дистанции ПОСЛЕ физики — по нему считаем попадание
     const dx2 = screenX - cx, dy2 = screenY - cy;
     const dist2 = Math.hypot(dx2, dy2);
 
@@ -291,25 +283,24 @@ export function openGyroChase(rarity='common') {
 
     updateArrows(screenX, screenY);
 
-    const nowInside = dist2 <= Rcatch;
-    if (nowInside && !wasInside) { try{ if (navigator.vibrate) navigator.vibrate(15); }catch(e){} }
+    const nowInside = dist2 <= (Rcatch + CAPTURE_PAD);
+    if (nowInside && !wasInside) { try{ if (navigator.vibrate) navigator.vibrate(15); }catch{} }
     wasInside = nowInside;
+
     if (nowInside){
       holdMs += dt*1000;
       if (Math.abs(dist2 - Rcatch) < 6) lastNearTs = now;
       if (holdMs >= holdTarget){
         try{
-          if (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.HapticFeedback) {
+          if (window.Telegram?.WebApp?.HapticFeedback) {
             window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
           } else if (navigator.vibrate) {
             navigator.vibrate([60,40,60]);
           }
-        }catch(e){}
+        }catch{}
         const sound = document.getElementById('energy-sound');
-        if (sound){ try{ sound.currentTime=0; sound.play(); } catch(e){} }
-        // Результат успеха
-        try { if (typeof resolveIf === 'function') resolveIf(true); } catch(e){}
-        close(); return;
+        if (sound){ try{ sound.currentTime=0; sound.play(); } catch{} }
+        alert('Покемон пойман'); close(); return;
       }
     } else {
       holdMs = Math.max(0, holdMs - dt*1000*0.55);
@@ -327,7 +318,7 @@ export function openGyroChase(rarity='common') {
   const onVis = ()=>{
     try{
       if (document.hidden){ cancelAnimationFrame(rafId); video.pause(); }
-      else { video.play().catch(function(){}); rafId = requestAnimationFrame(tick); }
+      else { video.play().catch(()=>{}); rafId = requestAnimationFrame(tick); }
     }catch{}
   };
   document.addEventListener('visibilitychange', onVis);
