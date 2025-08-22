@@ -3,7 +3,7 @@ import { initSupabase, loadOrCreatePlayer } from './src/api/supabase.js';
 import { makeLeafletGhostIconAsync, getTileId } from './src/utils.js';
 import { updatePlayerHeader } from './src/ui.js';
 import { buildBaseLayers, spawnArEntryNear, setArEntryHandler } from './src/map/tiles.js';
-import { loadEnergyPoints } from './src/map/energy.js';
+import { loadEnergyPoints } from './src/map/energy.js?v=1.0.5';
 import { quests } from './src/quests.js';
 import { store } from './src/store.js';
 import { hotzones } from './src/hotzones.js';
