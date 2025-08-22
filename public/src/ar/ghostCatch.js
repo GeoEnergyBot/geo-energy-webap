@@ -1,3 +1,4 @@
+// ghostCatch.js
 import { DIFFICULTY } from '../env.js';
 
 /** Мини-игра «Поймай призрака»: держи цель в прицеле нужное время */
@@ -6,21 +7,30 @@ let _busy = false;
 function _difficulty(rarity) {
   const d = DIFFICULTY?.[rarity] || {};
   return {
-    sensorYawToPx:   d.sensorYawToPx   ?? 6,
+    sensorYawToPx:   d.sensorYawToPx   ?? 6,  // чувствительность поворота к пикселям
     sensorPitchToPx: d.sensorPitchToPx ?? 6,
     baseSpeed:       d.baseSpeed       ?? ({ common:180, advanced:220, rare:260 }[rarity] || 200),
     nearBoost:       d.nearBoost       ?? ({ common: 80, advanced:110, rare:140 }[rarity] ||  90),
     minSpeed:        d.minSpeed        ?? ({ common: 40, advanced: 60, rare: 80 }[rarity] ||  50),
     maxSpeed:        d.maxSpeed        ?? ({ common:300, advanced:360, rare:420 }[rarity] || 340),
-    catchRadius:     d.catchRadius     ?? 70,
+    catchRadius:     d.catchRadius     ?? 70, // радиус круга-захвата (в CSS-пикселях холста)
     holdMs:          d.holdMs          ?? ({ common:1100, advanced:1300, rare:1500 }[rarity] || 1200),
   };
 }
 
+/**
+ * Запуск мини-игры. Возвращает {success:boolean}
+ * Требуемая разметка вне этого модуля:
+ *  <div id="ar-modal" class="hidden">
+ *    <div id="ar-title"></div>
+ *    <button id="ar-close">×</button>
+ *    <div id="ar-stage"></div>
+ *  </div>
+ */
 export async function openGhostCatch(rarity = 'common') {
   if (_busy) return { success: false };
 
-  // Ищем DOM до установки _busy, иначе можно залипнуть в busy
+  // Проверяем DOM до установки _busy, чтобы не залипнуть
   const modal = document.getElementById('ar-modal');
   const stage = document.getElementById('ar-stage');
   const title = document.getElementById('ar-title');
@@ -29,7 +39,13 @@ export async function openGhostCatch(rarity = 'common') {
 
   _busy = true;
 
+  // --------- локальные переменные, доступные из cleanup ----------
+  let raf = 0;
+  let onOrientBound = null;
+  let onResizeBound = null;
   let cleanup = () => {};
+  let resolveDone;
+
   try {
     if (title) title.textContent = 'Поймайте призрака в круг';
     modal.classList.remove('hidden');
@@ -38,19 +54,26 @@ export async function openGhostCatch(rarity = 'common') {
     // Сцена
     stage.innerHTML = '';
     const wrap = document.createElement('div');
-    Object.assign(wrap.style, { position: 'relative', width: '100%', height: '100%' });
+    Object.assign(wrap.style, {
+      position: 'relative',
+      width: '100%',
+      height: '100%',
+      paddingTop: '4px',        // небольшой отступ сверху, чтобы ничего не налезало
+      boxSizing: 'border-box'
+    });
     stage.appendChild(wrap);
 
-    // Canvas
+    // Canvas с ретиной и адаптивом
     const canvas = document.createElement('canvas');
-    // Фиксированный холст (можно заменить на responsive при желании)
-    const W = 360, H = 540;
-    canvas.width = W; canvas.height = H;
     Object.assign(canvas.style, {
       display: 'block',
-      margin: '12px auto',
+      margin: '8px auto 0',
       borderRadius: '16px',
-      background: 'radial-gradient(circle at 50% 40%, rgba(0,255,153,.18), transparent 60%), #0a0e11'
+      background: 'radial-gradient(circle at 50% 40%, rgba(0,255,153,.18), transparent 60%), #0a0e11',
+      maxWidth: '480px',
+      width: '100%',
+      height: 'auto',
+      touchAction: 'none'
     });
     wrap.appendChild(canvas);
     const ctx = canvas.getContext('2d');
@@ -62,7 +85,9 @@ export async function openGhostCatch(rarity = 'common') {
       height: '10px',
       borderRadius: '8px',
       background: 'rgba(255,255,255,.12)',
-      margin: '8px 12px 0'
+      margin: '10px auto 0',
+      maxWidth: '480px',
+      width: '100%'
     });
     Object.assign(barIn.style, {
       height: '10px',
@@ -73,45 +98,49 @@ export async function openGhostCatch(rarity = 'common') {
     bar.appendChild(barIn);
     wrap.appendChild(bar);
 
-    // Подсказка/кнопка разрешения сенсоров
-    const perm = document.createElement('div');
+    // Кнопка включения сенсоров — компактно в правом верхнем углу холста, скрыта по умолчанию
+    const perm = document.createElement('button');
+    perm.textContent = 'Сенсоры';
     Object.assign(perm.style, {
       position: 'absolute',
-      left: '50%',
-      bottom: '16px',
-      transform: 'translateX(-50%)',
-      display: 'flex',
-      gap: '10px',
-      background: 'rgba(0,0,0,.35)',
-      color: '#fff',
-      padding: '8px 10px',
-      borderRadius: '12px',
-      alignItems: 'center',
-      fontSize: '14px',
-      pointerEvents: 'auto'
-    });
-    const permMsg = document.createElement('span');
-    permMsg.textContent = 'Разрешите датчики для управления или используйте джойстик.';
-    const permBtn = document.createElement('button');
-    permBtn.textContent = 'Включить управление';
-    Object.assign(permBtn.style, {
+      top: '12px',
+      right: '18px',
+      zIndex: 2,
       border: 'none',
       borderRadius: '999px',
       padding: '6px 10px',
-      fontWeight: '800',
+      fontWeight: 800,
+      fontSize: '12px',
       background: 'linear-gradient(90deg,#00ffcc,#00bfff,#0077ff)',
       color: '#00131a',
-      cursor: 'pointer'
+      cursor: 'pointer',
+      display: 'none'
     });
-    perm.appendChild(permMsg);
-    perm.appendChild(permBtn);
     wrap.appendChild(perm);
 
-    // Управление (сенсоры + джойстик)
-    const conf = _difficulty(rarity);
+    // --- размеры холста (в CSS-пикселях) и пиксельное соотношение ---
+    let W = 360, H = 540; // базовое соотношение 2:3
+    function resizeCanvas() {
+      // подгоняем под ширину wrap/bar с сохранением 2:3
+      const host = bar; // у бара такая же ширина, как у холста
+      const cssW = Math.min(host.clientWidth || 360, 480);
+      const cssH = Math.round(cssW * 3 / 2); // 2:3
+      const dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
+      canvas.style.width = cssW + 'px';
+      canvas.style.height = cssH + 'px';
+      canvas.width = Math.round(cssW * dpr);
+      canvas.height = Math.round(cssH * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // работаем в CSS-пикселях
+      W = cssW; H = cssH;
+    }
+    resizeCanvas();
+    onResizeBound = () => resizeCanvas();
+    window.addEventListener('resize', onResizeBound, { passive: true });
 
-    let camX = 0, camY = 0;     // мгновенное смещение «камеры»
-    let camXS = 0, camYS = 0;   // сглаженное смещение
+    // ---- Управление камерой (сенсоры + джойстик) ----
+    const conf = _difficulty(rarity);
+    let camX = 0, camY = 0;      // мгновенный сдвиг камеры
+    let camXS = 0, camYS = 0;    // сглаженный сдвиг
     let baseAlpha = null, baseBeta = null;
     let firstSensorTick = false;
 
@@ -121,7 +150,7 @@ export async function openGhostCatch(rarity = 'common') {
       if (e.alpha == null || e.beta == null) return;
       if (!firstSensorTick) {
         firstSensorTick = true;
-        perm.style.display = 'none'; // скрываем только после первого валидного события
+        perm.style.display = 'none'; // прячем после первого валидного события
       }
       if (baseAlpha == null) baseAlpha = e.alpha;
       if (baseBeta == null) baseBeta = e.beta;
@@ -131,33 +160,33 @@ export async function openGhostCatch(rarity = 'common') {
       camY = -conf.sensorPitchToPx * dpitch;
     }
 
-    async function enableSensorsByGesture() {
+    async function enableSensors() {
       try {
         if (typeof DeviceOrientationEvent !== 'undefined' &&
             typeof DeviceOrientationEvent.requestPermission === 'function') {
-          const r = await DeviceOrientationEvent.requestPermission();
-          if (r !== 'granted') throw new Error('denied');
+          const res = await DeviceOrientationEvent.requestPermission();
+          if (res !== 'granted') throw new Error('denied');
         }
-        window.addEventListener('deviceorientation', onOrient, true);
-        // не скрываем perm, пока не придёт первое валидное событие
+        window.addEventListener('deviceorientation', onOrientBound = onOrient, true);
+        // скрывать кнопку будем, когда придёт первое валидное событие
       } catch {
-        permMsg.textContent = 'Сенсоры недоступны. Используйте джойстик.';
+        // Если не дали доступ — играем джойстиком
       }
     }
-    permBtn.onclick = enableSensorsByGesture;
 
-    // На платформах без requestPermission пробуем сразу подписаться.
-    if (!('DeviceOrientationEvent' in window &&
-          typeof DeviceOrientationEvent.requestPermission === 'function')) {
+    // Показываем кнопку сенсоров на iOS (где требуется запрос)
+    if ('DeviceOrientationEvent' in window &&
+        typeof DeviceOrientationEvent.requestPermission === 'function') {
+      perm.style.display = 'inline-block';
+      perm.onclick = enableSensors;
+    } else {
+      // На платформах без запроса — пытаемся сразу подписаться
       try {
-        window.addEventListener('deviceorientation', onOrient, true);
-        // скрывать perm будем только по факту первого валидного события
-      } catch {
-        // игнор
-      }
+        window.addEventListener('deviceorientation', onOrientBound = onOrient, true);
+      } catch { /* no-op */ }
     }
 
-    // Джойстик (тач по холсту двигает камеру)
+    // Джойстик (pointer по холсту двигает камеру)
     let joy = false, jx = 0, jy = 0;
     canvas.addEventListener('pointerdown', (ev) => {
       joy = true; jx = ev.clientX; jy = ev.clientY;
@@ -167,103 +196,107 @@ export async function openGhostCatch(rarity = 'common') {
     canvas.addEventListener('pointerup', endJoy);
     canvas.addEventListener('pointercancel', endJoy);
     canvas.addEventListener('pointermove', (ev) => {
-      if (joy) {
-        camX = (ev.clientX - jx) * 1.2;
-        camY = (ev.clientY - jy) * 1.2;
-      }
+      if (!joy) return;
+      camX = (ev.clientX - jx) * 1.2;
+      camY = (ev.clientY - jy) * 1.2;
     });
 
-    // Модель призрака (мировые координаты gx, gy — центр мира совпадает с центром прицела)
-    let gx = 0, gy = 0;  // старт строго в центре круга
-    let vx = 0, vy = 0;  // мгновенная скорость
-
-    // Задаём начальный толчок, чтобы призрак "побежал" сразу
+    // ---- Модель призрака: старт из центра круга и сразу "убегает" ----
+    let gx = 0, gy = 0; // мировые координаты, центр мира совпадает с центром прицела
+    let vx = 0, vy = 0; // мгновенная скорость
     {
+      // начальный толчок
       const a = Math.random() * Math.PI * 2;
       vx = Math.cos(a) * conf.minSpeed;
       vy = Math.sin(a) * conf.minSpeed;
     }
 
+    // ---- Игровые параметры ----
     let holdMs = 0;
-    let last = performance.now();
-    const Rcatch = conf.catchRadius;
     const holdNeed = conf.holdMs;
-    const centerX = W / 2, centerY = H / 2;
+    const centerX = () => W / 2;
+    const centerY = () => H / 2;
+    const Rcatch = () => conf.catchRadius; // радиус в CSS-пикселях
 
+    // Рисование
     function draw(aimX, aimY) {
       ctx.clearRect(0, 0, W, H);
 
-      // прицел (фиксирован по центру)
+      // Прицел (фиксирован по центру)
       ctx.beginPath();
-      ctx.arc(aimX, aimY, Rcatch, 0, Math.PI * 2);
-      ctx.strokeStyle = 'rgba(255,255,255,.7)';
+      ctx.arc(aimX, aimY, Rcatch(), 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(255,255,255,.75)';
       ctx.lineWidth = 2;
       ctx.stroke();
 
-      // призрак
-      const scrX = gx + centerX - camXS;
-      const scrY = gy + centerY - camYS;
+      // Координаты призрака на экране
+      const scrX = gx + centerX() - camXS;
+      const scrY = gy + centerY() - camYS;
+
+      // Свечение
       const grd = ctx.createRadialGradient(scrX - 10, scrY - 10, 5, scrX, scrY, 40);
       grd.addColorStop(0, 'rgba(255,255,255,.95)');
       grd.addColorStop(1, 'rgba(0,200,255,.25)');
       ctx.fillStyle = grd;
       ctx.beginPath(); ctx.arc(scrX, scrY, 26, 0, Math.PI * 2); ctx.fill();
 
-      ctx.fillStyle = 'rgba(255,255,255,.9)';
+      // Эмодзи
+      ctx.fillStyle = 'rgba(255,255,255,.92)';
       ctx.font = '32px system-ui';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText('👻', scrX, scrY);
     }
 
-    // Промис завершения
-    let resolve;
-    const done = new Promise(res => { resolve = res; });
-
-    let raf = 0;
+    // Завершение мини-игры
     let finished = false;
-
     function finish(result) {
       if (finished) return;
       finished = true;
       try { cancelAnimationFrame(raf); } catch {}
-      resolve(result);
+      resolveDone(result);
     }
 
+    // Игровой цикл
+    let last = performance.now();
+    const FRICTION = 4.0; // константа демпфирования
+
     function tick(ts) {
-      const dt = Math.min(50, ts - last) / 1000; // сек
+      const dtMs = Math.min(50, ts - last);
+      const dt = dtMs / 1000; // сек
       last = ts;
 
-      // Сглаживаем сенсоры
+      // Сглаживаем камеру
       camXS = camXS * 0.85 + camX * 0.15;
       camYS = camYS * 0.85 + camY * 0.15;
 
-      // Прицел фиксирован по центру экрана
-      const aimX = centerX;
-      const aimY = centerY;
+      // Прицел фиксирован в центре
+      const aimX = centerX();
+      const aimY = centerY();
 
       // Экранные координаты призрака
-      const scrX = gx + centerX - camXS;
-      const scrY = gy + centerY - camYS;
+      const scrX = gx + centerX() - camXS;
+      const scrY = gy + centerY() - camYS;
 
-      // Взаимное положение с прицелом
+      // Расстояние до прицела
       const dx = scrX - aimX;
       const dy = scrY - aimY;
       const dist = Math.hypot(dx, dy);
 
-      // Направление "убегания" от прицела в мировых координатах
+      // Направление «убегания» (в мировых координатах)
       const dirx = dist > 0 ? dx / dist : 0;
       const diry = dist > 0 ? dy / dist : 0;
 
-      // "Скорость преследования/избегания" (используем как целевую линейную скорость)
-      let speed = conf.baseSpeed + (dist < Rcatch * 1.6 ? conf.nearBoost : 0);
+      // Целевая скорость (с бустом рядом)
+      let speed = conf.baseSpeed + (dist < Rcatch() * 1.6 ? conf.nearBoost : 0);
       speed = Math.max(conf.minSpeed, Math.min(conf.maxSpeed, speed));
 
-      // Физика (ускорение + демпфирование, все завязано на dt)
-      const friction = Math.exp(-4 * dt); // чем больше константа, тем сильнее демпфирование
+      // Демпфирование на dt (FPS-независимо)
+      const friction = Math.exp(-FRICTION * dt);
       vx = (vx + dirx * speed * dt) * friction;
       vy = (vy + diry * speed * dt) * friction;
 
+      // Ограничение по скорости
       const vmod = Math.hypot(vx, vy);
       if (vmod > conf.maxSpeed) {
         const k = conf.maxSpeed / vmod; vx *= k; vy *= k;
@@ -273,10 +306,11 @@ export async function openGhostCatch(rarity = 'common') {
         vy = diry * conf.minSpeed;
       }
 
+      // Обновляем мировые координаты
       gx += vx * dt;
       gy += vy * dt;
 
-      // Границы мира (слегка меньше, чем пол-экрана)
+      // Границы мира ~ размер экрана (немного меньше)
       const limX = (W / 2) * 0.95;
       const limY = (H / 2) * 0.95;
       if (gx >  limX) { gx =  limX; vx *= -0.8; }
@@ -284,18 +318,23 @@ export async function openGhostCatch(rarity = 'common') {
       if (gy >  limY) { gy =  limY; vy *= -0.8; }
       if (gy < -limY) { gy = -limY; vy *= -0.8; }
 
-      // Захват
-      if (dist <= Rcatch) {
+      // Захват / спад прогресса
+      if (dist <= Rcatch()) {
         holdMs += dt * 1000;
+      } else if (dist <= Rcatch() * 1.2) {
+        // мягкий спад, если чуть-чуть вышел за круг
+        holdMs = Math.max(0, holdMs - dt * 250);
       } else {
-        holdMs = Math.max(0, holdMs - dt * 600); // постепенное "сползание" прогресса
+        // быстрый спад, если далеко
+        holdMs = Math.max(0, holdMs - dt * 600);
       }
-      const pct = Math.min(100, Math.floor(100 * holdMs / holdNeed));
+      const pct = Math.max(0, Math.min(100, Math.round(100 * holdMs / holdNeed)));
       barIn.style.width = pct + '%';
 
-      // Рендер кадра
+      // Рисуем кадр
       draw(aimX, aimY);
 
+      // Проверяем победу
       if (holdMs >= holdNeed) {
         finish({ success: true });
         return;
@@ -306,7 +345,14 @@ export async function openGhostCatch(rarity = 'common') {
     // Очистка ресурсов
     cleanup = () => {
       try { cancelAnimationFrame(raf); } catch {}
-      try { window.removeEventListener('deviceorientation', onOrient, true); } catch {}
+      if (onOrientBound) {
+        try { window.removeEventListener('deviceorientation', onOrientBound, true); } catch {}
+        onOrientBound = null;
+      }
+      if (onResizeBound) {
+        try { window.removeEventListener('resize', onResizeBound); } catch {}
+        onResizeBound = null;
+      }
       close.onclick = null;
       stage.innerHTML = '';
       modal.classList.add('hidden');
@@ -315,12 +361,15 @@ export async function openGhostCatch(rarity = 'common') {
     };
 
     // Кнопка закрытия
-    close.onclick = () => finish({ success: false });
+    close.onclick = () => {
+      finish({ success: false });
+    };
 
-    // Старт анимации
+    // Старт цикла
+    const done = new Promise(res => { resolveDone = res; });
     raf = requestAnimationFrame(tick);
 
-    // Ожидаем завершение мини-игры
+    // Ждём завершения
     const result = await done;
     cleanup();
     return result;
