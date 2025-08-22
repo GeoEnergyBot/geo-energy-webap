@@ -9,19 +9,28 @@ export function openGyroChase(rarity = 'common') {
   const closeBtn = document.getElementById('ar-close');
   const stage = document.getElementById('ar-stage');
 
+  // ───── Защита от повторного запуска (дубли UI/камеры/RAF)
+  if (modal.dataset.active === '1') {
+    // Если вдруг висит предыдущий инстанс — мягко закрываем его
+    const prevClose = modal.__closeFn__;
+    if (typeof prevClose === 'function') prevClose();
+  }
+  modal.dataset.active = '1';
+
   const diff = DIFFICULTY[rarity] || DIFFICULTY.common;
   const {
-    fatigueMs, edgeBounce, feintEveryMs,
-    sensorYawToPx, sensorPitchToPx, joystickSensitivity
-  } = AR_TUNING;
+    fatigueMs = 900, edgeBounce = 0.55, feintEveryMs = 800,
+    sensorYawToPx = 3.0, sensorPitchToPx = 2.5, joystickSensitivity = 0.9
+  } = AR_TUNING || {};
 
   stage.innerHTML = '';
   modal.classList.remove('hidden');
 
-  // ───────── Камера
+  // ───────── Камера (фон)
   const video = document.createElement('video');
   video.setAttribute('autoplay', '');
   video.setAttribute('playsinline', '');
+  video.playsInline = true;
   video.muted = true;
   Object.assign(video.style, {
     position: 'absolute', inset: '0',
@@ -47,13 +56,14 @@ export function openGyroChase(rarity = 'common') {
   overlay.appendChild(tip);
 
   // Прицел и прогресс-кольцо
-  const reticleSize = diff.reticleRadiusPx * 2;
+  const Rcatch = diff.reticleRadiusPx;
+  const reticleSize = Rcatch * 2;
   const reticle = document.createElement('div');
   Object.assign(reticle.style, {
     position: 'absolute', left: '50%', top: '50%',
     width: `${reticleSize}px`, height: `${reticleSize}px`,
     marginLeft: `-${reticleSize / 2}px`, marginTop: `-${reticleSize / 2}px`,
-    borderRadius: '50%', border: '2px solid rgba(255,255,255,.75)',
+    borderRadius: '50%', border: '2px solid rgba(255,255,255,.75)`,
     boxShadow: '0 0 0 3px rgba(0,0,0,.25), inset 0 0 30px rgba(0,255,220,.15)',
     backdropFilter: 'blur(1px)', zIndex: 1
   });
@@ -89,11 +99,11 @@ export function openGyroChase(rarity = 'common') {
   ghost.style.filter = 'drop-shadow(0 6px 14px rgba(0,0,0,.45))';
   overlay.appendChild(ghost);
 
-  // Жёлтая полоска-таймер прямо под призраком
+  // Таймер-бар + лейбл времени
   const barWrap = document.createElement('div');
   Object.assign(barWrap.style, {
-    position: 'absolute', width: '140px', height: '10px',
-    left: '50%', top: '50%', marginLeft: '-70px', marginTop: `${reticleSize / 2 + 18}px`,
+    position: 'absolute', width: '160px', height: '10px',
+    left: '50%', top: '50%', marginLeft: '-80px', marginTop: `${reticleSize / 2 + 18}px`,
     background: 'rgba(255,255,255,.25)', borderRadius: '6px',
     boxShadow: '0 0 6px rgba(0,0,0,.4)', zIndex: 3
   });
@@ -106,7 +116,19 @@ export function openGyroChase(rarity = 'common') {
   barWrap.appendChild(barFill);
   overlay.appendChild(barWrap);
 
-  // Кнопка «Поймать» (изначально выключена)
+  const timeLabel = document.createElement('div');
+  timeLabel.textContent = '';
+  Object.assign(timeLabel.style, {
+    position: 'absolute', left: '50%', top: '50%',
+    transform: 'translateX(-50%)',
+    marginTop: `${reticleSize / 2 + 32}px`,
+    color: '#fff', fontWeight: 700, fontSize: '12px',
+    textShadow: '0 1px 6px rgba(0,0,0,.6)', zIndex: 3, opacity: '0',
+    transition: 'opacity .15s'
+  });
+  overlay.appendChild(timeLabel);
+
+  // Кнопка «Поймать»
   const catchBtn = document.createElement('button');
   catchBtn.textContent = 'Поймать';
   Object.assign(catchBtn.style, {
@@ -114,14 +136,14 @@ export function openGyroChase(rarity = 'common') {
     padding: '14px 24px', borderRadius: '999px', fontWeight: 800,
     border: 'none', cursor: 'not-allowed',
     color: '#00131a',
-    background: 'linear-gradient(90deg,#7a8a93,#8f9aa1)', // серый когда disabled
+    background: 'linear-gradient(90deg,#7a8a93,#8f9aa1)', // серый (disabled)
     boxShadow: '0 10px 20px rgba(0,0,0,.35)',
     zIndex: 5
   });
   catchBtn.disabled = true;
   overlay.appendChild(catchBtn);
 
-  // Стрелки-наводки по краям экрана
+  // Стрелки-наводки
   const mkArrow = (txt, pos) => {
     const el = document.createElement('div');
     el.textContent = txt;
@@ -142,7 +164,7 @@ export function openGyroChase(rarity = 'common') {
   const arrowT = mkArrow('⬆', 'T');
   const arrowB = mkArrow('⬇', 'B');
 
-  // Панель разрешений для гиродатчиков (без длинного текста снизу)
+  // Панель разрешений для гиродатчиков
   const permWrap = document.createElement('div');
   Object.assign(permWrap.style, {
     position: 'absolute', left: '50%', bottom: '80px', transform: 'translateX(-50%)',
@@ -163,7 +185,7 @@ export function openGyroChase(rarity = 'common') {
   permWrap.appendChild(permBtn);
   overlay.appendChild(permWrap);
 
-  // Виртуальный джойстик (фолбэк)
+  // Виртуальный джойстик
   const joystick = document.createElement('div');
   Object.assign(joystick.style, {
     position: 'absolute', left: '16px', bottom: '16px',
@@ -173,26 +195,53 @@ export function openGyroChase(rarity = 'common') {
   });
   overlay.appendChild(joystick);
 
-  // Закрытие
+  // ───────── Закрытие и очистка
   const cleanupFns = [];
+  let stream = null;
+  let rafId = 0;
+  let canCatch = false;
+
+  const setCatchEnabled = (enabled) => {
+    canCatch = !!enabled;
+    catchBtn.disabled = !enabled;
+    catchBtn.style.background = enabled
+      ? 'linear-gradient(90deg,#00ffcc,#00bfff,#0077ff)'
+      : 'linear-gradient(90deg,#7a8a93,#8f9aa1)';
+    catchBtn.style.cursor = enabled ? 'pointer' : 'not-allowed';
+  };
+
   const close = () => {
     try { cleanupFns.forEach(fn => fn && fn()); } catch {}
+    if (rafId) cancelAnimationFrame(rafId);
+    try {
+      if (stream) stream.getTracks().forEach(t => t.stop());
+      if (video) video.srcObject = null;
+    } catch {}
+    setCatchEnabled(false);
     modal.classList.add('hidden');
     stage.innerHTML = '';
+    modal.dataset.active = '0';
+    modal.__closeFn__ = null;
   };
+  modal.__closeFn__ = close;
   closeBtn.onclick = close;
 
   // ───────── Камера
-  let stream = null;
   (async () => {
     try {
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'environment' } }, audio: false
+        });
       } catch {
         stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
       }
-      video.srcObject = stream; await video.play();
-      cleanupFns.push(() => { try { stream.getTracks().forEach(t => t.stop()); } catch {} });
+      video.srcObject = stream;
+      await video.play();
+      cleanupFns.push(() => {
+        try { stream.getTracks().forEach(t => t.stop()); } catch {}
+        try { video.srcObject = null; } catch {}
+      });
     } catch (err) {
       console.error('Camera error', err);
       alert('Не удалось запустить камеру. Проверьте разрешения Telegram на камеру.');
@@ -203,8 +252,10 @@ export function openGyroChase(rarity = 'common') {
   // ───────── Хелперы
   const W = () => overlay.clientWidth;
   const H = () => overlay.clientHeight;
-  const HW = () => W() / 2, HH = () => H() / 2;
-  const setRingProgress = p => {
+  const HW = () => W() / 2;
+  const HH = () => H() / 2;
+
+  const setRingProgress = (p) => {
     const clamped = Math.max(0, Math.min(1, p));
     const deg = Math.floor(360 * clamped);
     ring.style.background = `conic-gradient(#00ffd0 ${deg}deg, rgba(255,255,255,.15) ${deg}deg)`;
@@ -216,7 +267,7 @@ export function openGyroChase(rarity = 'common') {
     arrowT.style.opacity = y < -m ? '1' : '0';
     arrowB.style.opacity = y > h + m ? '1' : '0';
   };
-  const vib = p => { try { navigator.vibrate && navigator.vibrate(p); } catch {} };
+  const vib = (p) => { try { navigator.vibrate && navigator.vibrate(p); } catch {} };
 
   // ───────── Сенсоры/джойстик
   let calib = { alpha0: null, beta0: null };
@@ -227,7 +278,11 @@ export function openGyroChase(rarity = 'common') {
     if (a == null || b == null) return;
     if (calib.alpha0 == null) calib.alpha0 = a;
     if (calib.beta0 == null)  calib.beta0 = b;
-    const dyaw = (((a - calib.alpha0) + 180) % 360 + 360) % 360 - 180;
+
+    // Нормализация dyaw в диапазон [-180; 180]
+    const raw = a - calib.alpha0;
+    const dyaw = ((raw + 540) % 360) - 180;
+
     const dpitch = b - calib.beta0;
     camX = dyaw * sensorYawToPx;
     camY = -dpitch * sensorPitchToPx;
@@ -237,6 +292,7 @@ export function openGyroChase(rarity = 'common') {
     try {
       if (typeof DeviceOrientationEvent !== 'undefined' &&
           typeof DeviceOrientationEvent.requestPermission === 'function') {
+        // iOS — нужен жест
         const resp = await DeviceOrientationEvent.requestPermission();
         if (resp === 'granted') {
           window.addEventListener('deviceorientation', handleOrientation, true);
@@ -253,12 +309,15 @@ export function openGyroChase(rarity = 'common') {
         return true;
       }
     } catch (e) { console.warn('Orientation permission error', e); }
+    // Фолбэк
     permMsg.textContent = 'Сенсоры недоступны — используйте джойстик';
     joystick.style.display = 'block';
     return false;
   }
   permBtn.onclick = () => { tryEnableSensors(); };
-  tryEnableSensors();
+  // Не вызываем насильно на старте (на iOS требуется пользовательский жест),
+  // покажем панель и ждём нажатия.
+  // tryEnableSensors();
 
   // Джойстик
   let joyActive = false, joyBase = { x: 0, y: 0 };
@@ -277,7 +336,6 @@ export function openGyroChase(rarity = 'common') {
   cleanupFns.push(() => { joyActive = false; });
 
   // ───────── Параметры «погони»
-  const Rcatch = diff.reticleRadiusPx;
   const holdTarget = diff.holdMs;
   const baseSpeed = diff.baseSpeed;
   const nearBoost = diff.nearBoost;
@@ -286,35 +344,19 @@ export function openGyroChase(rarity = 'common') {
   let gx = (Math.random() * 2 - 1) * HW() * 0.7, gy = (Math.random() * 2 - 1) * HH() * 0.7;
   let vx = 0, vy = 0, lastT = performance.now();
   let holdMs = 0, lastNearTs = 0, lastFeintTs = 0;
-  let canCatch = false;
 
-  // Обработчик кнопки «Поймать»
   function handleCatch() {
     if (!canCatch) return;
     vib([60, 40, 60]);
     const sound = document.getElementById('energy-sound');
     if (sound) { try { sound.currentTime = 0; sound.play(); } catch {} }
-    alert('Покемон пойман');
+    alert('Призрак пойман');
     close();
   }
   catchBtn.addEventListener('click', handleCatch);
-
-  // Helper: включить/выключить кнопку
-  function setCatchEnabled(enabled) {
-    canCatch = !!enabled;
-    catchBtn.disabled = !enabled;
-    if (enabled) {
-      catchBtn.style.background = 'linear-gradient(90deg,#00ffcc,#00bfff,#0077ff)';
-      catchBtn.style.cursor = 'pointer';
-    } else {
-      catchBtn.style.background = 'linear-gradient(90deg,#7a8a93,#8f9aa1)';
-      catchBtn.style.cursor = 'not-allowed';
-    }
-  }
   setCatchEnabled(false);
 
   // ───────── Игровой цикл
-  let rafId = 0;
   function tick() {
     const now = performance.now();
     const dt = Math.min(50, now - lastT) / 1000;
@@ -323,6 +365,7 @@ export function openGyroChase(rarity = 'common') {
     const hw = HW(), hh = HH();
     const cx = hw, cy = hh;
 
+    // экранные координаты с учётом «камеры»
     let screenX = (gx - camX) + cx;
     let screenY = (gy - camY) + cy;
 
@@ -330,13 +373,14 @@ export function openGyroChase(rarity = 'common') {
     const dy = screenY - cy;
     const dist = Math.hypot(dx, dy);
 
-    const dirX = dx === 0 ? 0 : dx / (dist || 1);
-    const dirY = dy === 0 ? 0 : dy / (dist || 1);
+    const dirX = dist === 0 ? 0 : dx / dist;
+    const dirY = dist === 0 ? 0 : dy / dist;
 
     let speed = baseSpeed + (dist < Rcatch * 1.7 ? nearBoost : 0);
     if (now - lastNearTs < fatigueMs) speed *= 0.35;
 
-    if (now - lastFeintTs > feintEveryMs) {
+    // Безопасность: финт не чаще заданного интервала
+    if (feintEveryMs > 0 && now - lastFeintTs > feintEveryMs) {
       lastFeintTs = now;
       const perp = Math.random() < 0.5 ? [-dirY, dirX] : [dirY, -dirX];
       vx += perp[0] * 180; vy += perp[1] * 180;
@@ -350,12 +394,14 @@ export function openGyroChase(rarity = 'common') {
 
     gx += vx * dt; gy += vy * dt;
 
+    // Границы
     const limitX = hw * 1.1, limitY = hh * 1.1;
     if (gx > limitX) { gx = limitX; vx *= -edgeBounce; }
     if (gx < -limitX) { gx = -limitX; vx *= -edgeBounce; }
     if (gy > limitY) { gy = limitY; vy *= -edgeBounce; }
     if (gy < -limitY) { gy = -limitY; vy *= -edgeBounce; }
 
+    // Пересчёт экранных координат после движения
     screenX = (gx - camX) + cx;
     screenY = (gy - camY) + cy;
 
@@ -366,18 +412,29 @@ export function openGyroChase(rarity = 'common') {
     updateArrows(screenX, screenY);
 
     // Прогресс ловли
-    if (dist <= Rcatch) {
+    const distNow = Math.hypot(screenX - cx, screenY - cy);
+    const inside = distNow <= Rcatch;
+    if (inside) {
       holdMs += dt * 1000;
-      if (Math.abs(dist - Rcatch) < 6) lastNearTs = now;
+      if (Math.abs(distNow - Rcatch) < 6) lastNearTs = now;
     } else {
       holdMs = Math.max(0, holdMs - dt * 1000 * 0.55);
     }
     const prog = Math.max(0, Math.min(1, holdMs / holdTarget));
-    const deg = Math.floor(360 * prog);
-    ring.style.background = `conic-gradient(#00ffd0 ${deg}deg, rgba(255,255,255,.15) ${deg}deg)`;
+    setRingProgress(prog);
     barFill.style.width = `${Math.round(prog * 100)}%`;
 
-    // Кнопка активируется при полном заполнении
+    // Текстовый таймер
+    if (inside) {
+      const remain = Math.max(0, holdTarget - holdMs) / 1000;
+      timeLabel.textContent = `осталось ${remain.toFixed(2)} c`;
+      timeLabel.style.opacity = '1';
+    } else {
+      timeLabel.textContent = '';
+      timeLabel.style.opacity = '0';
+    }
+
+    // Кнопка «Поймать»
     if (prog >= 1 && !canCatch) setCatchEnabled(true);
     if (prog < 1 && canCatch) setCatchEnabled(false);
 
