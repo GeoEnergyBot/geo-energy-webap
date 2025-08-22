@@ -1,172 +1,220 @@
+
 import { DIFFICULTY, AR_TUNING } from '../env.js';
 
-/** Простая AR-мини-игра «Поймай призрака»: удерживать призрака внутри круга до заполнения шкалы */
+/** Мини-игра «Поймай призрака»: держи цель в прицеле нужное время */
 let _busy = false;
+
+function _difficulty(rarity){
+  const d = DIFFICULTY?.[rarity] || {};
+  return {
+    sensorYawToPx:  d.sensorYawToPx  ?? 6,
+    sensorPitchToPx:d.sensorPitchToPx?? 6,
+    baseSpeed:      d.baseSpeed      ?? ({common:180, advanced:220, rare:260}[rarity] || 200),
+    nearBoost:      d.nearBoost      ?? ({common: 80, advanced:110, rare:140}[rarity] || 90),
+    minSpeed:       d.minSpeed       ?? ({common: 40, advanced: 60, rare: 80}[rarity] || 50),
+    maxSpeed:       d.maxSpeed       ?? ({common:300, advanced:360, rare:420}[rarity] || 340),
+    catchRadius:    d.catchRadius    ?? 70,
+    holdMs:         d.holdMs         ?? ({common:1100, advanced:1300, rare:1500}[rarity] || 1200),
+  };
+}
 
 export async function openGhostCatch(rarity='common'){
   if (_busy) return { success:false };
   _busy = true;
-  try{
+  let cleanup=()=>{};
+  try {
     const modal = document.getElementById('ar-modal');
     const stage = document.getElementById('ar-stage');
     const title = document.getElementById('ar-title');
     const close = document.getElementById('ar-close');
     if (!modal || !stage) return { success:false };
-
     title.textContent = 'Поймайте призрака в круг';
-    // Очистим и создадим сцену
-    stage.innerHTML = '';
-    const wrap = document.createElement('div');
-    wrap.style.position = 'relative';
-    wrap.style.width = '100%';
-    wrap.style.height = '100%';
-    stage.appendChild(wrap);
-
-    const canvas = document.createElement('canvas');
-    // подгоним размер под контейнер (портрет)
-    const W = 360, H = 540;
-    canvas.width = W; canvas.height = H;
-    canvas.style.display = 'block';
-    canvas.style.margin = '12px auto';
-    canvas.style.borderRadius = '16px';
-    canvas.style.background = 'radial-gradient(circle at 50% 40%, rgba(0,255,153,.18), transparent 60%), #0a0e11';
-    wrap.appendChild(canvas);
-
-    // Прогресс-бар
-    const prog = document.createElement('div');
-    const progIn = document.createElement('div');
-    prog.style.height = '10px'; prog.style.borderRadius='8px';
-    prog.style.background='rgba(255,255,255,.12)';
-    progIn.style.height = '10px'; progIn.style.width='0%';
-    progIn.style.background='linear-gradient(90deg,#22d3ee,#818cf8,#e879f9)';
-    progIn.style.borderRadius='8px';
-    prog.appendChild(progIn);
-    prog.style.margin = '8px 12px 0 12px';
-    wrap.appendChild(prog);
-
-    // Таймер
-    const timer = document.createElement('div');
-    timer.style.position='absolute'; timer.style.top='8px'; timer.style.right='12px';
-    timer.style.padding='4px 8px'; timer.style.borderRadius='8px';
-    timer.style.background='rgba(0,0,0,.35)'; timer.style.fontSize='12px';
-    timer.textContent = '0:00';
-    wrap.appendChild(timer);
-
-    // Подсказка
-    const hint = document.createElement('div');
-    hint.textContent = 'Держите призрака в круге!';
-    hint.style.position='absolute'; hint.style.top='8px'; hint.style.left='0'; hint.style.right='0';
-    hint.style.textAlign='center'; hint.style.fontWeight='600';
-    hint.style.textShadow='0 2px 8px rgba(0,0,0,.7)';
-    wrap.appendChild(hint);
-
-    // Кнопка Старт
-    const startBtn = document.createElement('button');
-    startBtn.textContent = 'Старт';
-    startBtn.style.position='absolute'; startBtn.style.bottom='12px'; startBtn.style.left='50%';
-    startBtn.style.transform='translateX(-50%)';
-    startBtn.style.background='#171f27'; startBtn.style.color='#e9f1f7';
-    startBtn.style.border='1px solid rgba(255,255,255,.12)';
-    startBtn.style.borderRadius='14px'; startBtn.style.padding='10px 14px';
-    wrap.appendChild(startBtn);
-
-    // Открываем модалку
     modal.classList.remove('hidden');
     window.dispatchEvent(new Event('ar:open'));
 
-    const diff = DIFFICULTY[rarity] || DIFFICULTY.common;
-    const ctx = canvas.getContext('2d');
-    const circleR = diff.reticleRadiusPx || 60;
-    let ghost = { x: W/2 + 40, y: H/3, vx: 0.9*diff.baseSpeed/60, vy: 0.7*diff.baseSpeed/60 };
-    let progress = 0; // 0..1
-    let heldMs = 0, combo = 1.0;
-    let lastFeint = 0, running=false, raf=0, tPrev=0;
+    // Canvas сцена
+    stage.innerHTML = '';
+    const wrap = document.createElement('div');
+    wrap.style.position='relative'; wrap.style.width='100%'; wrap.style.height='100%';
+    stage.appendChild(wrap);
 
-    const cleanup = ()=>{
-      cancelAnimationFrame(raf);
+    const canvas = document.createElement('canvas');
+    const W = 360, H = 540;
+    canvas.width=W; canvas.height=H;
+    canvas.style.display='block'; canvas.style.margin='12px auto';
+    canvas.style.borderRadius='16px';
+    canvas.style.background='radial-gradient(circle at 50% 40%, rgba(0,255,153,.18), transparent 60%), #0a0e11';
+    wrap.appendChild(canvas);
+    const ctx = canvas.getContext('2d');
+
+    // Прогресс
+    const bar = document.createElement('div');
+    const barIn = document.createElement('div');
+    Object.assign(bar.style, {height:'10px', borderRadius:'8px', background:'rgba(255,255,255,.12)', margin:'8px 12px 0'});
+    Object.assign(barIn.style,{height:'10px', width:'0%', borderRadius:'8px', background:'linear-gradient(90deg,#22d3ee,#818cf8,#e879f9)'});
+    bar.appendChild(barIn); wrap.appendChild(bar);
+
+    // Подсказка/кнопка разрешения сенсоров
+    const perm = document.createElement('div');
+    Object.assign(perm.style, {
+      position:'absolute', left:'50%', bottom:'16px', transform:'translateX(-50%)',
+      display:'flex', gap:'10px', background:'rgba(0,0,0,.35)', color:'#fff',
+      padding:'8px 10px', borderRadius:'12px', alignItems:'center', fontSize:'14px'
+    });
+    const permMsg = document.createElement('span');
+    permMsg.textContent = 'Разрешите датчики для управления или используйте джойстик.';
+    const permBtn = document.createElement('button');
+    permBtn.textContent = 'Включить управление';
+    Object.assign(permBtn.style, {border:'none', borderRadius:'999px', padding:'6px 10px',
+      fontWeight:'800', background:'linear-gradient(90deg,#00ffcc,#00bfff,#0077ff)', color:'#00131a', cursor:'pointer'});
+    perm.appendChild(permMsg); perm.appendChild(permBtn); wrap.appendChild(perm);
+
+    // Управление
+    const conf = _difficulty(rarity);
+    let camX=0, camY=0, camXS=0, camYS=0;
+    let baseAlpha=null, baseBeta=null, sensorsOn=false;
+    const shortest = (a)=>(((a+180)%360)+360)%360-180;
+    function onOrient(e){
+      if (e.alpha==null || e.beta==null) return;
+      if (baseAlpha==null) baseAlpha=e.alpha;
+      if (baseBeta==null) baseBeta=e.beta;
+      const dyaw = shortest(e.alpha-baseAlpha);
+      const dpitch = e.beta-baseBeta;
+      camX = conf.sensorYawToPx * dyaw;
+      camY = -conf.sensorPitchToPx * dpitch;
+    }
+    async function enableSensorsByGesture(){
+      try{
+        if (typeof DeviceOrientationEvent!=='undefined' && typeof DeviceOrientationEvent.requestPermission==='function'){
+          const r = await DeviceOrientationEvent.requestPermission();
+          if (r!=='granted') throw new Error('denied');
+        }
+        window.addEventListener('deviceorientation', onOrient, true);
+        sensorsOn = true; perm.style.display='none';
+      }catch(_){
+        sensorsOn = false;
+        permMsg.textContent = 'Сенсоры недоступны. Используйте джойстик.';
+      }
+    }
+    permBtn.onclick = enableSensorsByGesture;
+    // На Android обычно разрешение не нужно — пробуем подключиться сразу
+    if (!('DeviceOrientationEvent' in window && typeof DeviceOrientationEvent.requestPermission==='function')){
+      window.addEventListener('deviceorientation', onOrient, true);
+      sensorsOn = true; perm.style.display='none';
+    }
+
+    // Джойстик
+    let joy=false, jx=0, jy=0;
+    canvas.addEventListener('pointerdown', ev=>{ joy=true; jx=ev.clientX; jy=ev.clientY; try{canvas.setPointerCapture(ev.pointerId);}catch{} });
+    const endJoy=()=>{ joy=false; };
+    canvas.addEventListener('pointerup', endJoy); canvas.addEventListener('pointercancel', endJoy);
+    canvas.addEventListener('pointermove', ev=>{ if(joy){ camX=(ev.clientX-jx)*1.2; camY=(ev.clientY-jy)*1.2; }});
+
+    // Модель призрака
+    let gx = (Math.random()*2-1)*(W*0.25);
+    let gy = (Math.random()*2-1)*(H*0.25);
+    let vx = 0, vy=0;
+    let holdMs=0, last=performance.now();
+    const Rcatch = conf.catchRadius, holdNeed = conf.holdMs;
+    const centerX = W/2, centerY = H/2;
+
+    function draw(aimX, aimY){
+      ctx.clearRect(0,0,W,H);
+
+      // фоновые «частицы» по желанию (минимально)
+      // прицел
+      ctx.beginPath();
+      ctx.arc(aimX, aimY, Rcatch, 0, Math.PI*2);
+      ctx.strokeStyle='rgba(255,255,255,.7)'; ctx.lineWidth=2; ctx.stroke();
+
+      // призрак
+      const scrX = gx + centerX - camXS;
+      const scrY = gy + centerY - camYS;
+      const grd = ctx.createRadialGradient(scrX-10, scrY-10, 5, scrX, scrY, 40);
+      grd.addColorStop(0,'rgba(255,255,255,.95)'); grd.addColorStop(1,'rgba(0,200,255,.25)');
+      ctx.fillStyle = grd;
+      ctx.beginPath(); ctx.arc(scrX, scrY, 26, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle='rgba(255,255,255,.9)'; ctx.font='32px system-ui'; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText('👻', scrX, scrY);
+    }
+
+    let raf=0;
+    function tick(ts){
+      const dt = Math.min(50, ts-last)/1000; last=ts;
+
+      // сглаживаем датчики
+      camXS = camXS*0.85 + camX*0.15;
+      camYS = camYS*0.85 + camY*0.15;
+      const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
+      const aimX = clamp(centerX + camXS, W*0.15, W*0.85);
+      const aimY = clamp(centerY + camYS, H*0.15, H*0.85);
+
+      // экранные координаты призрака
+      const scrX = gx + centerX - camXS;
+      const scrY = gy + centerY - camYS;
+      const dx = scrX - aimX, dy = scrY - aimY;
+      const dist = Math.hypot(dx, dy);
+
+      // скорость (убегает от прицела)
+      const dirx = dist>0 ? dx/dist : 0;
+      const diry = dist>0 ? dy/dist : 0;
+      let speed = conf.baseSpeed + (dist < Rcatch*1.6 ? conf.nearBoost : 0);
+      speed = Math.max(conf.minSpeed, Math.min(conf.maxSpeed, speed));
+
+      // физика в мировых координатах (gx,gy)
+      vx += dirx * speed * dt;
+      vy += diry * speed * dt;
+      // трение
+      vx *= 0.90; vy *= 0.90;
+      gx += vx * dt; gy += vy * dt;
+
+      // границы (мировые ≈ экран ± небольшой буфер)
+      const limX = (W/2)*0.95, limY = (H/2)*0.95;
+      if (gx >  limX){ gx= limX; vx*=-0.8; }
+      if (gx < -limX){ gx=-limX; vx*=-0.8; }
+      if (gy >  limY){ gy= limY; vy*=-0.8; }
+      if (gy < -limY){ gy=-limY; vy*=-0.8; }
+
+      // захват
+      if (dist <= Rcatch){
+        holdMs += dt*1000;
+      } else {
+        holdMs = Math.max(0, holdMs - dt*600);
+      }
+      barIn.style.width = Math.min(100, Math.floor(100*holdMs/holdNeed)) + '%';
+
+      draw(aimX, aimY);
+
+      if (holdMs >= holdNeed){
+        cancelAnimationFrame(raf);
+        resolve({success:true});
+        return;
+      }
+      raf = requestAnimationFrame(tick);
+    }
+
+    // Закрытие/очистка
+    let resolve=()=>{};
+    const promise = new Promise(res=> resolve=res);
+    cleanup = ()=>{
+      try{ cancelAnimationFrame(raf); }catch{}
+      try{ window.removeEventListener('deviceorientation', onOrient, true);}catch{}
+      stage.innerHTML='';
       modal.classList.add('hidden');
       window.dispatchEvent(new Event('ar:close'));
-      stage.innerHTML='';
-      close.onclick=null;
-      startBtn.onclick=null;
+      _busy=false;
     };
-    const closeHandler = ()=>{ cleanup(); resolveFn({ success:false }); };
-    close.onclick = closeHandler;
+    close.onclick = ()=>{ resolve({success:false}); };
 
-    function drawTarget(){
-      ctx.save();
-      ctx.strokeStyle = 'rgba(0,255,200,0.85)';
-      ctx.lineWidth = 4;
-      ctx.beginPath(); ctx.arc(W/2, H/2, circleR, 0, Math.PI*2); ctx.stroke();
-      ctx.restore();
-    }
-    function drawGhost(){
-      ctx.save();
-      ctx.shadowColor='rgba(0,255,200,0.5)'; ctx.shadowBlur=12;
-      ctx.fillStyle='rgba(190,230,255,0.95)';
-      ctx.beginPath(); ctx.arc(ghost.x, ghost.y, 18, 0, Math.PI*2); ctx.fill();
-      ctx.restore();
-    }
-
-    function tick(ts){
-      raf = requestAnimationFrame(tick);
-      const dt = Math.min(32, ts - (tPrev||ts)); tPrev = ts;
-      lastFeint += dt;
-      if (lastFeint > (DIFFICULTY[rarity]?.feintEveryMs ?? 1800)){
-        lastFeint = 0; ghost.vx *= -1.15; ghost.vy *= 1.12;
-      }
-      // движение
-      ghost.x += ghost.vx * dt;
-      ghost.y += ghost.vy * dt;
-      // отскоки
-      if (ghost.x < circleR || ghost.x > W-circleR) ghost.vx*=-1;
-      if (ghost.y < circleR || ghost.y > H-circleR) ghost.vy*=-1;
-
-      // прицел (для MVP центр + шум)
-      const aimX = W/2 + (Math.random()-0.5)*(DIFFICULTY[rarity]?.sensorYawToPx ?? 6);
-      const aimY = H/2 + (Math.random()-0.5)*(DIFFICULTY[rarity]?.sensorPitchToPx ?? 6);
-      const inCircle = Math.hypot(ghost.x-aimX, ghost.y-aimY) <= circleR;
-
-      if (inCircle){
-        heldMs += dt;
-        if (heldMs > (AR_TUNING.comboAfterMs||1500)){
-          combo = Math.min(AR_TUNING.comboMax||1.5, combo + 0.005);
-        }
-        progress += (dt / (diff.holdMs||18000)) * 6 * combo; // подстройка скорости заполнения
-      } else {
-        heldMs = 0; combo = 1.0;
-        progress -= (dt/1000) * (AR_TUNING.decayOutPerSec||0.15);
-      }
-      progress = Math.max(0, Math.min(1, progress));
-
-      // рендер
-      ctx.clearRect(0,0,W,H);
-      drawTarget();
-      drawGhost();
-      progIn.style.width = (progress*100).toFixed(1)+'%';
-      timer.textContent = formatMs((diff.holdMs||18000));
-
-      if (progress >= 1){
-        cleanup();
-        resolveFn({ success:true, rewardMult: Math.min(1.2, 1 + (combo-1)/2) });
-      }
-    }
-
-    let resolveFn;
-    const promise = new Promise(res=> resolveFn = res);
-    startBtn.onclick = ()=>{
-      if (running) return;
-      running = true;
-      tPrev = performance.now();
-      raf = requestAnimationFrame(tick);
-    };
-
-    return await promise;
-  } finally {
-    _busy = false;
+    // старт
+    raf = requestAnimationFrame(tick);
+    const result = await promise;
+    cleanup();
+    return result;
+  } catch(err){
+    console.error('AR error:', err);
+    cleanup();
+    _busy=false;
+    return { success:false };
   }
-}
-
-function formatMs(ms){
-  const s = Math.max(0, Math.ceil(ms/1000)); const m=(s/60)|0; const ss=String(s%60).padStart(2,'0'); return `${m}:${ss}`;
 }
