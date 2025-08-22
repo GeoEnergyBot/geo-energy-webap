@@ -1,168 +1,172 @@
 import { DIFFICULTY, AR_TUNING } from '../env.js';
 
-function el(id){ return document.getElementById(id); }
-
-function ensureModal(){
-  const modal = el('ar-modal');
-  const stage = el('ar-stage');
-  const btn   = el('catch-btn');
-  const hint  = el('catch-hint');
-  const close = el('ar-close');
-  if (!modal || !stage || !btn || !close) throw new Error('AR modal elements missing');
-  modal.classList.remove('hidden');
-  window.dispatchEvent(new Event('ar:open'));
-  close.onclick = () => { modal.classList.add('hidden'); window.dispatchEvent(new Event('ar:close')); };
-  stage.innerHTML='';
-  btn.style.opacity=.6; btn.disabled=true;
-  hint.textContent='Держите цель в прицеле';
-  return {modal, stage, btn, hint, close};
-}
+/** Простая AR-мини-игра «Поймай призрака»: удерживать призрака внутри круга до заполнения шкалы */
+let _busy = false;
 
 export async function openGhostCatch(rarity='common'){
-  const { modal, stage, btn, hint } = ensureModal();
+  if (_busy) return { success:false };
+  _busy = true;
+  try{
+    const modal = document.getElementById('ar-modal');
+    const stage = document.getElementById('ar-stage');
+    const title = document.getElementById('ar-title');
+    const close = document.getElementById('ar-close');
+    if (!modal || !stage) return { success:false };
 
-  // video (best-effort)
-  const video = document.createElement('video'); video.autoplay=true; video.playsInline=true; video.muted=true;
-  Object.assign(video.style, { position:'absolute', inset:'0', width:'100%', height:'100%', objectFit:'cover', transform:'scaleX(-1)' });
-  stage.appendChild(video);
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ ideal:'environment' } }, audio:false });
-    video.srcObject=stream;
-  } catch {}
+    title.textContent = 'Поймайте призрака в круг';
+    // Очистим и создадим сцену
+    stage.innerHTML = '';
+    const wrap = document.createElement('div');
+    wrap.style.position = 'relative';
+    wrap.style.width = '100%';
+    wrap.style.height = '100%';
+    stage.appendChild(wrap);
 
-  // overlay
-  const overlay = document.createElement('div');
-  Object.assign(overlay.style,{ position:'absolute', inset:'0', overflow:'hidden' });
-  stage.appendChild(overlay);
+    const canvas = document.createElement('canvas');
+    // подгоним размер под контейнер (портрет)
+    const W = 360, H = 540;
+    canvas.width = W; canvas.height = H;
+    canvas.style.display = 'block';
+    canvas.style.margin = '12px auto';
+    canvas.style.borderRadius = '16px';
+    canvas.style.background = 'radial-gradient(circle at 50% 40%, rgba(0,255,153,.18), transparent 60%), #0a0e11';
+    wrap.appendChild(canvas);
 
-  // reticle
-  const R = (DIFFICULTY[rarity]?.reticleRadiusPx ?? 56);
-  const ret = document.createElement('div');
-  Object.assign(ret.style,{ position:'absolute', left:'50%', top:'50%', width:`${R*2}px`, height:`${R*2}px`, marginLeft:`-${R}px`, marginTop:`-${R}px`, borderRadius:'50%', border:'2px solid rgba(255,255,255,.75)', boxShadow:'0 0 0 3px rgba(0,0,0,.25), inset 0 0 30px rgba(0,255,220,.15)' });
-  overlay.appendChild(ret);
+    // Прогресс-бар
+    const prog = document.createElement('div');
+    const progIn = document.createElement('div');
+    prog.style.height = '10px'; prog.style.borderRadius='8px';
+    prog.style.background='rgba(255,255,255,.12)';
+    progIn.style.height = '10px'; progIn.style.width='0%';
+    progIn.style.background='linear-gradient(90deg,#22d3ee,#818cf8,#e879f9)';
+    progIn.style.borderRadius='8px';
+    prog.appendChild(progIn);
+    prog.style.margin = '8px 12px 0 12px';
+    wrap.appendChild(prog);
 
-  // progress ring
-  const ring = document.createElement('div');
-  Object.assign(ring.style,{ position:'absolute', left:'50%', top:'50%', width:`${R*2+18}px`, height:`${R*2+18}px`, marginLeft:`-${R+9}px`, marginTop:`-${R+9}px`, borderRadius:'50%', background:'conic-gradient(#00ffd0 0deg, rgba(255,255,255,.15) 0deg)' });
-  overlay.appendChild(ring);
-  const setProg = p => { const deg = Math.floor(360*Math.max(0,Math.min(1,p))); ring.style.background = `conic-gradient(#00ffd0 ${deg}deg, rgba(255,255,255,.15) ${deg}deg)`; };
+    // Таймер
+    const timer = document.createElement('div');
+    timer.style.position='absolute'; timer.style.top='8px'; timer.style.right='12px';
+    timer.style.padding='4px 8px'; timer.style.borderRadius='8px';
+    timer.style.background='rgba(0,0,0,.35)'; timer.style.fontSize='12px';
+    timer.textContent = '0:00';
+    wrap.appendChild(timer);
 
-  // ghost
-  const g = document.createElement('div');
-  Object.assign(g.style,{ position:'absolute', width:'96px', height:'96px', left:'50%', top:'50%', marginLeft:'-48px', marginTop:'-48px', borderRadius:'24%', background:'radial-gradient(60% 60% at 30% 30%, rgba(255,255,255,.95), rgba(255,255,255,.2)), radial-gradient(55% 55% at 70% 70%, rgba(0,200,255,.5), rgba(0,0,0,0))', border:'2px solid rgba(255,255,255,.4)', display:'grid', placeItems:'center', filter:'drop-shadow(0 8px 16px rgba(0,0,0,.45))' });
-  g.textContent='👻'; g.style.fontSize='64px';
-  overlay.appendChild(g);
+    // Подсказка
+    const hint = document.createElement('div');
+    hint.textContent = 'Держите призрака в круге!';
+    hint.style.position='absolute'; hint.style.top='8px'; hint.style.left='0'; hint.style.right='0';
+    hint.style.textAlign='center'; hint.style.fontWeight='600';
+    hint.style.textShadow='0 2px 8px rgba(0,0,0,.7)';
+    wrap.appendChild(hint);
 
-  // arrows
-  const arr = ['⬅','➡','⬆','⬇'].map(txt=>{ const d = document.createElement('div'); d.textContent=txt; Object.assign(d.style,{ position:'absolute', color:'#fff', fontSize:'28px', textShadow:'0 2px 8px rgba(0,0,0,.5)', opacity:'0', transition:'opacity .2s' }); overlay.appendChild(d); return d; });
-  arr[0].style.left='8px'; arr[0].style.top='50%'; arr[0].style.transform='translateY(-50%)';
-  arr[1].style.right='8px'; arr[1].style.top='50%'; arr[1].style.transform='translateY(-50%)';
-  arr[2].style.top='8px'; arr[2].style.left='50%'; arr[2].style.transform='translateX(-50%)';
-  arr[3].style.bottom='8px'; arr[3].style.left='50%'; arr[3].style.transform='translateX(-50%)';
+    // Кнопка Старт
+    const startBtn = document.createElement('button');
+    startBtn.textContent = 'Старт';
+    startBtn.style.position='absolute'; startBtn.style.bottom='12px'; startBtn.style.left='50%';
+    startBtn.style.transform='translateX(-50%)';
+    startBtn.style.background='#171f27'; startBtn.style.color='#e9f1f7';
+    startBtn.style.border='1px solid rgba(255,255,255,.12)';
+    startBtn.style.borderRadius='14px'; startBtn.style.padding='10px 14px';
+    wrap.appendChild(startBtn);
 
-  // sensor
-  let camX=0, camY=0; let a0=null, b0=null;
-  const yaw2px = AR_TUNING.sensorYawToPx ?? 6;
-  const pitch2px = AR_TUNING.sensorPitchToPx ?? 6;
-  function ori(e){
-    const a=e.alpha, b=e.beta;
-    if (a==null || b==null) return;
-    if (a0==null) a0=a; if (b0==null) b0=b;
-    const dyaw = (((a-a0+180)%360)+360)%360 - 180;
-    const dpitch = b-b0;
-    camX = dyaw*yaw2px; camY = -dpitch*pitch2px;
-  }
-  let useSensors=false;
-  async function enableSensors(){
-    try{
-      if (typeof DeviceOrientationEvent!=='undefined' && typeof DeviceOrientationEvent.requestPermission==='function'){
-        const r = await DeviceOrientationEvent.requestPermission();
-        if (r==='granted'){ window.addEventListener('deviceorientation', ori, true); useSensors=true; }
-      } else if ('ondeviceorientation' in window){
-        window.addEventListener('deviceorientation', ori, true); useSensors=true;
-      }
-    }catch{}
-  }
-  await enableSensors();
+    // Открываем модалку
+    modal.classList.remove('hidden');
+    window.dispatchEvent(new Event('ar:open'));
 
-  // joystick fallback
-  const joy = document.createElement('div');
-  Object.assign(joy.style,{ position:'absolute', left:'16px', bottom:'16px', width:'96px', height:'96px', borderRadius:'50%', background:'rgba(255,255,255,.1)', border:'1px solid rgba(255,255,255,.25)', touchAction:'none', display: useSensors?'none':'block' });
-  overlay.appendChild(joy);
-  let jActive=false, jBase={x:0,y:0};
-  joy.addEventListener('pointerdown',e=>{ jActive=true; jBase={x:e.clientX,y:e.clientY}; joy.setPointerCapture(e.pointerId); });
-  const joyMove = e=>{ if(!jActive) return; camX=(e.clientX-jBase.x)*1.6; camY=(e.clientY-jBase.y)*1.6; };
-  joy.addEventListener('pointermove',joyMove);
-  const joyEnd=()=>{ jActive=false; camX*=.5; camY*=.5; };
-  joy.addEventListener('pointerup',joyEnd); joy.addEventListener('pointercancel',joyEnd);
+    const diff = DIFFICULTY[rarity] || DIFFICULTY.common;
+    const ctx = canvas.getContext('2d');
+    const circleR = diff.reticleRadiusPx || 60;
+    let ghost = { x: W/2 + 40, y: H/3, vx: 0.9*diff.baseSpeed/60, vy: 0.7*diff.baseSpeed/60 };
+    let progress = 0; // 0..1
+    let heldMs = 0, combo = 1.0;
+    let lastFeint = 0, running=false, raf=0, tPrev=0;
 
-  // game loop
-  const W=()=>overlay.clientWidth, H=()=>overlay.clientHeight, HW=()=>W()/2, HH=()=>H()/2;
-  let gx=(Math.random()*2-1)*HW()*0.6, gy=(Math.random()*2-1)*HH()*0.6;
-  let vx=0, vy=0; let last=performance.now(); let hold=0; const need=DIFFICULTY[rarity]?.holdMs ?? 1800;
-  const base = DIFFICULTY[rarity]?.baseSpeed ?? 200;
-  const feintEvery = AR_TUNING.feintEveryMs ?? 2200;
-  let lastFeint=0;
+    const cleanup = ()=>{
+      cancelAnimationFrame(raf);
+      modal.classList.add('hidden');
+      window.dispatchEvent(new Event('ar:close'));
+      stage.innerHTML='';
+      close.onclick=null;
+      startBtn.onclick=null;
+    };
+    const closeHandler = ()=>{ cleanup(); resolveFn({ success:false }); };
+    close.onclick = closeHandler;
 
-  function arrows(x,y){
-    const w=W(), h=H();
-    arr[0].style.opacity = x < -40 ? '1':'0';
-    arr[1].style.opacity = x > w+40 ? '1':'0';
-    arr[2].style.opacity = y < -40 ? '1':'0';
-    arr[3].style.opacity = y > h+40 ? '1':'0';
-  }
-
-  const done = (ok)=>{ el('ar-modal').classList.add('hidden'); window.dispatchEvent(new Event('ar:close')); resolve({success:ok}); };
-  let resolve; const result = new Promise(res=>resolve=res);
-
-  function tick(){
-    const now=performance.now(); const dt=Math.min(50, now-last)/1000; last=now;
-    const cx=HW(), cy=HH();
-
-    let sx = (gx - camX) + cx;
-    let sy = (gy - camY) + cy;
-    const dx = sx - cx, dy = sy - cy;
-    const dist = Math.hypot(dx,dy);
-    const dirX = dx/(dist||1), dirY = dy/(dist||1);
-
-    let speed = base + (dist < R*1.7 ? 100 : 0);
-    vx += dirX*speed*dt; vy += dirY*speed*dt;
-    vx *= 0.92; vy *= 0.92;
-    gx += vx*dt; gy += vy*dt;
-
-    const limX = cx*1.1, limY = cy*1.1;
-    if (gx>limX){ gx=limX; vx*=-0.8; }
-    if (gx<-limX){ gx=-limX; vx*=-0.8; }
-    if (gy>limY){ gy=limY; vy*=-0.8; }
-    if (gy<-limY){ gy=-limY; vy*=-0.8; }
-
-    sx = (gx - camX) + cx; sy = (gy - camY) + cy;
-    g.style.transform = `translate(${Math.round(sx-48)}px, ${Math.round(sy-48)}px)`;
-
-    arrows(sx,sy);
-
-    if (dist <= R){
-      hold += dt*1000;
-      if (hold>=need){
-        btn.style.opacity=1; btn.disabled=false; hint.textContent='Нажмите, чтобы забрать энергию';
-        return; // замораживаем цикл, ждём кнопку
-      }
-    } else {
-      hold = Math.max(0, hold - dt*1000*0.5);
+    function drawTarget(){
+      ctx.save();
+      ctx.strokeStyle = 'rgba(0,255,200,0.85)';
+      ctx.lineWidth = 4;
+      ctx.beginPath(); ctx.arc(W/2, H/2, circleR, 0, Math.PI*2); ctx.stroke();
+      ctx.restore();
     }
-    setProg(hold/need);
-
-    if (now-lastFeint>feintEvery){
-      lastFeint=now;
-      const perp = Math.random()<0.5 ? [-dirY, dirX] : [dirY, -dirX];
-      vx += perp[0]*150; vy += perp[1]*150;
+    function drawGhost(){
+      ctx.save();
+      ctx.shadowColor='rgba(0,255,200,0.5)'; ctx.shadowBlur=12;
+      ctx.fillStyle='rgba(190,230,255,0.95)';
+      ctx.beginPath(); ctx.arc(ghost.x, ghost.y, 18, 0, Math.PI*2); ctx.fill();
+      ctx.restore();
     }
 
-    requestAnimationFrame(tick);
+    function tick(ts){
+      raf = requestAnimationFrame(tick);
+      const dt = Math.min(32, ts - (tPrev||ts)); tPrev = ts;
+      lastFeint += dt;
+      if (lastFeint > (DIFFICULTY[rarity]?.feintEveryMs ?? 1800)){
+        lastFeint = 0; ghost.vx *= -1.15; ghost.vy *= 1.12;
+      }
+      // движение
+      ghost.x += ghost.vx * dt;
+      ghost.y += ghost.vy * dt;
+      // отскоки
+      if (ghost.x < circleR || ghost.x > W-circleR) ghost.vx*=-1;
+      if (ghost.y < circleR || ghost.y > H-circleR) ghost.vy*=-1;
+
+      // прицел (для MVP центр + шум)
+      const aimX = W/2 + (Math.random()-0.5)*(DIFFICULTY[rarity]?.sensorYawToPx ?? 6);
+      const aimY = H/2 + (Math.random()-0.5)*(DIFFICULTY[rarity]?.sensorPitchToPx ?? 6);
+      const inCircle = Math.hypot(ghost.x-aimX, ghost.y-aimY) <= circleR;
+
+      if (inCircle){
+        heldMs += dt;
+        if (heldMs > (AR_TUNING.comboAfterMs||1500)){
+          combo = Math.min(AR_TUNING.comboMax||1.5, combo + 0.005);
+        }
+        progress += (dt / (diff.holdMs||18000)) * 6 * combo; // подстройка скорости заполнения
+      } else {
+        heldMs = 0; combo = 1.0;
+        progress -= (dt/1000) * (AR_TUNING.decayOutPerSec||0.15);
+      }
+      progress = Math.max(0, Math.min(1, progress));
+
+      // рендер
+      ctx.clearRect(0,0,W,H);
+      drawTarget();
+      drawGhost();
+      progIn.style.width = (progress*100).toFixed(1)+'%';
+      timer.textContent = formatMs((diff.holdMs||18000));
+
+      if (progress >= 1){
+        cleanup();
+        resolveFn({ success:true, rewardMult: Math.min(1.2, 1 + (combo-1)/2) });
+      }
+    }
+
+    let resolveFn;
+    const promise = new Promise(res=> resolveFn = res);
+    startBtn.onclick = ()=>{
+      if (running) return;
+      running = true;
+      tPrev = performance.now();
+      raf = requestAnimationFrame(tick);
+    };
+
+    return await promise;
+  } finally {
+    _busy = false;
   }
-  requestAnimationFrame(tick);
+}
 
-  btn.onclick = ()=>{ try{ navigator.vibrate && navigator.vibrate([60,40,60]); }catch{} resolve({success:true}); el('ar-modal').classList.add('hidden'); window.dispatchEvent(new Event('ar:close')); };
-
-  return result;
+function formatMs(ms){
+  const s = Math.max(0, Math.ceil(ms/1000)); const m=(s/60)|0; const ss=String(s%60).padStart(2,'0'); return `${m}:${ss}`;
 }
