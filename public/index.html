@@ -21,7 +21,7 @@
       background: #000;
       z-index: 9999;
       display: grid;
-      grid-template-rows: auto 1fr auto;
+      grid-template-rows: auto 1fr;
     }
     #ar-header {
       display: flex; justify-content: space-between; align-items: center;
@@ -41,6 +41,9 @@
     #ar-stage {
       position: relative;
       overflow: hidden;
+    
+      width: 100%;
+      height: 100%;
     }
     /* MindAR сам подставит <video> и <canvas> внутрь контейнера */
     #ar-actions {
