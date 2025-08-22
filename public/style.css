@@ -1,20 +1,20 @@
 
-:root { --top-h: 68px; --bottom-h: 64px; --bg: #0b1116; --panel: #0f1720; --text: #e6f3ff; --muted: #cbd5e1; --accent:#22d3ee; }
+:root { --bg: #0b1116; --panel: #0f1720; --text: #e6f3ff; --muted: #cbd5e1; --accent:#22d3ee; }
 * { box-sizing: border-box; }
 html, body { height:100%; }
 body { margin:0; background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, Segoe UI, Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'Apple Color Emoji','Segoe UI Emoji'; }
 
 #top-bar { display:flex; align-items:center; gap:12px; padding:10px 12px; background: linear-gradient(90deg,#0e1620,#101c28); border-bottom: 1px solid rgba(255,255,255,.06); }
 #top-bar #avatar { width:36px; height:36px; border-radius: 999px; border:1px solid rgba(255,255,255,.12); background:#000; object-fit:cover; }
-#top-bar #player-info { flex:1; min-width:0; }
-#top-bar #username { font-weight:600; text-overflow: ellipsis; white-space:nowrap; overflow:hidden; }
-#top-bar #energy-info { font-size:12px; opacity:.9; }
-#top-bar #energy-bar-container { height:8px; background: rgba(255,255,255,.12); border-radius: 999px; overflow:hidden; margin-top:4px; }
+#top-bar .info { flex:1; min-width:0; }
+#top-bar .name { font-weight:600; text-overflow: ellipsis; white-space:nowrap; overflow:hidden; }
+#top-bar .energy { font-size:12px; opacity:.9; }
+#top-bar .bar { height:8px; background: rgba(255,255,255,.12); border-radius: 999px; overflow:hidden; margin-top:4px; }
 #energy-bar-fill { height:8px; width:0%; background: linear-gradient(90deg,#22d3ee,#818cf8,#e879f9); }
 
 #level-badge { width:24px; height:24px; border-radius:999px; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; background:#0ea5e9; color:#001018; }
 
-#map { height: calc(100% - var(--top-h) - var(--bottom-h)); }
+#map { height: calc(100% - 68px); }
 
 /* AR modal */
 #ar-modal.hidden { display:none; }
@@ -26,24 +26,3 @@ body { margin:0; background: var(--bg); color: var(--text); font-family: system-
 
 .leaflet-marker-icon.flash { filter: drop-shadow(0 0 12px #00ff99) brightness(2); transition: filter .3s ease; }
 body.ar-open #top-bar, body.ar-open #map { display:none !important; }
-
-
-/* Нижняя панель */
-#bottom-bar{
-  position: fixed; left: 0; right: 0; bottom: 0;
-  height: var(--bottom-h);
-  display: grid; grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-  padding: 10px;
-  background: linear-gradient(180deg, #0f1720, #0b1116);
-  border-top: 1px solid rgba(255,255,255,.06);
-  z-index: 800;
-}
-#bottom-bar .nav-btn{
-  appearance: none; border: 1px solid rgba(255,255,255,.08);
-  background: #101923; color: var(--text);
-  border-radius: 14px; padding: 10px 12px;
-  font-weight: 600; cursor: pointer;
-}
-#bottom-bar .nav-btn:active{ transform: translateY(1px); }
-body.ar-open #bottom-bar { display:none !important; }
