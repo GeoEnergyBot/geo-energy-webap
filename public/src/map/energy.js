@@ -12,6 +12,9 @@ let energyMarkers = [];
 const IS_PROD = (typeof location!=='undefined') && (['geo-energy-webap.vercel.app'].includes(location.hostname));
 let isLoadingPoints = false;
 
+function toFinite(n, fallback){ const x = Number(n); return Number.isFinite(x) ? x : fallback; }
+
+
 function showBackendBanner(msg){
   try{
     let el = document.getElementById('backend-banner');
@@ -79,7 +82,7 @@ export async function loadEnergyPoints(map, playerMarker, user){
     for (const m of energyMarkers){ try{ map.removeLayer(m.marker);}catch(e){} }
     energyMarkers = [];
     const pos = playerMarker.getLatLng();
-    let data; try{ data = await apiGenerate(user.id, pos.lat, pos.lng); showBackendBanner(''); } catch(err){ console.error('generate error', err); showBackendBanner('Нет соединения с бэкендом'); throw err; }
+    let data; try{ data = await apiGenerate(user.id, pos.lat, pos.lng); showBackendBanner(''); } catch(err){ console.error('generate error', err); showBackendBanner('Нет соединения с бэкендом'); console.error('generate error', err); throw err; }
     const points = data.points||[];
     for (const p of points){
       const marker = L.marker([p.lat, p.lng], { icon: getEnergyIcon(p.type) });
@@ -111,7 +114,7 @@ export async function loadEnergyPoints(map, playerMarker, user){
           const step=(ts)=>{ const t=Math.min(1,(ts-t0)/duration); const lat=start.lat+(end.lat-start.lat)*t; const lng=start.lng+(end.lng-start.lng)*t; anim.setLatLng([lat,lng]); if (t<1) requestAnimationFrame(step); else map.removeLayer(anim); };
           requestAnimationFrame(step);
 
-          let collect; try{ collect = await apiCollect(user.id, p.id); showBackendBanner(''); } catch(err){ console.error('collect error', err); showBackendBanner('Нет соединения с бэкендом'); throw err; }
+          let collect; try{ collect = await apiCollect(user.id, p.id); showBackendBanner(''); } catch(err){ console.error('collect error', err); showBackendBanner('Нет соединения с бэкендом'); console.error('generate error', err); throw err; }
           if (!collect?.success){ alert('🚫 Ошибка сбора энергии'); return; }
           quests.onCollect(p.type);
 
