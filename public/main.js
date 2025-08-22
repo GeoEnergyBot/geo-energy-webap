@@ -94,3 +94,11 @@ initSupabase();
     onPositionError(new Error("Геолокация не поддерживается."));
   }
 })();
+
+/* === AR state toggling (inject) === */
+window.addEventListener('ar:open', () => {
+  try { document.body.classList.add('ar-open'); } catch(e) {}
+});
+window.addEventListener('ar:close', () => {
+  try { document.body.classList.remove('ar-open'); } catch(e) {}
+});

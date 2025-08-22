@@ -1,6 +1,8 @@
 import { getDistanceKm } from '../utils.js';
 import { openGyroChase } from '../ar/gyroChase.js';
 
+let __arBusy = false;
+
 export function buildBaseLayers() {
   const cartoDark = L.tileLayer(
     'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
@@ -52,12 +54,17 @@ export function spawnArEntryNear(map, lat, lng, replace=false) {
 export function setArEntryHandler(arMarker, playerMarker) {
   if (!arMarker) return;
   arMarker.off('click');
-  arMarker.on('click', () => {
+  arMarker.on('click', async () => {
     if (!playerMarker) return;
     const p = playerMarker.getLatLng();
     const m = arMarker.getLatLng();
     const km = getDistanceKm(p.lat, p.lng, m.lat, m.lng);
     if (km > 0.02) { alert('Подойдите ближе (до 20 м), чтобы включить AR.'); return; }
-    openGyroChase('common'); // можно подставлять 'advanced'/'rare' по логике игры
+    if (__arBusy) return; __arBusy = true
+    try {
+      await openGyroChase('common'); // можно подставлять 'advanced'/'rare' по логике игры
+    } finally {
+      __arBusy = false
+    }
   });
 }

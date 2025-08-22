@@ -1,10 +1,18 @@
 import { DIFFICULTY, AR_TUNING } from '../env.js';
 
+let __arActive = false;
+
 /**
  * Запуск мини-игры «Гироскопная погоня».
  * @param {'common'|'advanced'|'rare'} rarity
  */
 export function openGyroChase(rarity='common') {
+  if (__arActive) return Promise.resolve(false);
+  __arActive = true;
+  window.dispatchEvent(new Event('ar:open'));
+  let __resolve;
+  let __resolved = false;
+  const __promise = new Promise((res)=>{ __resolve = res; });
   const modal = document.getElementById('ar-modal');
   const closeBtn = document.getElementById('ar-close');
   const stage = document.getElementById('ar-stage');
@@ -29,6 +37,8 @@ export function openGyroChase(rarity='common') {
   const overlay = document.createElement('div');
   Object.assign(overlay.style, { position:'absolute', inset:'0', overflow:'hidden', pointerEvents:'auto' });
   stage.appendChild(overlay);
+  // Клик по экрану — ре-калибровка базового угла
+  overlay.addEventListener('click', ()=>{ try{ calib.alpha0=null; calib.beta0=null; }catch{} });
 
   // Прицел/прогресс
   const reticleSize = diff.reticleRadiusPx * 2;
@@ -50,6 +60,13 @@ export function openGyroChase(rarity='common') {
     boxShadow:'0 0 14px rgba(0,255,220,.35)', pointerEvents:'none'
   });
   overlay.appendChild(ring); overlay.appendChild(reticle);
+  const holdLabel = document.createElement('div');
+  Object.assign(holdLabel.style, {
+    position:'absolute', left:'50%', top:'50%', transform:'translate(-50%,-50%)',
+    fontSize:'22px', fontWeight:'800', color:'#eaffff', textShadow:'0 2px 8px rgba(0,0,0,.7)'
+  });
+  holdLabel.textContent = '';
+  overlay.appendChild(holdLabel);
 
   // Призрак
   const ghost = document.createElement('div');
@@ -115,9 +132,13 @@ export function openGyroChase(rarity='common') {
 
   // Закрытие
   const cleanupFns = [];
+  const resolveIf = (val)=>{ if(!__resolved){ __resolved=true; try{ __resolve(val); }catch{} } };
   const close = () => {
     try { cleanupFns.forEach(fn => fn && fn()); } catch {}
     modal.classList.add('hidden'); stage.innerHTML='';
+    resolveIf(false);
+    __arActive = false;
+    window.dispatchEvent(new Event('ar:close'));
   };
   closeBtn.onclick = close;
 
@@ -155,6 +176,8 @@ export function openGyroChase(rarity='common') {
     arrowB.style.opacity = y > h+m ? '1':'0';
   };
   const vib = p => { try { navigator.vibrate && navigator.vibrate(p); } catch {} };
+
+  const haptic = (pattern)=>{ try{ if (window.Telegram?.WebApp?.HapticFeedback) { window.Telegram.WebApp.HapticFeedback.impactOccurred('light'); } else if (navigator.vibrate) { navigator.vibrate(pattern || 15); } }catch{} };
 
   // Состояние гироскопа/эмуляции
   let calib = { alpha0:null, beta0:null };
@@ -259,7 +282,11 @@ export function openGyroChase(rarity='common') {
 
     updateArrows(screenX, screenY);
 
-    if (dist <= Rcatch){
+    let __wasInside = __wasInside ?? false;
+    const __nowInside = dist <= Rcatch;
+    if (__nowInside && !__wasInside) { try{ navigator.vibrate?.(15); }catch{} }
+    __wasInside = __nowInside;
+    if (__nowInside){
       holdMs += dt*1000;
       if (Math.abs(dist - Rcatch) < 6) lastNearTs = now;
       if (holdMs >= holdTarget){
@@ -273,10 +300,22 @@ export function openGyroChase(rarity='common') {
     }
     const prog = Math.max(0, Math.min(1, holdMs/holdTarget));
     const deg = Math.floor(360*prog);
+    const remain = Math.max(0, holdTarget - holdMs);
+    holdLabel.textContent = (remain/1000).toFixed(2) + 's';
     ring.style.background = `conic-gradient(#00ffd0 ${deg}deg, rgba(255,255,255,.15) ${deg}deg)`;
 
     rafId = requestAnimationFrame(tick);
   }
   rafId = requestAnimationFrame(tick);
   cleanupFns.push(()=>cancelAnimationFrame(rafId));
+  // Возвращаем промис результата
+  return __promise;
+  const onVis = ()=>{
+    try{
+      if (document.hidden){ cancelAnimationFrame(rafId); video.pause(); }
+      else { video.play().catch(()=>{}); rafId = requestAnimationFrame(tick); }
+    }catch{}
+  };
+  document.addEventListener('visibilitychange', onVis);
+  cleanupFns.push(()=>document.removeEventListener('visibilitychange', onVis));
 }
