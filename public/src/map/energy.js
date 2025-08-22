@@ -9,6 +9,7 @@ import { store } from '../store.js';
 import { hotzones } from '../hotzones.js';
 
 let energyMarkers = [];
+const IS_PROD = (typeof location!=='undefined') && (['geo-energy-webap.vercel.app'].includes(location.hostname));
 let isLoadingPoints = false;
 
 const __pointCooldown = new Map();
@@ -46,9 +47,7 @@ async function apiGenerate(telegram_id, lat, lng){
   return json;
 }
 async function apiCollect(telegram_id, point_id){
-  if (!FUNCTIONS_ENDPOINT){
-    return { success:true, point_energy_value: (Math.random()<0.1?120:(Math.random()<0.4?70:35)), player:{ level: (Number(document.getElementById('level-badge')?.textContent)||1), energy_max: (Number(document.getElementById('energy-max')?.textContent)||1000) } };
-  }
+  if (!FUNCTIONS_ENDPOINT){ if (IS_PROD) throw new Error('No backend in prod'); return { success:true, point_energy_value: (Math.random()<0.1?120:(Math.random()<0.4?70:35)), player:{ level: (Number(document.getElementById('level-badge')?.textContent)||1), energy_max: (Number(document.getElementById('energy-max')?.textContent)||1000) } }; }
   const res = await fetch(FUNCTIONS_ENDPOINT, {
     method:'POST',
     headers:{ 'Content-Type':'application/json', 'Authorization': `Bearer ${SUPABASE_ANON}` },

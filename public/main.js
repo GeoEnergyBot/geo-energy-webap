@@ -10,6 +10,7 @@ import { hotzones } from './src/hotzones.js';
 import { anti } from './src/anti.js';
 
 const tg = window.Telegram?.WebApp;
+const IS_PROD = (typeof location!=='undefined') && (['geo-energy-webap.vercel.app'].includes(location.hostname));
 if (tg) tg.expand();
 const user = tg?.initDataUnsafe?.user ?? { id: 'guest', first_name: 'Гость', username: 'guest' };
 

@@ -1,7 +1,7 @@
 
-export const SUPABASE_URL = '';
+export const SUPABASE_URL = 'https://ptkzsrlicfhufdnegwjl.supabase.co';
 export const SUPABASE_ANON = '';
-export const FUNCTIONS_ENDPOINT = ''; // optional; if blank, будет использоваться локальная генерация точек
+export const FUNCTIONS_ENDPOINT = 'https://ptkzsrlicfhufdnegwjl.functions.supabase.co/generate-points'; // optional; if blank, будет использоваться локальная генерация точек
 
 export const GHOST_ICON_BASES = ['ghost_icons', 'assets/ghosts'];
 
@@ -19,3 +19,7 @@ export const AR_TUNING = {
   sensorYawToPx: 6,
   sensorPitchToPx: 6,
 };
+
+
+/** Домены прод-сборки: на них отключаем оффлайн-фолбэк и требуем работающий бэк */
+export const PROD_DOMAINS = ['geo-energy-webap.vercel.app'];

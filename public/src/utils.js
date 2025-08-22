@@ -9,11 +9,13 @@ function ghostPath(base, level){
 export function resolveGhostUrl(level){
   const bases = Array.isArray(GHOST_ICON_BASES)&&GHOST_ICON_BASES.length? GHOST_ICON_BASES : ['ghost_icons','assets/ghosts'];
   return new Promise((resolve)=>{
+  const fallback = 'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="72" height="72" viewBox="0 0 72 72"><defs><radialGradient id="g"><stop offset="0" stop-color="#22d3ee"/><stop offset="1" stop-color="#0ea5e9"/></radialGradient></defs><circle cx="36" cy="36" r="28" fill="url(#g)" /></svg>`);
+
     let i=0;
     const img = new Image();
     const next = ()=>{
       if (i>=bases.length){
-        resolve(ghostPath(bases[0], level||1));
+        resolve(fallback);
         return;
       }
       const url = ghostPath(bases[i++], level||1);
@@ -35,15 +37,15 @@ export function makeLeafletGhostIcon(level){
   return L.icon({ iconUrl: url, iconSize:[36,36], iconAnchor:[18,18] });
 }
 
+
 export function getEnergyIcon(type='normal'){
-  let url;
-  switch(type){
-    case 'advanced': url='energy_blobs/advanced_blob.png'; break;
-    case 'rare': url='energy_blobs/rare_blob.png'; break;
-    default: url='energy_blobs/normal_blob.png';
-  }
+  const colors = { normal:'#22d3ee', advanced:'#8b5cf6', rare:'#f59e0b' };
+  const c = colors[type] || colors.normal;
+  const svg = encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 60 60"><defs><radialGradient id="g"><stop offset="0" stop-color="${c}" stop-opacity="0.9"/><stop offset="1" stop-color="${c}" stop-opacity="0.2"/></radialGradient></defs><circle cx="30" cy="30" r="18" fill="url(#g)" stroke="${c}" stroke-opacity="0.9"/></svg>`);
+  const url = 'data:image/svg+xml;utf8,' + svg;
   return L.icon({ iconUrl:url, iconSize:[30,30], iconAnchor:[15,15] });
 }
+
 
 export function getTileId(lat,lng){
   const z=15; const n=1<<z;
