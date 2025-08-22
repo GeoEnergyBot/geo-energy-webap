@@ -1,209 +1,146 @@
-import { hotzones } from '../hotzones.js';
-import { store } from '../store.js';
-import { quests } from '../quests.js';
-import { anti } from '../anti.js';
-import { openGhostCatch } from '../ar/ghostCatch.js';
+
 import { FUNCTIONS_ENDPOINT, SUPABASE_ANON } from '../env.js';
+import { openGhostCatch } from '../ar/ghostCatch.js';
 import { getEnergyIcon, getDistanceKm, makeLeafletGhostIconAsync } from '../utils.js';
 import { updatePlayerHeader, flashPlayerMarker } from '../ui.js';
+import { quests } from '../quests.js';
+import { anti } from '../anti.js';
+import { store } from '../store.js';
+import { hotzones } from '../hotzones.js';
 
-let isLoadingPoints = false;
 let energyMarkers = [];
+let isLoadingPoints = false;
 
+const __pointCooldown = new Map();
+const __pending = new Set();
+const now = ()=> Date.now();
 
-// === Stage 2: cooldowns, pending protection, daily caps ===
-const __pointCooldown = new Map();   // point_id -> timestamp
-const __pending = new Set();         // currently collecting ids
-function now(){ return Date.now(); }
-function isCooldown(id, ms=3000){ const t = __pointCooldown.get(id)||0; return now()-t < ms; }
+function todayKey(){ const d=new Date(); return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`; }
+function getDailyCap(level){ return 1200 + 80 * (Number(level)||1); }
+function getDailyProgress(){ try{ return Number(localStorage.getItem('daily_energy_'+todayKey())||'0')||0; }catch(e){ return 0; } }
+function addDailyProgress(delta){ try{ const k='daily_energy_'+todayKey(); const cur=Number(localStorage.getItem(k)||'0')||0; localStorage.setItem(k, String(cur + Math.max(0,Math.floor(delta)))); }catch(e){} }
+function remainingDaily(level){ const cap=getDailyCap(level); const cur=getDailyProgress(); return Math.max(0, cap-cur); }
+function isCooldown(id,ms=3000){ const t=__pointCooldown.get(id)||0; return now()-t < ms; }
 function setCooldown(id){ __pointCooldown.set(id, now()); }
 
-function todayKey(){
-  const d = new Date(); return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
+async function apiGenerate(telegram_id, lat, lng){
+  if (!FUNCTIONS_ENDPOINT){
+    // offline fallback: generate local points
+    const pts=[];
+    for (let i=0;i<25;i++){
+      const dLat = (Math.random()-0.5)*0.01;
+      const dLng = (Math.random()-0.5)*0.01;
+      const types = ['normal','normal','advanced','rare'];
+      const type = types[(Math.random()*types.length)|0];
+      pts.push({ id: 'local_'+(Math.random()*1e9|0)+'_'+i, lat: lat+dLat, lng: lng+dLng, type, energy: (type==='rare'?120:(type==='advanced'?70:35)) });
+    }
+    return { success:true, points: pts };
+  }
+  const res = await fetch(FUNCTIONS_ENDPOINT, {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json', 'Authorization': `Bearer ${SUPABASE_ANON}` },
+    body: JSON.stringify({ action:'generate', telegram_id: String(telegram_id) })
+  });
+  const json = await res.json().catch(()=>({}));
+  if (!res.ok) throw new Error(json.error||('HTTP '+res.status));
+  return json;
 }
-function getDailyCap(level){ return 1200 + 80 * (Number(level)||1); }
-function getDailyProgress(){
-  try{ return Number(localStorage.getItem('daily_energy_'+todayKey())||'0')||0; }catch(e){ return 0; }
-}
-function addDailyProgress(delta){
-  try{
-    const k = 'daily_energy_'+todayKey();
-    const cur = Number(localStorage.getItem(k)||'0')||0;
-    localStorage.setItem(k, String(cur + Math.max(0, Math.floor(delta))));
-  }catch(e){}
-}
-function remainingDaily(level){
-  const cap = getDailyCap(level);
-  const cur = getDailyProgress();
-  return Math.max(0, cap - cur);
+async function apiCollect(telegram_id, point_id){
+  if (!FUNCTIONS_ENDPOINT){
+    return { success:true, point_energy_value: (Math.random()<0.1?120:(Math.random()<0.4?70:35)), player:{ level: (Number(document.getElementById('level-badge')?.textContent)||1), energy_max: (Number(document.getElementById('energy-max')?.textContent)||1000) } };
+  }
+  const res = await fetch(FUNCTIONS_ENDPOINT, {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json', 'Authorization': `Bearer ${SUPABASE_ANON}` },
+    body: JSON.stringify({ action:'collect', telegram_id: String(telegram_id), point_id })
+  });
+  const json = await res.json().catch(()=>({}));
+  if (!res.ok) throw new Error(json.error||('HTTP '+res.status));
+  return json;
 }
 
-
-export async function loadEnergyPoints(map, playerMarker, user) {
+export async function loadEnergyPoints(map, playerMarker, user){
   if (isLoadingPoints) return;
   isLoadingPoints = true;
-  try {
-    energyMarkers.forEach(m => map && map.removeLayer(m.marker));
-    energyMarkers = [];
-
-    const center = playerMarker.getLatLng();
-    const response = await fetch(FUNCTIONS_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${SUPABASE_ANON}`
-      },
-      body: JSON.stringify({
-        action: "generate",
-        center_lat: center.lat,
-        center_lng: center.lng,
-        telegram_id: String(user.id)
-      })
-    });
-
-    if (!response.ok) throw new Error('generate-points HTTP ' + response.status);
-    const result = await response.json();
-    if (!result.success || !Array.isArray(result.points)) return;
-
-    const uid = String(user.id);
-
-    result.points
-      .filter(p => !p.collected_by || String(p.collected_by) !== uid)
-      .forEach((point) => {
-        const icon = getEnergyIcon(point.type);
-        const marker = L.marker([point.lat, point.lng], { icon }).addTo(map);
-        energyMarkers.push({ id: point.id, marker });
-
-        
-marker.on('click', async () => {
-  // Cooldown & pending guard
-  if (isCooldown(point.id)) { alert('Подождите пару секунд...'); return; }
-  if (__pending.has(point.id)) return;
-  setCooldown(point.id);
-
-  const playerPos = playerMarker.getLatLng();
-  const distanceKm = getDistanceKm(playerPos.lat, playerPos.lng, point.lat, point.lng);
-  if (distanceKm > 0.02) { alert("🚫 Подойдите ближе (до 20 м), чтобы собрать энергию."); return; }
-
-  // Soft daily cap pre-check
-  const levelEl = document.getElementById('level-badge');
-  const level = Number(levelEl?.textContent||'1')||1;
-  const remain = remainingDaily(level);
-  if (remain <= 0){
-    alert("⚠️ Дневной лимит фарма энергии достигнут. Попробуйте завтра!"); 
-    return;
-  }
-
-  // Mini-game before collect
-  const arResult = await openGhostCatch(point.type === 'rare' ? 'rare' : (point.type === 'advanced' ? 'advanced' : 'common'));
-  if (!arResult || !arResult.success) return;
-  quests.onARWin();
-
-  __pending.add(point.id);
   try{
-    const sound = document.getElementById('energy-sound');
-    if (sound) { try { sound.currentTime = 0; await sound.play(); } catch (_) {} }
-    const animatedCircle = L.circleMarker([point.lat, point.lng], {
-      radius: 10, color: "#00ff00", fillColor: "#00ff00", fillOpacity: 0.8
-    }).addTo(map);
-    const start = L.latLng(point.lat, point.lng);
-    const end = playerPos;
-    const duration = 500;
-    const startTime = performance.now();
-    function animate(ts) {
-      const progress = Math.min(1, (ts - startTime) / duration);
-      const lat = start.lat + (end.lat - start.lat) * progress;
-      const lng = start.lng + (end.lng - start.lng) * progress;
-      animatedCircle.setLatLng([lat, lng]);
-      if (progress < 1) requestAnimationFrame(animate);
-      else map.removeLayer(animatedCircle);
+    // cleanup previous markers
+    for (const m of energyMarkers){ try{ map.removeLayer(m.marker);}catch(e){} }
+    energyMarkers = [];
+    const pos = playerMarker.getLatLng();
+    const data = await apiGenerate(user.id, pos.lat, pos.lng);
+    const points = data.points||[];
+    for (const p of points){
+      const marker = L.marker([p.lat, p.lng], { icon: getEnergyIcon(p.type) });
+      marker.addTo(map);
+      energyMarkers.push({ id: p.id, marker, data: p });
+      marker.on('click', async ()=>{
+        if (isCooldown(p.id)) { alert('Подождите пару секунд...'); return; }
+        if (__pending.has(p.id)) return;
+        setCooldown(p.id);
+
+        const playerPos = playerMarker.getLatLng();
+        if (getDistanceKm(playerPos.lat, playerPos.lng, p.lat, p.lng) > 0.02){
+          alert('🚫 Подойдите ближе (до 20 м), чтобы собрать энергию.'); return;
+        }
+
+        // daily cap pre-check
+        const lvl = Number(document.getElementById('level-badge')?.textContent||'1')||1;
+        if (remainingDaily(lvl) <= 0){ alert('⚠️ Дневной лимит фарма достигнут, попробуйте завтра'); return; }
+
+        const ar = await openGhostCatch(p.type==='rare'?'rare':(p.type==='advanced'?'advanced':'common'));
+        if (!ar || !ar.success) return;
+        quests.onARWin();
+
+        __pending.add(p.id);
+        try{
+          const sound = document.getElementById('energy-sound'); if (sound){ try{ sound.currentTime=0; await sound.play(); }catch(_){ } }
+          const anim = L.circleMarker([p.lat, p.lng], { radius:10, color:'#00ff99', fillColor:'#00ff99', fillOpacity:0.85 }).addTo(map);
+          const start= L.latLng(p.lat,p.lng), end= playerPos; const duration=500; const t0=performance.now();
+          const step=(ts)=>{ const t=Math.min(1,(ts-t0)/duration); const lat=start.lat+(end.lat-start.lat)*t; const lng=start.lng+(end.lng-start.lng)*t; anim.setLatLng([lat,lng]); if (t<1) requestAnimationFrame(step); else map.removeLayer(anim); };
+          requestAnimationFrame(step);
+
+          let collect = await apiCollect(user.id, p.id);
+          if (!collect?.success){ alert('🚫 Ошибка сбора энергии'); return; }
+          quests.onCollect(p.type);
+
+          // remove marker on success
+          const idx = energyMarkers.findIndex(x=>x.id===p.id);
+          if (idx>=0){ map.removeLayer(energyMarkers[idx].marker); energyMarkers.splice(idx,1); }
+
+          // awarded calc with buffs/penalty/cap
+          const base = collect.point_energy_value|0;
+          const penalty = anti.getPenalty();
+          const mult = (store.energyMultiplier()||1) * (hotzones.getBuffAt(playerPos.lat, playerPos.lng) || 1);
+          let awarded = Math.floor(base * mult);
+          if (penalty.active){ awarded = Math.floor(awarded * penalty.factor); alert('⚠️ Подозрительное перемещение — награда снижена.'); }
+
+          const pInfo = collect.player || { level: lvl, energy_max: Number(document.getElementById('energy-max')?.textContent||'1000')||1000 };
+          const rem = remainingDaily(pInfo.level);
+          const apply = Math.min(awarded, rem);
+          addDailyProgress(apply);
+
+          // display HUD energy locally (simple UX level-up)
+          const cur = Number(document.getElementById('energy-value')?.textContent||'0')||0;
+          let displayEnergy = cur + apply;
+          let newLevel = pInfo.level, newMax = pInfo.energy_max, levelUp=false;
+          if (displayEnergy >= newMax){
+            const overflow = displayEnergy - newMax;
+            newLevel += 1;
+            const inc = (newLevel<=9?1000:(newLevel<=29?2000:(newLevel<=49?3000:4000)));
+            newMax += inc; displayEnergy = overflow; levelUp=true;
+          }
+
+          await updatePlayerHeader({ username: user.first_name||user.username||'Игрок', level: newLevel, energy: displayEnergy, energy_max: newMax });
+          if (playerMarker){ const icon = await makeLeafletGhostIconAsync(newLevel); playerMarker.setIcon(icon); flashPlayerMarker(playerMarker); }
+
+          alert(`⚡ База: ${base} → с бустами/штрафами и лимитами: ${apply}`);
+        } finally {
+          __pending.delete(p.id);
+        }
+      });
     }
-    requestAnimationFrame(animate);
-
-    const res = await fetch(FUNCTIONS_ENDPOINT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON}` },
-      body: JSON.stringify({ action: "collect", telegram_id: String(user.id), point_id: point.id })
-    });
-    const collectResult = await res.json();
-    if (!res.ok || !collectResult.success) {
-      alert(\"🚫 Ошибка сбора энергии: \" + (collectResult.error || res.status));
-      return;
-    }
-
-    quests.onCollect(point.type);
-
-    // Remove marker locally
-    const idx = energyMarkers.findIndex(x => x.id === point.id);
-    if (idx >= 0) { map.removeLayer(energyMarkers[idx].marker); energyMarkers.splice(idx, 1); }
-
-    // Apply soft daily cap & anti penalty to displayed energy (not server authoritative)
-    const p = collectResult.player;
-    if (!p) { alert("ℹ️ Энергия собрана, но нет данных игрока."); return; }
-
-    const penalty = anti.getPenalty();
-    let awarded = collectResult.point_energy_value|0;
-    // Apply store/hotzone multipliers
-    try{
-      const pos = playerPos;
-      const mult = store.energyMultiplier() * (hotzones.getBuffAt(pos.lat, pos.lng) || 1.0);
-      awarded = Math.floor(awarded * mult);
-    }catch(e){}
-    if (penalty.active){
-      awarded = Math.floor(awarded * penalty.factor);
-      alert('⚠️ Обнаружено подозрительное перемещение (' + penalty.reason + '). Награда временно уменьшена.');
-    }
-
-    const rem = remainingDaily(p.level ?? 1);
-    const apply = Math.min(awarded, rem);
-    addDailyProgress(apply);
-
-    // Use current UI energy to compute effective new display value
-    const curEnergy = Number(document.getElementById('energy-value')?.textContent||'0')||0;
-    let displayEnergy = curEnergy + apply;
-    let levelUp = false;
-    let newLevel = p.level, newEnergyMax = p.energy_max;
-    if (displayEnergy >= p.energy_max){
-      // replicate level-up UX locally (only if under cap)
-      const overflow = displayEnergy - p.energy_max;
-      newLevel = (p.level||1) + 1;
-      const inc = (newLevel<=9?1000:(newLevel<=29?2000:(newLevel<=49?3000:4000)));
-      newEnergyMax = p.energy_max + inc;
-      displayEnergy = overflow;
-      levelUp = true;
-    }
-
-    await updatePlayerHeader({
-      username: p.first_name || p.username,
-      avatar_url: '',
-      level: newLevel,
-      energy: displayEnergy,
-      energy_max: newEnergyMax
-    });
-
-    if (playerMarker) {
-      const newIcon = await makeLeafletGhostIconAsync(newLevel);
-      playerMarker.setIcon(newIcon);
-      flashPlayerMarker(playerMarker);
-    }
-
-    let msg = `⚡ База: ${collectResult.point_energy_value}`; msg += ` → с бустами: ${awarded}`;
-    if (penalty.active) msg += ` (Штраф ${Math.round((1-penalty.factor)*100)}%)`;
-    const used = apply;
-    if (used < awarded) msg += ` Зачтено: ${used} (лимит на сегодня).`;
-    if (levelUp) msg += ` Новый уровень: ${newLevel}`;
-    alert(msg);
-  } finally {
-    __pending.delete(point.id);
-
-  } finally {
-    __pending.delete(point.id);
-  }
-});
-
-    });
-  } catch (error) {
-    console.error("Ошибка загрузки точек:", error);
+  } catch (err){
+    console.error('loadEnergyPoints error', err);
   } finally {
     isLoadingPoints = false;
   }

@@ -1,27 +1,23 @@
+
 import { resolveGhostUrl } from './utils.js';
 
-export async function updatePlayerHeader({ username, avatar_url, level, energy, energy_max }) {
-  document.getElementById("username").textContent = username || "Гость";
-
-  // Надёжно подбираем спрайт (ghost_icons/ или assets/ghosts/)
-  const url = await resolveGhostUrl(level ?? 1);
-  const img = document.getElementById("avatar");
-  img.src = url;
-
-  document.getElementById("level-badge").textContent = level ?? 1;
-
-  if (typeof energy === "number" && typeof energy_max === "number") {
-    document.getElementById('energy-value').textContent = energy;
-    document.getElementById('energy-max').textContent = energy_max;
-    const percent = Math.max(0, Math.min(100, Math.floor((energy / energy_max) * 100)));
-    document.getElementById('energy-bar-fill').style.width = percent + "%";
+export async function updatePlayerHeader({ username, avatar_url, level, energy, energy_max }){
+  const un = document.getElementById('username');
+  if (un) un.textContent = username||'Гость';
+  const url = await resolveGhostUrl(level||1);
+  const img = document.getElementById('avatar'); if (img) img.src = url;
+  const lvl = document.getElementById('level-badge'); if (lvl) lvl.textContent = level||1;
+  if (typeof energy==='number' && typeof energy_max==='number'){
+    const ev=document.getElementById('energy-value'), em=document.getElementById('energy-max');
+    const fill=document.getElementById('energy-bar-fill');
+    ev.textContent = energy; em.textContent = energy_max;
+    const pct = Math.max(0, Math.min(100, Math.floor(energy/energy_max*100)));
+    fill.style.width = pct+'%';
   }
 }
 
-// Вспышка маркера игрока
-export function flashPlayerMarker(playerMarker) {
-  const el = playerMarker?.getElement?.();
-  if (!el) return;
+export function flashPlayerMarker(marker){
+  const el = marker?.getElement?.(); if (!el) return;
   el.classList.add('flash');
-  setTimeout(() => el.classList.remove('flash'), 300);
+  setTimeout(()=> el.classList.remove('flash'), 300);
 }
