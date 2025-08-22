@@ -76,7 +76,15 @@
     #ar-stage  { position: relative; flex: 1 1 auto; min-height: 0; min-width: 0; width: 100%; height: 100%; }
     #ar-stage > video, #ar-stage > canvas { position: absolute !important; inset: 0 !important; width: 100% !important; height: 100% !important; object-fit: cover !important; }
     #ar-stage > div { position: absolute; inset: 0; }
-    </style>
+    
+/* --- AR header/stage stacking & safe areas --- */
+#ar-header{ position:relative; z-index: 10; }
+#ar-stage { position:relative; z-index: 1; overflow:hidden; }
+#ar-modal { padding-top: max(env(safe-area-inset-top, 0px), 0px); }
+#ar-stage > video, #ar-stage > canvas, #ar-stage > div { z-index: 1; }
+#ar-stage .ui-layer { position:absolute; inset:0; z-index: 5; pointer-events:auto; }
+
+</style>
 </head>
 <body>
 

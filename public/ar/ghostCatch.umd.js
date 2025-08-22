@@ -67,16 +67,18 @@
 
     // Overlay canvas
     const overlay = document.createElement('div');
-    Object.assign(overlay.style,{position:'absolute',inset:'0',pointerEvents:'auto'});
+    Object.assign(overlay.style,{position:'absolute',inset:'0',pointerEvents:'auto',zIndex:5});
     stage.appendChild(overlay);
 
     const W = ()=>overlay.clientWidth || 360;
     const H = ()=>overlay.clientHeight || 560;
+    /* CENTER_FROM_RETICLE */
+    function getCenter(){ const r = reticle.getBoundingClientRect(); const o = overlay.getBoundingClientRect(); return { cx: r.left - o.left + r.width/2, cy: r.top - o.top + r.height/2 }; }
 
     // Reticle + ring
     const Rcatch = preset.reticle/2;
     const reticle = document.createElement('div');
-    Object.assign(reticle.style,{
+    Object.assign(reticle.style,{ zIndex:6,
       position:'absolute',left:'50%',top:'50%',width:`${preset.reticle}px`,height:`${preset.reticle}px`,
       marginLeft:`-${preset.reticle/2}px`,marginTop:`-${preset.reticle/2}px`,borderRadius:'50%',
       border:'2px solid rgba(255,255,255,.8)', boxShadow:'0 0 0 3px rgba(0,0,0,.25), inset 0 0 30px rgba(0,255,220,.2)'
@@ -84,7 +86,7 @@
     overlay.appendChild(reticle);
 
     const ring = document.createElement('div');
-    Object.assign(ring.style,{
+    Object.assign(ring.style,{ zIndex:5,
       position:'absolute',left:'50%',top:'50%',width:`${preset.reticle+16}px`,height:`${preset.reticle+16}px`,
       marginLeft:`-${(preset.reticle+16)/2}px`,marginTop:`-${(preset.reticle+16)/2}px`,borderRadius:'50%',
       background:'conic-gradient(#00ffd0 0deg, rgba(255,255,255,.2) 0deg)'
@@ -98,7 +100,7 @@
 
     // Ghost
     const ghost = document.createElement('div');
-    Object.assign(ghost.style,{
+    Object.assign(ghost.style,{ zIndex:6,
       position:'absolute', width:'96px', height:'96px', left:'50%', top:'50%',
       marginLeft:'-48px', marginTop:'-48px', borderRadius:'26%',
       background:'radial-gradient(60% 60% at 30% 30%, rgba(255,255,255,.95), rgba(255,255,255,.2)), radial-gradient(55% 55% at 70% 70%, rgba(0,200,255,.5), rgba(0,0,0,0))',
@@ -154,7 +156,7 @@
     function tick(){
       const now=performance.now();
       const dt=Math.min(50, now-lastT)/1000; lastT=now;
-      const hw=W()/2, hh=H()/2;
+      const c=getCenter(); const hw=c.cx, hh=c.cy;
       let screenX=(gx-camX)+hw, screenY=(gy-camY)+hh;
 
       const dx=screenX-hw, dy=screenY-hh; const dist=Math.hypot(dx,dy);
