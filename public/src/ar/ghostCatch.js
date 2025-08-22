@@ -140,10 +140,10 @@ export async function openGhostCatch(rarity = 'common') {
     const pitchToPx = Number(AR_TUNING?.sensorPitchToPx ?? 6);
 
     const calib = { alpha0: null as null | number, beta0: null as null | number };
-    function shortestAngle(a:number){ return ((a + 180) % 360 + 360) % 360 - 180; }
+    function shortestAngle(a){ return ((a + 180) % 360 + 360) % 360 - 180; }
 
-    function handleOrientation(e: DeviceOrientationEvent){
-      const alpha = (e as any).alpha, beta = (e as any).beta;
+    function handleOrientation(e){
+      const alpha = (e).alpha, beta = (e).beta;
       if (alpha == null || beta == null) return;
       if (calib.alpha0 == null) calib.alpha0 = alpha;
       if (calib.beta0  == null) calib.beta0  = beta;
@@ -190,14 +190,14 @@ export async function openGhostCatch(rarity = 'common') {
 
     async function tryEnableSensors(){
       try {
-        if (typeof DeviceOrientationEvent !== 'undefined' && typeof (DeviceOrientationEvent as any).requestPermission === 'function') {
-          const resp = await (DeviceOrientationEvent as any).requestPermission();
+        if (typeof DeviceOrientationEvent !== 'undefined' && typeof (DeviceOrientationEvent).requestPermission === 'function') {
+          const resp = await (DeviceOrientationEvent).requestPermission();
           if (resp === 'granted') {
-            window.addEventListener('deviceorientation', handleOrientation as any, true);
+            window.addEventListener('deviceorientation', handleOrientation, true);
             useSensors = true; permWrap.style.display='none'; joystick.style.display='none'; return true;
           }
         } else if ('ondeviceorientation' in window) {
-          window.addEventListener('deviceorientation', handleOrientation as any, true);
+          window.addEventListener('deviceorientation', handleOrientation, true);
           useSensors = true; permWrap.style.display='none'; joystick.style.display='none'; return true;
         }
       } catch (err) {
@@ -225,7 +225,7 @@ export async function openGhostCatch(rarity = 'common') {
     const edgeBounce = 0.85;
     const feintEveryMs = Number(AR_TUNING?.feintEveryMs ?? 2200);
 
-    const vib = (p:any)=>{ try{ navigator.vibrate && navigator.vibrate(p); }catch{} };
+    const vib = (p)=>{ try{ navigator.vibrate && navigator.vibrate(p); }catch{} };
 
     function tick(){
       const now = performance.now();
@@ -315,7 +315,7 @@ export async function openGhostCatch(rarity = 'common') {
     function cleanup(success=false){
       cancelAnimationFrame(rafId);
       try{ stream && stream.getTracks().forEach(t => t.stop()); }catch{}
-      try{ window.removeEventListener('deviceorientation', handleOrientation as any, true); }catch{}
+      try{ window.removeEventListener('deviceorientation', handleOrientation, true); }catch{}
       modal.classList.add('hidden');
       stage.innerHTML = '';
       _busy = false;
@@ -325,8 +325,8 @@ export async function openGhostCatch(rarity = 'common') {
     closeBtn.onclick = () => cleanup(false);
 
     // промис-ответ
-    let resultResolve: (x:{success:boolean})=>void;
-    const result = new Promise<{success:boolean}>(res => (resultResolve = res));
+    let resultResolve;
+    const result = new Promise((res) => (resultResolve = res));
     return await result;
 
   } catch (err) {

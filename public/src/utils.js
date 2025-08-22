@@ -1,4 +1,3 @@
-
 import { GHOST_ICON_BASES } from './env.js';
 
 function ghostPath(base, level){
@@ -7,51 +6,35 @@ function ghostPath(base, level){
 }
 
 export function resolveGhostUrl(level){
-  const bases = Array.isArray(GHOST_ICON_BASES)&&GHOST_ICON_BASES.length? GHOST_ICON_BASES : ['ghost_icons','assets/ghosts'];
   return new Promise((resolve)=>{
-  const fallback = 'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="72" height="72" viewBox="0 0 72 72"><defs><radialGradient id="g"><stop offset="0" stop-color="#22d3ee"/><stop offset="1" stop-color="#0ea5e9"/></radialGradient></defs><circle cx="36" cy="36" r="28" fill="url(#g)" /></svg>`);
-
-    let i=0;
+    const bases = Array.isArray(GHOST_ICON_BASES) && GHOST_ICON_BASES.length ? GHOST_ICON_BASES : ['assets/ghosts'];
+    const fallback = 'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#88f"/><stop offset="1" stop-color="#0ff"/></linearGradient></defs><circle cx="32" cy="32" r="28" fill="url(#g)" /></svg>`);
+    let i = 0;
     const img = new Image();
-    const next = ()=>{
-      if (i>=bases.length){
-        resolve(fallback);
-        return;
-      }
-      const url = ghostPath(bases[i++], level||1);
-      img.onload = ()=> resolve(url);
-      img.onerror = next;
-      img.src = url;
+    const tryNext = () => {
+      if (i >= bases.length){ resolve(fallback); return; }
+      img.onload = () => resolve(img.src);
+      img.onerror = () => { i++; tryNext(); };
+      img.src = ghostPath(bases[i], level);
     };
-    next();
+    tryNext();
   });
 }
 
 export async function makeLeafletGhostIconAsync(level){
   const url = await resolveGhostUrl(level);
-  return L.icon({ iconUrl: url, iconSize:[36,36], iconAnchor:[18,18] });
-}
-export function makeLeafletGhostIcon(level){
-  const base = Array.isArray(GHOST_ICON_BASES)&&GHOST_ICON_BASES.length? GHOST_ICON_BASES[0] : 'ghost_icons';
-  const url = ghostPath(base, level);
-  return L.icon({ iconUrl: url, iconSize:[36,36], iconAnchor:[18,18] });
+  return L.icon({ iconUrl: url, iconSize: [64,64], iconAnchor: [32,32], popupAnchor: [0,-28] });
 }
 
-
-export function getEnergyIcon(type='normal'){
-  const colors = { normal:'#22d3ee', advanced:'#8b5cf6', rare:'#f59e0b' };
-  const c = colors[type] || colors.normal;
-  const svg = encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 60 60"><defs><radialGradient id="g"><stop offset="0" stop-color="${c}" stop-opacity="0.9"/><stop offset="1" stop-color="${c}" stop-opacity="0.2"/></radialGradient></defs><circle cx="30" cy="30" r="18" fill="url(#g)" stroke="${c}" stroke-opacity="0.9"/></svg>`);
-  const url = 'data:image/svg+xml;utf8,' + svg;
-  return L.icon({ iconUrl:url, iconSize:[30,30], iconAnchor:[15,15] });
+export function getEnergyIcon(type){
+  let url = 'energy_blobs/normal_blob.png';
+  if (type === 'advanced') url = 'energy_blobs/advanced_blob.png';
+  if (type === 'rare') url = 'energy_blobs/rare_blob.png';
+  return L.icon({ iconUrl: url, iconSize: [60,100], iconAnchor: [30,50] });
 }
-
 
 export function getTileId(lat,lng){
-  const z=15; const n=1<<z;
-  const xt = Math.floor((lng+180)/360*n);
-  const yt = Math.floor((1 - Math.log(Math.tan(lat*Math.PI/180)+1/Math.cos(lat*Math.PI/180))/Math.PI)/2*n);
-  return `${z}:${xt}:${yt}`;
+  return `${Math.floor(lat*100)}_${Math.floor(lng*100)}`;
 }
 
 export function getDistanceKm(lat1, lng1, lat2, lng2){

@@ -1,6 +1,5 @@
-
-import { initSupabase, loadOrCreatePlayer } from './src/api/supabase.js';
-import { makeLeafletGhostIconAsync, getTileId } from './src/utils.js';
+import { loadOrCreatePlayer } from './src/api/supabase.js';
+import { makeLeafletGhostIconAsync } from './src/utils.js';
 import { updatePlayerHeader } from './src/ui.js';
 import { buildBaseLayers, spawnArEntryNear, setArEntryHandler } from './src/map/tiles.js';
 import { loadEnergyPoints } from './src/map/energy.js';
@@ -9,68 +8,98 @@ import { store } from './src/store.js';
 import { hotzones } from './src/hotzones.js';
 import { anti } from './src/anti.js';
 
-function showFatal(msg){ try{ let el=document.getElementById('fatal'); if(!el){ el=document.createElement('div'); el.id='fatal'; Object.assign(el.style,{position:'fixed',left:'50%',top:'50%',transform:'translate(-50%,-50%)',background:'#111827',color:'#fff',padding:'16px 18px',border:'1px solid rgba(255,255,255,.2)',borderRadius:'12px',zIndex:9999,boxShadow:'0 8px 30px rgba(0,0,0,.45)'}); document.body.appendChild(el);} el.textContent=msg;}catch(e){} }
+function showFatal(msg){
+  try{
+    let el = document.getElementById('fatal');
+    if (!el){ el = document.createElement('div'); el.id='fatal'; el.style.cssText='position:fixed;left:50%;top:70px;transform:translateX(-50%);background:#7f1d1d;color:#fff;padding:8px 12px;border-radius:10px;z-index:2000'; document.body.appendChild(el); }
+    el.textContent = msg;
+  }catch{}
+}
 
 const tg = window.Telegram?.WebApp;
-const IS_PROD = (typeof location!=='undefined') && (['geo-energy-webap.vercel.app'].includes(location.hostname));
 if (tg) tg.expand();
-const user = tg?.initDataUnsafe?.user ?? { id: 'guest', first_name: 'Гость', username: 'guest' };
 
-let map, playerMarker, lastTileId=null;
+(async () => {
+  // Telegram user or guest
+  const user = tg?.initDataUnsafe?.user ?? { id: 'guest', first_name: 'Гость', username: 'guest' };
 
-initSupabase();
-quests.init();
+  // Header initial
+  await updatePlayerHeader({ username: user.first_name || user.username || 'Игрок', level:1, energy:0, energy_max:1000 });
 
-(async function start(){
-  const ghostIcon = await makeLeafletGhostIconAsync(1);
-  const onPosition = async (pos)=>{
-    try{ localStorage.setItem('last_lat', String(pos.coords.latitude)); localStorage.setItem('last_lng', String(pos.coords.longitude)); }catch(_){}
-    const lat = pos.coords.latitude; const lng = pos.coords.longitude;
-    try{ anti.updatePosition(lat, lng, Date.now()); }catch(e){}
-    if (!map){
-      const base = buildBaseLayers();
-      map = L.map('map', { center:[lat,lng], zoom:16, layers:[base.cartoDark] });
-      L.control.layers({ 'Carto Dark': base.cartoDark, 'OSM': base.osm, 'ESRI Спутник': base.esriSat }, null, { position:'topright', collapsed:true }).addTo(map);
-      playerMarker = L.marker([lat,lng], { icon: ghostIcon }).addTo(map).bindPopup('Вы здесь');
-      lastTileId = getTileId(lat,lng);
-      store.init(map, playerMarker);
-      hotzones.init(map);
-      const p = await loadOrCreatePlayer(user);
-      await updatePlayerHeader({ username: user.first_name||user.username||'Игрок', level: p.level, energy: p.energy, energy_max: p.energy_max });
-      await loadEnergyPoints(map, playerMarker, user);
+  // Geolocation and map
+  let map = null;
+  let playerMarker = null;
+
+  function initMap(lat, lng){
+    const { cartoDark, osm, esriSat } = buildBaseLayers();
+    map = L.map('map', { center:[lat,lng], zoom:16, layers:[cartoDark] });
+    L.control.layers({ 'Carto Dark (рекомендовано)':cartoDark, 'OSM':osm, 'ESRI Спутник':esriSat }, null, { position:'topright', collapsed:true }).addTo(map);
+  }
+
+  function setPlayer(lat, lng, lvl=1){
+    if (!playerMarker){
+      makeLeafletGhostIconAsync(lvl).then(icon => {
+        playerMarker = L.marker([lat,lng], { icon }).addTo(map).bindPopup('Вы здесь').openPopup();
+      });
     } else {
       playerMarker.setLatLng([lat,lng]);
-      const tile = getTileId(lat,lng);
-      if (tile !== lastTileId){ lastTileId = tile; await loadEnergyPoints(map, playerMarker, user); }
+    }
+  }
+
+  const onPos = async (pos) => {
+    try{
+      const lat = pos.coords.latitude, lng = pos.coords.longitude;
+      if (!map) initMap(lat,lng);
+      setPlayer(lat,lng,1);
+      quests.init(); store.init(); hotzones.init(map); quests.bindMap(map, playerMarker); store.bindMap(map, playerMarker);
+      spawnArEntryNear(map, lat, lng);
+      setArEntryHandler(spawnArEntryNear(map, lat, lng), playerMarker, async ()=>{
+        const { openGhostCatch } = await import('./src/ar/ghostCatch.js');
+        await openGhostCatch('common');
+      });
+      const profile = await loadOrCreatePlayer(user);
+      await updatePlayerHeader({ username: user.first_name || user.username || 'Игрок', ...profile });
+      await loadEnergyPoints(map, playerMarker, user);
+    } catch (e){
+      console.error(e);
+      showFatal('Ошибка инициализации: ' + (e.message||e));
     }
   };
-  const onError = async (err)=>{
-    try{ localStorage.setItem('last_lat', String(43.238949)); localStorage.setItem('last_lng', String(76.889709)); }catch(_){}
-    console.warn('geo error', err);
-    const lat=43.238949, lng=76.889709;
-    try{ anti.updatePosition(lat,lng, Date.now()); }catch(e){}
-    onPosition({ coords:{ latitude:lat, longitude:lng } });
-  };
-  if (navigator.geolocation){
-    navigator.geolocation.getCurrentPosition(onPosition, onError, { enableHighAccuracy:true, timeout:6000, maximumAge:2000 });
-    navigator.geolocation.watchPosition(onPosition, onError, { enableHighAccuracy:true, timeout:6000, maximumAge:2000 });
-  } else { onError(new Error('no geolocation')); }
 
-  // periodic refresh (adapt to lure)
+  const onPosErr = async (e) => {
+    console.warn('geolocation error', e);
+    const lat=51.128, lng=71.431;
+    if (!map) initMap(lat,lng);
+    setPlayer(lat,lng,1);
+    const profile = await loadOrCreatePlayer(user);
+    await updatePlayerHeader({ username: user.first_name || user.username || 'Игрок', ...profile });
+    await loadEnergyPoints(map, playerMarker, user);
+  };
+
+  if ('geolocation' in navigator){
+    navigator.geolocation.getCurrentPosition(onPos, onPosErr);
+    navigator.geolocation.watchPosition((p)=>{
+      try{ anti.tick(p.coords.latitude, p.coords.longitude); if (playerMarker){ playerMarker.setLatLng([p.coords.latitude,p.coords.longitude]); } }catch{}
+    }, (e)=>console.warn('watchPosition error', e), { enableHighAccuracy:true, maximumAge:1000, timeout:10000 });
+  } else {
+    onPosErr(new Error('Геолокация недоступна'));
+  }
+
+  // periodic refresh
   let intervalMs = 60000;
   setInterval(async ()=>{
-    try {
-      const pos = playerMarker.getLatLng();
-      hotzones.tickMaybeSpawn(pos.lat, pos.lng);
-      await loadEnergyPoints(map, playerMarker, user);
-      const target = store.spawnRefreshMs(60000);
-      if (target !== intervalMs) intervalMs = target;
+    try{
+      if (map && playerMarker){
+        const pos = playerMarker.getLatLng();
+        hotzones.tickMaybeSpawn(pos.lat, pos.lng);
+        await loadEnergyPoints(map, playerMarker, user);
+        const target = store.spawnRefreshMs(60000);
+        if (target !== intervalMs) intervalMs = target;
+      }
     } catch(e){ console.warn(e); }
   }, intervalMs);
 })();
 
-/* AR state toggling */
-window.addEventListener('ar:open', ()=>{ try{ document.body.classList.add('ar-open'); }catch(e){} });
-window.addEventListener('ar:close', ()=>{ try{ document.body.classList.remove('ar-open'); }catch(e){} });
-
-window.addEventListener('error', (e)=>{ try{ showFatal('Ошибка: '+(e.message||'unknown')); }catch(_){} });
+window.addEventListener('ar:open', ()=>{ try{ document.body.classList.add('ar-open'); }catch{} });
+window.addEventListener('ar:close', ()=>{ try{ document.body.classList.remove('ar-open'); }catch{} });
+window.addEventListener('error', (e)=>{ try{ showFatal('Ошибка: '+(e.message||'unknown')); }catch{} });

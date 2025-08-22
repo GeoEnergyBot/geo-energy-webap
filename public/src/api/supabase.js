@@ -1,6 +1,6 @@
 
 export function initSupabase(){ return null; }
 export async function loadOrCreatePlayer(user){
-  // local demo player
-  return { level:1, energy:0, energy_max:1000, dbRow:null };
+  // Client relies on Edge function for state; here we just return default shape
+  return { level:1, energy:0, energy_max:1000, username: user?.first_name || user?.username || 'Игрок' };
 }
