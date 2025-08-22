@@ -80,9 +80,20 @@
 /* --- AR header/stage stacking & safe areas --- */
 #ar-header{ position:relative; z-index: 10; }
 #ar-stage { position:relative; z-index: 1; overflow:hidden; }
-#ar-modal { padding-top: max(env(safe-area-inset-top, 0px), 0px); }
+
 #ar-stage > video, #ar-stage > canvas, #ar-stage > div { z-index: 1; }
 #ar-stage .ui-layer { position:absolute; inset:0; z-index: 5; pointer-events:auto; }
+
+
+/* Header become absolute overlay with safe-area padding */
+#ar-header {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  padding-top: calc(env(safe-area-inset-top, 0px) + 10px);
+  z-index: 10;
+}
+#ar-stage { position: relative; z-index: 1; overflow: hidden; }
+#ar-stage > video, #ar-stage > canvas, #ar-stage > div { z-index: 1; }
 
 </style>
 </head>

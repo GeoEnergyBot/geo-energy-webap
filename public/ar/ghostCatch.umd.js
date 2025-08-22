@@ -76,7 +76,7 @@
     function getCenter(){ const r = reticle.getBoundingClientRect(); const o = overlay.getBoundingClientRect(); return { cx: r.left - o.left + r.width/2, cy: r.top - o.top + r.height/2 }; }
 
     // Reticle + ring
-    const Rcatch = preset.reticle/2;
+    let Rcatch = preset.reticle/2; function _updR(){ try{ const r = reticle.getBoundingClientRect(); Rcatch = Math.min(r.width, r.height)/2*0.9; }catch(_){ Rcatch = preset.reticle/2; } }
     const reticle = document.createElement('div');
     Object.assign(reticle.style,{ zIndex:6,
       position:'absolute',left:'50%',top:'50%',width:`${preset.reticle}px`,height:`${preset.reticle}px`,
@@ -149,8 +149,9 @@
 
     // Game loop
     const speedScale = speedFor(rarity);
-    let gx=(Math.random()*2-1)*(W()/2*0.6), gy=(Math.random()*2-1)*(H()/2*0.6);
-    let vx=0, vy=0; let lastT=performance.now(); let holdMs=0; let lastFeintTs=0;
+    let gx=0, gy=0;
+    // initial kick so it starts fleeing immediately
+    let ang0=Math.random()*Math.PI*2; let vx=Math.cos(ang0)*preset.baseSpeed*0.85, vy=Math.sin(ang0)*preset.baseSpeed*0.85; let lastT=performance.now(); let holdMs=0; let lastFeintTs=0;
     const fatigueMs = 700, edgeBounce=0.8;
 
     function tick(){
@@ -177,9 +178,10 @@
       screenX=(gx-camX)+hw; screenY=(gy-camY)+hh;
       ghost.style.transform = `translate(${Math.round(screenX-48)}px, ${Math.round(screenY-48)}px)`;
 
-      if (dist<=Rcatch){ holdMs += dt*1000; } else { holdMs = Math.max(0, holdMs - dt*1000*0.6); }
-      setProgress(holdMs / preset.holdMs);
-      if (holdMs >= preset.holdMs){
+      _updR();
+      if (dist<=Rcatch){ holdMs -= dt*1000; } else { holdMs = Math.min(preset.holdMs, holdMs + dt*1000*0.55); }
+      setProgress(1 - (holdMs / preset.holdMs));
+      if (holdMs <= 0){
         try{ navigator.vibrate && navigator.vibrate([60,40,60]); }catch(_){}
         close();
         resolve({ success:true, rarity:String(rarity||'normal'), holdMs: preset.holdMs });
