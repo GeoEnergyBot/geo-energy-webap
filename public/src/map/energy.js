@@ -1,124 +1,186 @@
-import { openGhostCatch } from '../ar/ghostCatch.js';
+
 import { FUNCTIONS_ENDPOINT, SUPABASE_ANON } from '../env.js';
+import { openGhostCatch } from '../ar/ghostCatch.js';
 import { getEnergyIcon, getDistanceKm, makeLeafletGhostIconAsync } from '../utils.js';
 import { updatePlayerHeader, flashPlayerMarker } from '../ui.js';
+import { quests } from '../quests.js';
+import { anti } from '../anti.js';
+import { store } from '../store.js';
+import { hotzones } from '../hotzones.js';
 
-let isLoadingPoints = false;
 let energyMarkers = [];
+const IS_PROD = (typeof location!=='undefined') && (['geo-energy-webap.vercel.app'].includes(location.hostname));
+let isLoadingPoints = false;
 
-export async function loadEnergyPoints(map, playerMarker, user) {
+function toFinite(n, fallback){ const x = Number(n); return Number.isFinite(x) ? x : fallback; }
+
+
+function showBackendBanner(msg){
+  try{
+    let el = document.getElementById('backend-banner');
+    if (!el){
+      el = document.createElement('div'); el.id='backend-banner';
+      Object.assign(el.style, { position:'absolute', left:'50%', transform:'translateX(-50%)', top:'56px', zIndex:1200, background:'#7f1d1d', color:'#fff', padding:'6px 10px', borderRadius:'10px', border:'1px solid rgba(255,255,255,.25)', boxShadow:'0 4px 20px rgba(0,0,0,.3)', fontSize:'12px' });
+      document.body.appendChild(el);
+    }
+    el.textContent = msg;
+  }catch(e){}
+}
+
+
+const __pointCooldown = new Map();
+const __pending = new Set();
+const now = ()=> Date.now();
+
+function pickCenterLatLng(playerMarker){
+  try{
+    const p = playerMarker?.getLatLng?.();
+    let lat = Number(p?.lat);
+    let lng = Number(p?.lng);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)){
+      lat = Number(localStorage.getItem('last_lat'));
+      lng = Number(localStorage.getItem('last_lng'));
+    }
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)){
+      lat = 43.238949; lng = 76.889709; // Алматы
+    }
+    return {lat, lng};
+  }catch(_){ return { lat:43.238949, lng:76.889709 }; }
+}
+
+function todayKey(){ const d=new Date(); return `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`; }
+function getDailyCap(level){ return 1200 + 80 * (Number(level)||1); }
+function getDailyProgress(){ try{ return Number(localStorage.getItem('daily_energy_'+todayKey())||'0')||0; }catch(e){ return 0; } }
+function addDailyProgress(delta){ try{ const k='daily_energy_'+todayKey(); const cur=Number(localStorage.getItem(k)||'0')||0; localStorage.setItem(k, String(cur + Math.max(0,Math.floor(delta)))); }catch(e){} }
+function remainingDaily(level){ const cap=getDailyCap(level); const cur=getDailyProgress(); return Math.max(0, cap-cur); }
+function isCooldown(id,ms=3000){ const t=__pointCooldown.get(id)||0; return now()-t < ms; }
+function setCooldown(id){ __pointCooldown.set(id, now()); }
+
+async function apiGenerate(telegram_id, lat, lng){
+  if (!FUNCTIONS_ENDPOINT) throw new Error('FUNCTIONS_ENDPOINT not set');
+  const res = await fetch(FUNCTIONS_ENDPOINT, {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json', 'Authorization': `Bearer ${SUPABASE_ANON}` },
+    body: JSON.stringify({ action:'generate', telegram_id:String(telegram_id), center_lat: lat, center_lng: lng })
+  });
+  const json = await res.json().catch(()=>({}));
+  if (!res.ok) throw new Error(json.error||('HTTP '+res.status));
+  return json;
+}
+    return { success:true, points: pts };
+  }
+  const res = await fetch(FUNCTIONS_ENDPOINT, {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json', 'Authorization': `Bearer ${SUPABASE_ANON}` },
+    body: JSON.stringify({ action:'generate', telegram_id: String(telegram_id) })
+  });
+  const json = await res.json().catch(()=>({}));
+  if (!res.ok) throw new Error(json.error||('HTTP '+res.status));
+  return json;
+}
+async function apiCollect(telegram_id, point_id){
+  if (!FUNCTIONS_ENDPOINT) throw new Error('FUNCTIONS_ENDPOINT not set');
+  const res = await fetch(FUNCTIONS_ENDPOINT, {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json', 'Authorization': `Bearer ${SUPABASE_ANON}` },
+    body: JSON.stringify({ action:'collect', telegram_id:String(telegram_id), point_id })
+  });
+  const json = await res.json().catch(()=>({}));
+  if (!res.ok) throw new Error(json.error||('HTTP '+res.status));
+  return json;
+}
+  const res = await fetch(FUNCTIONS_ENDPOINT, {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json', 'Authorization': `Bearer ${SUPABASE_ANON}` },
+    body: JSON.stringify({ action:'collect', telegram_id: String(telegram_id), point_id })
+  });
+  const json = await res.json().catch(()=>({}));
+  if (!res.ok) throw new Error(json.error||('HTTP '+res.status));
+  return json;
+}
+
+export async function loadEnergyPoints(map, playerMarker, user){
   if (isLoadingPoints) return;
   isLoadingPoints = true;
-  try {
-    energyMarkers.forEach(m => map && map.removeLayer(m.marker));
+  try{
+    // cleanup previous markers
+    for (const m of energyMarkers){ try{ map.removeLayer(m.marker);}catch(e){} }
     energyMarkers = [];
+    const pos = playerMarker.getLatLng();
+    let data; try{ data = await apiGenerate(user.id, pos.lat, pos.lng); showBackendBanner(''); } catch(err){ console.error('generate error', err); showBackendBanner('Нет соединения с бэкендом'); console.error('generate error', err); throw err; }
+    const points = data.points||[];
+    for (const p of points){
+      const marker = L.marker([p.lat, p.lng], { icon: getEnergyIcon(p.type) });
+      marker.addTo(map);
+      energyMarkers.push({ id: p.id, marker, data: p });
+      marker.on('click', async ()=>{
+        if (isCooldown(p.id)) { alert('Подождите пару секунд...'); return; }
+        if (__pending.has(p.id)) return;
+        setCooldown(p.id);
 
-    const center = playerMarker.getLatLng();
-    const response = await fetch(FUNCTIONS_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${SUPABASE_ANON}`
-      },
-      body: JSON.stringify({
-        action: "generate",
-        center_lat: center.lat,
-        center_lng: center.lng,
-        telegram_id: String(user.id)
-      })
-    });
+        const playerPos = playerMarker.getLatLng();
+        if (getDistanceKm(playerPos.lat, playerPos.lng, p.lat, p.lng) > 0.02){
+          alert('🚫 Подойдите ближе (до 20 м), чтобы собрать энергию.'); return;
+        }
 
-    if (!response.ok) throw new Error('generate-points HTTP ' + response.status);
-    const result = await response.json();
-    if (!result.success || !Array.isArray(result.points)) return;
+        // daily cap pre-check
+        const lvl = Number(document.getElementById('level-badge')?.textContent||'1')||1;
+        if (remainingDaily(lvl) <= 0){ alert('⚠️ Дневной лимит фарма достигнут, попробуйте завтра'); return; }
 
-    const uid = String(user.id);
+        const ar = await openGhostCatch(p.type==='rare'?'rare':(p.type==='advanced'?'advanced':'common'));
+        if (!ar || !ar.success) return;
+        quests.onARWin();
 
-    result.points
-      .filter(p => !p.collected_by || String(p.collected_by) !== uid)
-      .forEach((point) => {
-        const icon = getEnergyIcon(point.type);
-        const marker = L.marker([point.lat, point.lng], { icon }).addTo(map);
-        energyMarkers.push({ id: point.id, marker });
+        __pending.add(p.id);
+        try{
+          const sound = document.getElementById('energy-sound'); if (sound){ try{ sound.currentTime=0; await sound.play(); }catch(_){ } }
+          const anim = L.circleMarker([p.lat, p.lng], { radius:10, color:'#00ff99', fillColor:'#00ff99', fillOpacity:0.85 }).addTo(map);
+          const start= L.latLng(p.lat,p.lng), end= playerPos; const duration=500; const t0=performance.now();
+          const step=(ts)=>{ const t=Math.min(1,(ts-t0)/duration); const lat=start.lat+(end.lat-start.lat)*t; const lng=start.lng+(end.lng-start.lng)*t; anim.setLatLng([lat,lng]); if (t<1) requestAnimationFrame(step); else map.removeLayer(anim); };
+          requestAnimationFrame(step);
 
-        marker.on('click', async () => {
-          const playerPos = playerMarker.getLatLng();
-          const distanceKm = getDistanceKm(playerPos.lat, playerPos.lng, point.lat, point.lng);
-          if (distanceKm > 0.02) {
-            alert("🚫 Подойдите ближе (до 20 м), чтобы собрать энергию.");
-            return;
+          let collect; try{ collect = await apiCollect(user.id, p.id); showBackendBanner(''); } catch(err){ console.error('collect error', err); showBackendBanner('Нет соединения с бэкендом'); console.error('generate error', err); throw err; }
+          if (!collect?.success){ alert('🚫 Ошибка сбора энергии'); return; }
+          quests.onCollect(p.type);
+
+          // remove marker on success
+          const idx = energyMarkers.findIndex(x=>x.id===p.id);
+          if (idx>=0){ map.removeLayer(energyMarkers[idx].marker); energyMarkers.splice(idx,1); }
+
+          // awarded calc with buffs/penalty/cap
+          const base = collect.point_energy_value|0;
+          const penalty = anti.getPenalty();
+          const mult = (store.energyMultiplier()||1) * (hotzones.getBuffAt(playerPos.lat, playerPos.lng) || 1);
+          let awarded = Math.floor(base * mult);
+          if (penalty.active){ awarded = Math.floor(awarded * penalty.factor); alert('⚠️ Подозрительное перемещение — награда снижена.'); }
+
+          const pInfo = collect.player || { level: lvl, energy_max: Number(document.getElementById('energy-max')?.textContent||'1000')||1000 };
+          const rem = remainingDaily(pInfo.level);
+          const apply = Math.min(awarded, rem);
+          addDailyProgress(apply);
+
+          // display HUD energy locally (simple UX level-up)
+          const cur = Number(document.getElementById('energy-value')?.textContent||'0')||0;
+          let displayEnergy = cur + apply;
+          let newLevel = pInfo.level, newMax = pInfo.energy_max, levelUp=false;
+          if (displayEnergy >= newMax){
+            const overflow = displayEnergy - newMax;
+            newLevel += 1;
+            const inc = (newLevel<=9?1000:(newLevel<=29?2000:(newLevel<=49?3000:4000)));
+            newMax += inc; displayEnergy = overflow; levelUp=true;
           }
 
-// === Мини-игра перед сбором ===
-const arResult = await openGhostCatch(point.type === 'rare' ? 'rare' : (point.type === 'advanced' ? 'advanced' : 'common'));
-if (!arResult || !arResult.success) return;
-          const sound = document.getElementById('energy-sound');
-          if (sound) { try { sound.currentTime = 0; await sound.play(); } catch (_) {} }
-          const animatedCircle = L.circleMarker([point.lat, point.lng], {
-            radius: 10, color: "#00ff00", fillColor: "#00ff00", fillOpacity: 0.8
-          }).addTo(map);
-          const start = L.latLng(point.lat, point.lng);
-          const end = playerPos;
-          const duration = 500;
-          const startTime = performance.now();
-          function animate(ts) {
-            const progress = Math.min(1, (ts - startTime) / duration);
-            const lat = start.lat + (end.lat - start.lat) * progress;
-            const lng = start.lng + (end.lng - start.lng) * progress;
-            animatedCircle.setLatLng([lat, lng]);
-            if (progress < 1) requestAnimationFrame(animate);
-            else map.removeLayer(animatedCircle);
-          }
-          requestAnimationFrame(animate);
+          await updatePlayerHeader({ username: user.first_name||user.username||'Игрок', level: newLevel, energy: displayEnergy, energy_max: newMax });
+          if (playerMarker){ const icon = await makeLeafletGhostIconAsync(newLevel); playerMarker.setIcon(icon); flashPlayerMarker(playerMarker); }
 
-          const res = await fetch(FUNCTIONS_ENDPOINT, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${SUPABASE_ANON}`
-            },
-            body: JSON.stringify({
-              action: "collect",
-              telegram_id: String(user.id),
-              point_id: point.id
-            })
-          });
-
-          const collectResult = await res.json();
-          if (!res.ok || !collectResult.success) {
-            alert("🚫 Ошибка сбора энергии: " + (collectResult.error || res.status));
-            return;
-          }
-
-          const idx = energyMarkers.findIndex(x => x.id === point.id);
-          if (idx >= 0) {
-            map.removeLayer(energyMarkers[idx].marker);
-            energyMarkers.splice(idx, 1);
-          }
-
-          const p = collectResult.player;
-          if (!p) { alert("ℹ️ Энергия собрана, но нет данных игрока."); return; }
-
-          await updatePlayerHeader({
-            username: p.first_name || p.username,
-            avatar_url: '',
-            level: p.level,
-            energy: p.energy,
-            energy_max: p.energy_max
-          });
-
-          if (playerMarker) {
-            const newIcon = await makeLeafletGhostIconAsync(p.level);
-            playerMarker.setIcon(newIcon);
-            flashPlayerMarker(playerMarker);
-          }
-
-          alert(`⚡ Собрано: ${collectResult.point_energy_value} энергии. Уровень: ${p.level}`);
-        });
+          alert(`⚡ База: ${base} → с бустами/штрафами и лимитами: ${apply}`);
+        } finally {
+          __pending.delete(p.id);
+        }
       });
-
-  } catch (error) {
-    console.error("Ошибка загрузки точек:", error);
+    }
+  } catch (err){
+    console.error('loadEnergyPoints error', err);
   } finally {
     isLoadingPoints = false;
   }
