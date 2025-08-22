@@ -198,15 +198,16 @@ function renderInventory(){
   body.appendChild(eff);
 }
 
+
 function mountButtons(){
-  // Store button
-  if (!document.getElementById('btn-store')){
-    const btn = document.createElement('button');
-    btn.id = 'btn-store'; btn.textContent = 'Магазин';
-    Object.assign(btn.style, { position:'absolute', left:'8px', bottom:'116px', zIndex:1100, background:'#121a21', color:'#e9f1f7', border:'1px solid rgba(255,255,255,.12)', borderRadius:'14px', padding:'10px 14px', cursor:'pointer' });
-    btn.onclick = openStore;
-    document.body.appendChild(btn);
-  }
+  // Привязываем к нижней панели
+  const profile = document.getElementById('btn-profile');
+  const invBtn  = document.getElementById('btn-inventory');
+  const lbBtn   = document.getElementById('btn-leaderboard');
+  if (invBtn) invBtn.onclick = openInventory;
+  if (profile) profile.onclick = ()=> alert('Профиль: в разработке');
+  if (lbBtn) lbBtn.onclick = ()=> alert('Рейтинг: в разработке');
+}
   // Inventory button
   if (!document.getElementById('btn-inventory')){
     const btn = document.createElement('button');
