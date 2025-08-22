@@ -6,35 +6,24 @@ let _busy = false;
 
 function _difficulty(rarity) {
   const d = DIFFICULTY?.[rarity] || {};
-  // Сделаем движение мягче и медленнее по умолчанию
+  // Мягкое, более медленное движение по умолчанию
   return {
     sensorYawToPx:   d.sensorYawToPx   ?? 6,
     sensorPitchToPx: d.sensorPitchToPx ?? 6,
-    // замедленные значения
     baseSpeed:       d.baseSpeed       ?? ({ common:130, advanced:160, rare:190 }[rarity] || 140),
     minSpeed:        d.minSpeed        ?? ({ common: 20, advanced: 30, rare: 40 }[rarity] || 25),
     maxSpeed:        d.maxSpeed        ?? ({ common:220, advanced:260, rare:300 }[rarity] || 240),
-    // радиус и время удержания
     catchRadius:     d.catchRadius     ?? 70,
     holdMs:          d.holdMs          ?? ({ common:1100, advanced:1300, rare:1500 }[rarity] || 1200),
-    // плавность следования к желаемой скорости (чем меньше — тем плавнее)
+    // чем меньше accel — тем плавнее тяготение к целевой скорости
     accel:           d.accel           ?? ({ common:3.0, advanced:3.5, rare:4.0 }[rarity] || 3.2),
   };
 }
 
-/**
- * Запуск мини-игры. Возвращает {success:boolean}
- * Требуется разметка:
- *  <div id="ar-modal" class="hidden">
- *    <div id="ar-title"></div>
- *    <button id="ar-close">×</button>
- *    <div id="ar-stage"></div>
- *  </div>
- */
 export async function openGhostCatch(rarity = 'common') {
   if (_busy) return { success: false };
 
-  // Проверяем DOM до установки _busy, чтобы не залипнуть
+  // Проверяем DOM до установки _busy
   const modal = document.getElementById('ar-modal');
   const stage = document.getElementById('ar-stage');
   const title = document.getElementById('ar-title');
@@ -43,11 +32,17 @@ export async function openGhostCatch(rarity = 'common') {
 
   _busy = true;
 
+  // ---- Создаём промис СРАЗУ (fix гонки) ----
+  let resolveDone;
+  const done = new Promise(res => { resolveDone = res; });
+
   let raf = 0;
   let onOrientBound = null;
   let onResizeBound = null;
+  let onKeyBound = null;
+  let onVisibilityBound = null;
+
   let cleanup = () => {};
-  let resolveDone;
 
   try {
     if (title) title.textContent = 'Поймайте призрака в круг';
@@ -66,7 +61,7 @@ export async function openGhostCatch(rarity = 'common') {
     });
     stage.appendChild(wrap);
 
-    // Canvas с ретиной и адаптивом (2:3)
+    // Canvas (ретина + адаптив 2:3)
     const canvas = document.createElement('canvas');
     Object.assign(canvas.style, {
       display: 'block',
@@ -147,19 +142,45 @@ export async function openGhostCatch(rarity = 'common') {
     let firstSensorTick = false;
 
     const shortest = (a) => (((a + 180) % 360) + 360) % 360 - 180;
+    const screenAngle = () => {
+      const ang = (screen.orientation?.angle ?? window.orientation ?? 0) || 0;
+      // нормализуем к [0,90,180,270]
+      const n = ((ang % 360) + 360) % 360;
+      return n === 0 || n === 90 || n === 180 || n === 270 ? n : 0;
+    };
+
+    function recenterSensors() {
+      baseAlpha = null;
+      baseBeta = null;
+      // следующая валидная посылка сделает новую базу
+    }
 
     function onOrient(e) {
       if (e.alpha == null || e.beta == null) return;
       if (!firstSensorTick) {
         firstSensorTick = true;
-        perm.style.display = 'none'; // прячем после первого валидного события
+        perm.style.display = 'none'; // прячем только после первого валидного события
       }
       if (baseAlpha == null) baseAlpha = e.alpha;
       if (baseBeta == null) baseBeta = e.beta;
-      const dyaw = shortest(e.alpha - baseAlpha);
-      const dpitch = e.beta - baseBeta;
-      camX = conf.sensorYawToPx * dyaw;
-      camY = -conf.sensorPitchToPx * dpitch;
+
+      // Расчёт yaw/pitch относительно базовых значений
+      let dyaw = shortest(e.alpha - baseAlpha);
+      let dpitch = e.beta - baseBeta;
+
+      // Коррекция под ориентацию экрана
+      // 0: портрет, 90: ландшафт (слева), 270: ландшафт (справа)
+      const ang = screenAngle();
+      let yaw = dyaw, pitch = dpitch;
+      if (ang === 90) {        // поворот экрана влево
+        [yaw, pitch] = [dpitch, -dyaw];
+      } else if (ang === 270) {// поворот экрана вправо
+        [yaw, pitch] = [-dpitch, dyaw];
+      } else if (ang === 180) {// вверх ногами
+        yaw = -dyaw; pitch = -dpitch;
+      }
+      camX = conf.sensorYawToPx * yaw;
+      camY = -conf.sensorPitchToPx * pitch;
     }
 
     async function enableSensors() {
@@ -196,15 +217,22 @@ export async function openGhostCatch(rarity = 'common') {
     canvas.addEventListener('pointercancel', endJoy);
     canvas.addEventListener('pointermove', (ev) => {
       if (!joy) return;
-      camX = (ev.clientX - jx) * 1.1; // чуть мягче джойстик
+      camX = (ev.clientX - jx) * 1.1; // мягкий коэффициент
       camY = (ev.clientY - jy) * 1.1;
     });
 
-    // ---- Модель призрака: старт из центра круга и сразу "плывёт" ----
+    // Быстрая перекалибровка (dblclick по холсту или R)
+    canvas.addEventListener('dblclick', recenterSensors, { passive: true });
+    onKeyBound = (ev) => {
+      if (ev.key === 'Escape') finish({ success: false });
+      if (ev.key === 'r' || ev.key === 'R') recenterSensors();
+    };
+    window.addEventListener('keydown', onKeyBound);
+
+    // ---- Модель призрака: старт из центра и сразу "плывёт" ----
     let gx = 0, gy = 0; // мир = центр прицела
     let vx = 0, vy = 0; // текущая скорость (px/s)
     {
-      // небольшой начальный толчок
       const a = Math.random() * Math.PI * 2;
       vx = Math.cos(a) * conf.minSpeed * 0.8;
       vy = Math.sin(a) * conf.minSpeed * 0.8;
@@ -217,14 +245,14 @@ export async function openGhostCatch(rarity = 'common') {
     const centerY = () => H / 2;
     const Rcatch = () => conf.catchRadius;
 
-    // Предел скорости сделаем мягче
+    // Предел скорости помягче
     const VMAX = conf.maxSpeed * 0.65;
 
     // Рисование
     function draw(aimX, aimY) {
       ctx.clearRect(0, 0, W, H);
 
-      // Прицел (фиксирован по центру)
+      // Прицел
       ctx.beginPath();
       ctx.arc(aimX, aimY, Rcatch(), 0, Math.PI * 2);
       ctx.strokeStyle = 'rgba(255,255,255,.75)';
@@ -256,11 +284,28 @@ export async function openGhostCatch(rarity = 'common') {
       if (finished) return;
       finished = true;
       try { cancelAnimationFrame(raf); } catch {}
-      resolveDone(result);
+      resolveDone && resolveDone(result);
     }
+
+    // Пауза по видимости вкладки
+    let paused = false;
+    onVisibilityBound = () => {
+      if (document.hidden) {
+        paused = true;
+        try { cancelAnimationFrame(raf); } catch {}
+      } else {
+        if (paused) {
+          paused = false;
+          last = performance.now();
+          raf = requestAnimationFrame(tick);
+        }
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityBound, { passive: true });
 
     // Игровой цикл
     let last = performance.now();
+    let wasInCircle = false;
 
     function tick(ts) {
       const dtMs = Math.min(50, ts - last);
@@ -283,22 +328,19 @@ export async function openGhostCatch(rarity = 'common') {
       const dy = scrY - aimY;
       const dist = Math.hypot(dx, dy);
 
-      // Направление «убегания»
       const dirx = dist > 0 ? dx / dist : 0;
       const diry = dist > 0 ? dy / dist : 0;
 
       // --- ПЛАВНОЕ ДВИЖЕНИЕ ---
-      // Целевая скорость растёт с расстоянием и резко снижается рядом с кругом,
-      // чтобы было проще удержать призрака внутри.
       // t=0 рядом с центром, t=1 далеко (~за 2.5R)
       let t = Math.min(1, dist / (Rcatch() * 2.5));
       let speedTarget = conf.minSpeed + (conf.baseSpeed - conf.minSpeed) * t;
 
       // "Slow zone" возле круга — упрощаем поимку
       if (dist < Rcatch()) {
-        speedTarget *= 0.20;        // внутри круга почти не дёргается
+        speedTarget *= 0.20;
       } else if (dist < Rcatch() * 1.6) {
-        speedTarget *= 0.55;        // рядом с кругом заметно медленнее
+        speedTarget *= 0.55;
       }
 
       // ограничим верхнюю границу
@@ -308,12 +350,11 @@ export async function openGhostCatch(rarity = 'common') {
       const vdx = dirx * speedTarget;
       const vdy = diry * speedTarget;
 
-      // Плавное приближение текущей скорости к желаемой (экспоненциальное сглаживание)
-      // Чем меньше accel — тем мягче и плавнее.
+      // Плавное приближение текущей скорости к желаемой
       vx += (vdx - vx) * conf.accel * dt;
       vy += (vdy - vy) * conf.accel * dt;
 
-      // Очень лёгкое трение, чтобы не разгонялся на колебаниях камеры
+      // Лёгкое трение
       const friction = Math.exp(-0.5 * dt);
       vx *= friction;
       vy *= friction;
@@ -322,7 +363,7 @@ export async function openGhostCatch(rarity = 'common') {
       gx += vx * dt;
       gy += vy * dt;
 
-      // Границы мира ~ размер экрана (мягкий отскок)
+      // Границы мира (мягкий отскок)
       const limX = (W / 2) * 0.95;
       const limY = (H / 2) * 0.95;
       if (gx >  limX) { gx =  limX; vx *= -0.3; }
@@ -331,7 +372,9 @@ export async function openGhostCatch(rarity = 'common') {
       if (gy < -limY) { gy = -limY; vy *= -0.3; }
 
       // Захват / спад прогресса — щадящий рядом с кругом
-      if (dist <= Rcatch()) {
+      const inCircle = dist <= Rcatch();
+      if (inCircle) {
+        if (!wasInCircle) { navigator.vibrate?.(15); }
         holdMs += dt * 1000;
       } else if (dist <= Rcatch() * 1.15) {
         holdMs = Math.max(0, holdMs - dt * 150);
@@ -340,6 +383,8 @@ export async function openGhostCatch(rarity = 'common') {
       } else {
         holdMs = Math.max(0, holdMs - dt * 600);
       }
+      wasInCircle = inCircle;
+
       const pct = Math.max(0, Math.min(100, Math.round(100 * holdMs / holdNeed)));
       barIn.style.width = pct + '%';
 
@@ -365,6 +410,14 @@ export async function openGhostCatch(rarity = 'common') {
         try { window.removeEventListener('resize', onResizeBound); } catch {}
         onResizeBound = null;
       }
+      if (onKeyBound) {
+        try { window.removeEventListener('keydown', onKeyBound); } catch {}
+        onKeyBound = null;
+      }
+      if (onVisibilityBound) {
+        try { document.removeEventListener('visibilitychange', onVisibilityBound); } catch {}
+        onVisibilityBound = null;
+      }
       close.onclick = null;
       stage.innerHTML = '';
       modal.classList.add('hidden');
@@ -378,7 +431,6 @@ export async function openGhostCatch(rarity = 'common') {
     };
 
     // Старт цикла
-    const done = new Promise(res => { resolveDone = res; });
     raf = requestAnimationFrame(tick);
 
     // Ждём завершения
