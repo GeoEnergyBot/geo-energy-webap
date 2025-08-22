@@ -49,6 +49,7 @@ export function openGyroChase(rarity='common') {
   stage.appendChild(overlay);
 
   // Клик по экрану — ре-калибровка базового угла
+  // (сбрасываем нули сенсоров, чтобы «поймать» центр)
   let calib = { alpha0:null, beta0:null };
   overlay.addEventListener('click', ()=>{ try{ calib.alpha0=null; calib.beta0=null; }catch{} });
 
@@ -70,7 +71,7 @@ export function openGyroChase(rarity='common') {
     width:`${reticleSize+16}px`, height:`${reticleSize+16}px`,
     marginLeft:`-${(reticleSize+16)/2}px`, marginTop:`-${(reticleSize+16)/2}px`,
     borderRadius:'50%',
-    background:'conic-gradient(#00ffd0 0deg, rgba(255,255,255,.15) 0deg)`,
+    background:'conic-gradient(#00ffd0 0deg, rgba(255,255,255,.15) 0deg)',
     boxShadow:'0 0 14px rgba(0,255,220,.35)', pointerEvents:'none'
   });
 
@@ -196,6 +197,15 @@ export function openGyroChase(rarity='common') {
     arrowT.style.opacity = y < -m ? '1':'0';
     arrowB.style.opacity = y > h+m ? '1':'0';
   };
+  const haptic = (pattern)=>{
+    try{
+      if (window.Telegram?.WebApp?.HapticFeedback) {
+        window.Telegram.WebApp.HapticFeedback.impactOccurred('light');
+      } else if (navigator.vibrate) {
+        navigator.vibrate(pattern || 15);
+      }
+    }catch{}
+  };
 
   // Состояние гироскопа/эмуляции
   let useSensors = false;
@@ -259,7 +269,7 @@ export function openGyroChase(rarity='common') {
   let gx=(Math.random()*2-1)*HW()*0.7, gy=(Math.random()*2-1)*HH()*0.7;
   let vx=0, vy=0, lastT=performance.now(), holdMs=0, lastNearTs=0, lastFeintTs=0;
 
-  // Флаг между кадрами (исправляет ReferenceError)
+  // Флаг «призрак внутри круга» — хранится между кадрами
   let wasInside = false;
 
   let rafId=0;
@@ -327,7 +337,7 @@ export function openGyroChase(rarity='common') {
         return;
       }
     } else {
-      // Плавное снижение (магнитный допуск)
+      // Плавное снижение (магнитный допуск), а не мгновенный сброс
       holdMs = Math.max(0, holdMs - dt*1000*0.55);
     }
 
