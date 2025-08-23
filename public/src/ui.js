@@ -89,9 +89,9 @@ export function setupUI(){
     bb = document.createElement('div');
     bb.id = 'ui-bottombar';
     bb.innerHTML = `
-      <button id="ui-btn-quests" class="ui-btn">🧩 Квесты</button>
-      <button id="ui-btn-store" class="ui-btn">🛒 Магазин</button>
-      <button id="ui-btn-inventory" class="ui-btn">🎒 Инвентарь</button>
+      <button id="ui-btn-quests" class="ui-btn" onclick="window.__openQuests && window.__openQuests()">🧩 Квесты</button>
+      <button id="ui-btn-store" class="ui-btn" onclick="window.__openStore && window.__openStore()">🛒 Магазин</button>
+      <button id="ui-btn-inventory" class="ui-btn" onclick="window.__openInventory && window.__openInventory()">🎒 Инвентарь</button>
     `;
     document.body.appendChild(bb);
   }
