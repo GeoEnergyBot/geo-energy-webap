@@ -21,6 +21,7 @@ let map, playerMarker, lastTileId=null;
 initSupabase();
 quests.init();
 setupUI();
+setBottomHandlers({ onQuests: ()=>quests.openUI(), onStore: ()=>store.openStore(), onInventory: ()=>store.openInventory() });
 
 
 (async function start(){
