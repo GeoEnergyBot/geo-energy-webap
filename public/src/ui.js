@@ -24,7 +24,7 @@ function injectStyle(){
   #ui-name{ font-weight:700; text-overflow:ellipsis; white-space:nowrap; overflow:hidden; }
   #ui-topbar .col{ display:flex; flex-direction:column; flex:1; min-width:0; gap:4px; }
   #ui-topbar .row{ display:flex; align-items:center; gap:8px; font-size:13px; color:var(--text); }
-  #ui-wallet{ display:flex; align-items:center; gap:12px; opacity:.95; }
+  #ui-wallet{ display:flex; align-items:center; gap:12px; opacity:.95; margin-left:auto; }
   #ui-wallet b{ font-weight:700; }
   #ui-energy-line{ display:flex; align-items:center; gap:10px; }
   #ui-energy-line .count{ font-variant-numeric: tabular-nums; font-size:13px; opacity:.95; }
