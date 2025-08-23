@@ -105,6 +105,20 @@ export function setupUI(){
   // initial wallet refresh
   refreshWalletIntoTopbar();
   setInterval(refreshWalletIntoTopbar, 3000);
+
+  // also bind directly with stopPropagation (in case other handlers swallow events)
+  const bind = (id, fn)=>{
+    const el = document.getElementById(id);
+    if (!el || !fn) return;
+    const handler = (ev)=>{ try{ ev.preventDefault(); ev.stopPropagation(); }catch(_){} fn(); };
+    el.onclick = handler;
+    el.addEventListener('touchstart', handler, { passive:false });
+    el.addEventListener('pointerdown', handler);
+  };
+  bind('ui-btn-quests', handlers.onQuests);
+  bind('ui-btn-store', handlers.onStore);
+  bind('ui-btn-inventory', handlers.onInventory);
+
 }
 
 export function setBottomHandlers({ onQuests, onStore, onInventory }){
