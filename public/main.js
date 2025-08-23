@@ -1,7 +1,7 @@
 
 import { initSupabase, loadOrCreatePlayer } from './src/api/supabase.js';
 import { makeLeafletGhostIconAsync, getTileId } from './src/utils.js';
-import { updatePlayerHeader } from './src/ui.js';
+import { setupUI, updatePlayerHeader, setBottomHandlers } from './src/ui.js';
 import { buildBaseLayers, spawnArEntryNear, setArEntryHandler } from './src/map/tiles.js';
 import { loadEnergyPoints } from './src/map/energy.js';
 import { quests } from './src/quests.js';
@@ -20,6 +20,8 @@ let map, playerMarker, lastTileId=null;
 
 initSupabase();
 quests.init();
+setupUI();
+
 
 (async function start(){
   const ghostIcon = await makeLeafletGhostIconAsync(1);
@@ -34,6 +36,7 @@ quests.init();
       playerMarker = L.marker([lat,lng], { icon: ghostIcon }).addTo(map).bindPopup('Вы здесь');
       lastTileId = getTileId(lat,lng);
       store.init(map, playerMarker);
+      setBottomHandlers({ onQuests: ()=>quests.openUI(), onStore: ()=>store.openStore(), onInventory: ()=>store.openInventory() });
       hotzones.init(map);
       const p = await loadOrCreatePlayer(user);
       await updatePlayerHeader({ username: user.first_name||user.username||'Игрок', level: p.level, energy: p.energy, energy_max: p.energy_max });

@@ -78,7 +78,7 @@ function clamp(v, a, b){ return Math.max(a, Math.min(b, v)); }
 // Public API
 export const quests = {
   init(){
-    ensureDaily(); ensureWeekly(); this.mountButton(); this.mountWallet();
+    ensureDaily(); ensureWeekly();
   },
   mountButton(){
     if (document.getElementById('btn-quests')) return;
