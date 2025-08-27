@@ -41,6 +41,13 @@ setBottomHandlers({ onQuests: ()=>quests.openUI(), onStore: ()=>store.openStore(
     if (!map){
       const base = buildBaseLayers();
       map = L.map('map', { center:[lat,lng], zoom:16, layers:[base.cartoDark] });
+      // OSM Buildings 3D overlay (keeps Leaflet + gameplay intact)
+      try {
+        // OSMBuildings is attached by the CDN script
+        const __osmb = new OSMBuildings(map).load();
+        window.__osmBuildings = __osmb;
+      } catch(e) { console.warn('OSM Buildings init failed', e); }
+    
       L.control.layers({ 'Carto Dark': base.cartoDark, 'OSM': base.osm, 'ESRI Спутник': base.esriSat }, null, { position:'topright', collapsed:true }).addTo(map);
       playerMarker = L.marker([lat,lng], { icon: ghostIcon }).addTo(map).bindPopup('Вы здесь');
       lastTileId = getTileId(lat,lng);
