@@ -41,10 +41,17 @@ setBottomHandlers({ onQuests: ()=>quests.openUI(), onStore: ()=>store.openStore(
     if (!map){
       const base = buildBaseLayers();
       map = L.map('map', { center:[lat,lng], zoom:16, layers:[base.cartoDark] });
-      // OSM Buildings 3D overlay (keeps Leaflet + gameplay intact)
+      // OSM Buildings 3D overlay (styled + tilted so effect is visible)
       try {
-        // OSMBuildings is attached by the CDN script
-        const __osmb = new OSMBuildings(map).load();
+        const __osmb = new OSMBuildings(map);
+        __osmb.setStyle({
+          wallColor: 'rgba(124,140,248,0.85)',
+          roofColor: 'rgba(180,200,255,0.95)',
+          fogColor: 'rgba(8,12,16,0.0)'
+        });
+        __osmb.setTilt(45);
+        __osmb.setRotation(-20);
+        __osmb.load();
         window.__osmBuildings = __osmb;
       } catch(e) { console.warn('OSM Buildings init failed', e); }
     
