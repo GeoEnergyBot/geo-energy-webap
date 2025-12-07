@@ -6,6 +6,8 @@ import { quests } from '../quests.js';
 import { anti } from '../anti.js';
 import { store } from '../store.js';
 import { hotzones } from '../hotzones.js';
+import { pickCreatureForPoint, getCreatureById } from '../data/creatures.js';
+import { bestiary } from '../bestiary.js';
 
 let energyMarkers = [];
 const IS_PROD = (typeof location!=='undefined') && (['geo-energy-webap.vercel.app'].includes(location.hostname));
@@ -92,9 +94,20 @@ export async function loadEnergyPoints(map, playerMarker, user){
 
     const points = data.points||[];
     for (const p of points){
+      const rarity = (p.type==='rare'?'rare':(p.type==='advanced'?'advanced':'common'));
+      const creatureId = pickCreatureForPoint({ rarity, seed: p.id });
+      const creature = creatureId ? getCreatureById(creatureId) : null;
+
       const marker = L.marker([p.lat, p.lng], { icon: getEnergyIcon(p.type) });
+      marker._creatureId = creatureId;
       marker.addTo(map);
-      energyMarkers.push({ id: p.id, marker, data: p });
+      if (creature){
+        try{
+          marker.bindTooltip(creature.name, { direction:'top', offset:[0,-18], opacity:0.9 });
+        }catch(_){}
+        bestiary.onEncounter(creatureId);
+      }
+      energyMarkers.push({ id: p.id, marker, data: p, creatureId });
       marker.on('click', async ()=>{
         if (isCooldown(p.id)) { alert('Подождите пару секунд...'); return; }
         if (__pending.has(p.id)) return;
@@ -106,9 +119,12 @@ export async function loadEnergyPoints(map, playerMarker, user){
 
         // ⛔ УБРАНО: дневной кап (пред-чек)
 
-        const ar = await openGhostCatch(p.type==='rare'?'rare':(p.type==='advanced'?'advanced':'common'));
+        const rarity = (p.type==='rare'?'rare':(p.type==='advanced'?'advanced':'common'));
+        const creature = marker._creatureId ? getCreatureById(marker._creatureId) : null;
+        const ar = await openGhostCatch(rarity, creature);
         if (!ar || !ar.success) return;
         quests.onARWin();
+        if (marker._creatureId){ bestiary.onCapture(marker._creatureId); }
 
         __pending.add(p.id);
         try{
@@ -130,26 +146,37 @@ export async function loadEnergyPoints(map, playerMarker, user){
           if (!collect?.success){ alert('🚫 Ошибка сбора энергии'); return; }
           quests.onCollect(p.type);
 
-          
           // remove marker on success
           const idx = energyMarkers.findIndex(x=>x.id===p.id);
           if (idx>=0){ map.removeLayer(energyMarkers[idx].marker); energyMarkers.splice(idx,1); }
 
-          // server-authoritative values
-          const pInfo = collect.player || {};
-          const newLevel = Number(pInfo.level)||Number(document.getElementById('ui-level')?.textContent||'1')||1;
-          const displayEnergy = Number(pInfo.energy ?? 0);
-          const newMax = Number(pInfo.energy_max ?? 1000);
+          // награда (без дневного лимита): база × бусты × античит
+          const base = collect.point_energy_value|0;
+          const penalty = anti.getPenalty();
+          const mult = (store.energyMultiplier()||1) * (hotzones.getBuffAt(playerPos.lat, playerPos.lng) || 1);
+          let awarded = Math.floor(base * mult);
+          if (penalty.active){ awarded = Math.floor(awarded * penalty.factor); alert('⚠️ Подозрительное перемещение — награда снижена.'); }
 
-          await updatePlayerHeader({ username: user.first_name||user.username||'Гость', level: newLevel, energy: displayEnergy, energy_max: newMax });
+          const pInfo = collect.player || { level: Number(document.getElementById('level-badge')?.textContent||'1')||1, energy_max: Number(document.getElementById('energy-max')?.textContent||'1000')||1000 };
+
+          // ⛔ УБРАНО: оставшийся кап, обрезание и накопление прогресса
+          const apply = awarded;
+
+          // display HUD energy locally (simple UX level-up)
+          const cur = Number(document.getElementById('energy-value')?.textContent||'0')||0;
+          let displayEnergy = cur + apply;
+          let newLevel = pInfo.level, newMax = pInfo.energy_max, levelUp=false;
+          if (displayEnergy >= newMax){
+            const overflow = displayEnergy - newMax;
+            newLevel += 1;
+            const inc = (newLevel<=9?1000:(newLevel<=29?2000:(newLevel<=49?3000:4000)));
+            newMax += inc; displayEnergy = overflow; levelUp=true;
+          }
+
+          await updatePlayerHeader({ username: user.first_name||user.username||'Игрок', level: newLevel, energy: displayEnergy, energy_max: newMax });
           if (playerMarker){ const icon = await makeLeafletGhostIconAsync(newLevel); playerMarker.setIcon(icon); flashPlayerMarker(playerMarker); }
 
-          // Optional toast
-          try{
-            const got = (collect.awarded ?? collect.point_energy_value ?? 0);
-            if (got>0) alert(`⚡ +${got}`);
-          }catch(_){}
-
+          alert(`⚡ База: ${base} → с бустами/штрафами: ${apply}`);
         } finally {
           __pending.delete(p.id);
         }

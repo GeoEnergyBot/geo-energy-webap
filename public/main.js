@@ -1,21 +1,14 @@
 
 import { initSupabase, loadOrCreatePlayer } from './src/api/supabase.js';
 import { makeLeafletGhostIconAsync, getTileId } from './src/utils.js';
-import { setupUI, updatePlayerHeader, setBottomHandlers } from './src/ui.js';
+import { updatePlayerHeader } from './src/ui.js';
 import { buildBaseLayers, spawnArEntryNear, setArEntryHandler } from './src/map/tiles.js';
 import { loadEnergyPoints } from './src/map/energy.js';
 import { quests } from './src/quests.js';
 import { store } from './src/store.js';
 import { hotzones } from './src/hotzones.js';
 import { anti } from './src/anti.js';
-
-// expose global fallbacks for UI buttons (works inside Telegram WebApp and if event listeners are intercepted)
-try {
-  window.__openQuests = () => { try { quests.openUI(); } catch(e){ console.warn('openQuests error', e); } };
-  window.__openStore = () => { try { store.openStore(); } catch(e){ console.warn('openStore error', e); } };
-  window.__openInventory = () => { try { store.openInventory(); } catch(e){ console.warn('openInventory error', e); } };
-} catch(_) {}
-
+import { bestiary } from './src/bestiary.js';
 
 function showFatal(msg){ try{ let el=document.getElementById('fatal'); if(!el){ el=document.createElement('div'); el.id='fatal'; Object.assign(el.style,{position:'fixed',left:'50%',top:'50%',transform:'translate(-50%,-50%)',background:'#111827',color:'#fff',padding:'16px 18px',border:'1px solid rgba(255,255,255,.2)',borderRadius:'12px',zIndex:9999,boxShadow:'0 8px 30px rgba(0,0,0,.45)'}); document.body.appendChild(el);} el.textContent=msg;}catch(e){} }
 
@@ -28,9 +21,7 @@ let map, playerMarker, lastTileId=null;
 
 initSupabase();
 quests.init();
-setupUI();
-setBottomHandlers({ onQuests: ()=>quests.openUI(), onStore: ()=>store.openStore(), onInventory: ()=>store.openInventory() });
-
+bestiary.init();
 
 (async function start(){
   const ghostIcon = await makeLeafletGhostIconAsync(1);
@@ -41,26 +32,10 @@ setBottomHandlers({ onQuests: ()=>quests.openUI(), onStore: ()=>store.openStore(
     if (!map){
       const base = buildBaseLayers();
       map = L.map('map', { center:[lat,lng], zoom:16, layers:[base.cartoDark] });
-      // OSM Buildings 3D overlay (styled + tilted so effect is visible)
-      try {
-        const __osmb = new OSMBuildings(map);
-        __osmb.setStyle({
-          wallColor: 'rgba(124,140,248,0.85)',
-          roofColor: 'rgba(180,200,255,0.95)',
-          fogColor: 'rgba(8,12,16,0.0)'
-        });
-        __osmb.setTilt(45);
-        __osmb.setRotation(-20);
-        __osmb.load();
-        window.__osmBuildings = __osmb;
-      } catch(e) { console.warn('OSM Buildings init failed', e); }
-    
       L.control.layers({ 'Carto Dark': base.cartoDark, 'OSM': base.osm, 'ESRI Спутник': base.esriSat }, null, { position:'topright', collapsed:true }).addTo(map);
       playerMarker = L.marker([lat,lng], { icon: ghostIcon }).addTo(map).bindPopup('Вы здесь');
       lastTileId = getTileId(lat,lng);
       store.init(map, playerMarker);
-      try{ window.__openQuests = ()=>quests.openUI(); window.__openStore=()=>store.openStore(); window.__openInventory=()=>store.openInventory(); }catch(_){ }
-      setBottomHandlers({ onQuests: ()=>quests.openUI(), onStore: ()=>store.openStore(), onInventory: ()=>store.openInventory() });
       hotzones.init(map);
       const p = await loadOrCreatePlayer(user);
       await updatePlayerHeader({ username: user.first_name||user.username||'Игрок', level: p.level, energy: p.energy, energy_max: p.energy_max });

@@ -71,13 +71,28 @@
 </head>
 <body>
 
+  <!-- Верхняя панель -->
+  <div id="top-bar">
+    <div id="player-icon">
+      <img id="avatar" src="https://via.placeholder.com/48" alt="avatar">
+      <div id="level-badge">1</div>
+    </div>
+    <div id="player-info">
+      <div id="username">Загрузка...</div>
+      <div id="energy-info"><span id="energy-value">0</span> / <span id="energy-max">1000</span></div>
+      <div id="energy-bar-container">
+        <div id="energy-bar-fill"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- Карта -->
   <div id="map"></div>
 
   <!-- AR-модалка (MindAR отрисует видео/канвас в #ar-stage) -->
   <div id="ar-modal" class="hidden" role="dialog" aria-label="AR режим">
     <div id="ar-header">
-      <div id="ar-title">Поймайте призрака в круг</div>
+      <div id="ar-title">Поймайте духа в круг</div>
       <div id="ar-close" title="Закрыть">Закрыть ✕</div>
     </div>
     <div id="ar-stage"></div>
@@ -86,9 +101,6 @@
 
   <!-- Leaflet -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-  <!-- OSM Buildings (GL) overlay for 3D buildings -->
-  <script src="https://cdn.osmbuildings.org/OSMBuildings-GL.min.js"></script>
 
   <!-- Three.js + MindAR (image tracking) -->
   <script src="https://unpkg.com/three@0.155.0/build/three.min.js"></script>
