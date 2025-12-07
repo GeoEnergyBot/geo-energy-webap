@@ -71,31 +71,8 @@
 </head>
 <body>
 
-  <!-- Верхняя панель -->
-  <div id="top-bar">
-    <div style="display:flex;align-items:center;flex:1;min-width:0;">
-      <div id="player-icon">
-        <img id="avatar" src="https://via.placeholder.com/48" alt="avatar">
-        <div id="level-badge">1</div>
-      </div>
-      <div id="player-info">
-        <div id="username">Загрузка...</div>
-        <div id="energy-info"><span id="energy-value">0</span> / <span id="energy-max">1000</span></div>
-        <div id="energy-bar-container">
-          <div id="energy-bar-fill"></div>
-        </div>
-      </div>
-    </div>
-    <button id="bestiary-btn" type="button">Бестиарий</button>
-  </div>
-
-
   <!-- Карта -->
-  <div id="map-wrapper">
-    <div id="map"></div>
-    <div id="map-skin"></div>
-    <div id="map-noise"></div>
-  </div>
+  <div id="map"></div>
 
   <!-- AR-модалка (MindAR отрисует видео/канвас в #ar-stage) -->
   <div id="ar-modal" class="hidden" role="dialog" aria-label="AR режим">
@@ -109,6 +86,9 @@
 
   <!-- Leaflet -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- OSM Buildings (GL) overlay for 3D buildings -->
+  <script src="https://cdn.osmbuildings.org/OSMBuildings-GL.min.js"></script>
 
   <!-- Three.js + MindAR (image tracking) -->
   <script src="https://unpkg.com/three@0.155.0/build/three.min.js"></script>
