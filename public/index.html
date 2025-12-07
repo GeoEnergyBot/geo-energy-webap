@@ -73,7 +73,7 @@
 
   <!-- Верхняя панель -->
   <div id="top-bar">
-    <div id="player-panel">
+    <div style="display:flex;align-items:center;flex:1;min-width:0;">
       <div id="player-icon">
         <img id="avatar" src="https://via.placeholder.com/48" alt="avatar">
         <div id="level-badge">1</div>
@@ -90,22 +90,14 @@
   </div>
 
 
-<!-- Карта -->
-  <div id="map"></div>
-
-  <!-- Панель духа и нижняя подсказка -->
-  <div id="spirit-panel">
-    <div class="spirit-subtitle">Место силы духа</div>
-    <div class="spirit-name" id="spirit-name">Домовой</div>
-    <div class="spirit-meta" id="spirit-meta">Обычный • Домовые</div>
-    <button id="spirit-enter-btn" type="button">Войти в мир духа</button>
+  <!-- Карта -->
+  <div id="map-wrapper">
+    <div id="map"></div>
+    <div id="map-skin"></div>
+    <div id="map-noise"></div>
   </div>
 
-  <div id="catch-hint">
-    Поймайте духа в круг
-  </div>
-
-<!-- AR-модалка (MindAR отрисует видео/канвас в #ar-stage) -->
+  <!-- AR-модалка (MindAR отрисует видео/канвас в #ar-stage) -->
   <div id="ar-modal" class="hidden" role="dialog" aria-label="AR режим">
     <div id="ar-header">
       <div id="ar-title">Поймайте призрака в круг</div>
