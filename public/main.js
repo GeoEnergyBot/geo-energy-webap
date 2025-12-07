@@ -8,7 +8,6 @@ import { quests } from './src/quests.js';
 import { store } from './src/store.js';
 import { hotzones } from './src/hotzones.js';
 import { anti } from './src/anti.js';
-import { bestiary } from './src/bestiary.js';
 
 function showFatal(msg){ try{ let el=document.getElementById('fatal'); if(!el){ el=document.createElement('div'); el.id='fatal'; Object.assign(el.style,{position:'fixed',left:'50%',top:'50%',transform:'translate(-50%,-50%)',background:'#111827',color:'#fff',padding:'16px 18px',border:'1px solid rgba(255,255,255,.2)',borderRadius:'12px',zIndex:9999,boxShadow:'0 8px 30px rgba(0,0,0,.45)'}); document.body.appendChild(el);} el.textContent=msg;}catch(e){} }
 
@@ -21,7 +20,6 @@ let map, playerMarker, lastTileId=null;
 
 initSupabase();
 quests.init();
-bestiary.init();
 
 (async function start(){
   const ghostIcon = await makeLeafletGhostIconAsync(1);

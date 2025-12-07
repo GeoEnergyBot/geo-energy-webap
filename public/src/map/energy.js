@@ -6,8 +6,6 @@ import { quests } from '../quests.js';
 import { anti } from '../anti.js';
 import { store } from '../store.js';
 import { hotzones } from '../hotzones.js';
-import { pickCreatureForPoint, getCreatureById } from '../data/creatures.js';
-import { bestiary } from '../bestiary.js';
 
 let energyMarkers = [];
 const IS_PROD = (typeof location!=='undefined') && (['geo-energy-webap.vercel.app'].includes(location.hostname));
@@ -94,20 +92,9 @@ export async function loadEnergyPoints(map, playerMarker, user){
 
     const points = data.points||[];
     for (const p of points){
-      const rarity = (p.type==='rare'?'rare':(p.type==='advanced'?'advanced':'common'));
-      const creatureId = pickCreatureForPoint({ rarity, seed: p.id });
-      const creature = creatureId ? getCreatureById(creatureId) : null;
-
       const marker = L.marker([p.lat, p.lng], { icon: getEnergyIcon(p.type) });
-      marker._creatureId = creatureId;
       marker.addTo(map);
-      if (creature){
-        try{
-          marker.bindTooltip(creature.name, { direction:'top', offset:[0,-18], opacity:0.9 });
-        }catch(_){}
-        bestiary.onEncounter(creatureId);
-      }
-      energyMarkers.push({ id: p.id, marker, data: p, creatureId });
+      energyMarkers.push({ id: p.id, marker, data: p });
       marker.on('click', async ()=>{
         if (isCooldown(p.id)) { alert('Подождите пару секунд...'); return; }
         if (__pending.has(p.id)) return;
@@ -119,12 +106,9 @@ export async function loadEnergyPoints(map, playerMarker, user){
 
         // ⛔ УБРАНО: дневной кап (пред-чек)
 
-        const rarity = (p.type==='rare'?'rare':(p.type==='advanced'?'advanced':'common'));
-        const creature = marker._creatureId ? getCreatureById(marker._creatureId) : null;
-        const ar = await openGhostCatch(rarity, creature);
+        const ar = await openGhostCatch(p.type==='rare'?'rare':(p.type==='advanced'?'advanced':'common'));
         if (!ar || !ar.success) return;
         quests.onARWin();
-        if (marker._creatureId){ bestiary.onCapture(marker._creatureId); }
 
         __pending.add(p.id);
         try{

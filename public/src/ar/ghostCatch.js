@@ -20,7 +20,7 @@ function _difficulty(rarity) {
   };
 }
 
-export async function openGhostCatch(rarity = 'common', creature = null) {
+export async function openGhostCatch(rarity = 'common') {
   if (_busy) return { success: false };
 
   // Проверяем DOM до установки _busy
@@ -48,8 +48,7 @@ export async function openGhostCatch(rarity = 'common', creature = null) {
   let cleanup = () => {};
 
   try {
-    const label = creature?.name || 'духа';
-    if (title) title.textContent = `Поймайте ${label} в круг`;
+    if (title) title.textContent = 'Поймайте призрака в круг';
     modal.classList.remove('hidden');
     window.dispatchEvent(new Event('ar:open'));
 

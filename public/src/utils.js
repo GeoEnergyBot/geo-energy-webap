@@ -38,14 +38,37 @@ export function makeLeafletGhostIcon(level){
 }
 
 
-export function getEnergyIcon(type='normal'){
-  const colors = { normal:'#22d3ee', advanced:'#8b5cf6', rare:'#f59e0b' };
-  const c = colors[type] || colors.normal;
-  const svg = encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 60 60"><defs><radialGradient id="g"><stop offset="0" stop-color="${c}" stop-opacity="0.9"/><stop offset="1" stop-color="${c}" stop-opacity="0.2"/></radialGradient></defs><circle cx="30" cy="30" r="18" fill="url(#g)" stroke="${c}" stroke-opacity="0.9"/></svg>`);
-  const url = 'data:image/svg+xml;utf8,' + svg;
-  return L.icon({ iconUrl:url, iconSize:[30,30], iconAnchor:[15,15] });
-}
 
+export function getEnergyIcon(type='normal'){
+  const palette = {
+    normal: { ring:'#f4b857' },
+    advanced: { ring:'#60a5fa' },
+    rare: { ring:'#f97316' }
+  };
+  const p = palette[type] || palette.normal;
+  const svg = encodeURIComponent(`
+    <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+      <defs>
+        <radialGradient id="bg" cx="50%" cy="40%" r="55%">
+          <stop offset="0%" stop-color="#1f2933"/>
+          <stop offset="60%" stop-color="#111827"/>
+          <stop offset="100%" stop-color="#020617"/>
+        </radialGradient>
+      </defs>
+      <circle cx="32" cy="32" r="22" fill="url(#bg)" stroke="${p.ring}" stroke-width="3" />
+      <circle cx="24" cy="26" r="3" fill="${p.ring}" />
+      <circle cx="40" cy="26" r="3" fill="${p.ring}" />
+      <path d="M22 36 Q32 42 42 36" fill="none" stroke="${p.ring}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  `.trim());
+  const url = 'data:image/svg+xml;utf8,' + svg;
+  return L.icon({
+    iconUrl: url,
+    iconSize: [40, 40],
+    iconAnchor: [20, 20],
+    className: 'spirit-icon'
+  });
+}
 
 export function getTileId(lat,lng){
   const z=15; const n=1<<z;
